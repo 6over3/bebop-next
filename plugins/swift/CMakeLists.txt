@@ -4,6 +4,24 @@ if(NOT SWIFT_EXECUTABLE)
     return()
 endif()
 
+execute_process(
+    COMMAND ${SWIFT_EXECUTABLE} --version
+    OUTPUT_VARIABLE SWIFT_VERSION_OUTPUT
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(SWIFT_VERSION_OUTPUT MATCHES "Swift version ([0-9]+)\\.([0-9]+)")
+    set(SWIFT_VERSION_MAJOR ${CMAKE_MATCH_1})
+    set(SWIFT_VERSION_MINOR ${CMAKE_MATCH_2})
+    if(SWIFT_VERSION_MAJOR LESS 6 OR (SWIFT_VERSION_MAJOR EQUAL 6 AND SWIFT_VERSION_MINOR LESS 2))
+        message(STATUS "Swift ${SWIFT_VERSION_MAJOR}.${SWIFT_VERSION_MINOR} found, need 6.2+, skipping bebopc-gen-swift")
+        return()
+    endif()
+else()
+    message(STATUS "Could not determine Swift version, skipping bebopc-gen-swift")
+    return()
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(SWIFT_BUILD_CONFIG release)
 else()
