@@ -381,7 +381,7 @@ void test_parse_exclude(void)
 
 void test_parse_option_key_value(void)
 {
-  char* argv[] = {"bebopc", "build", "-o", "namespace=MyApp"};
+  char* argv[] = {"bebopc", "build", "-D", "namespace=MyApp"};
   cli_args_t args;
   const char* error = NULL;
 
