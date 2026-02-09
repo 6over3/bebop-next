@@ -9,12 +9,12 @@ set(LUA_CORE_SRC
     ltable.c ltablib.c ltm.c lundump.c lutf8lib.c lvm.c lzio.c
 )
 
-add_library(lua STATIC ${LUA_CORE_SRC})
+add_library(lua OBJECT ${LUA_CORE_SRC})
 target_include_directories(lua PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(UNIX AND NOT APPLE)
     target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
-    target_link_libraries(lua PRIVATE m dl)
+    target_link_libraries(lua PUBLIC m dl)
 elseif(APPLE)
     target_compile_definitions(lua PRIVATE LUA_USE_MACOSX)
 endif()

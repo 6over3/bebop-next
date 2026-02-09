@@ -32,6 +32,7 @@ endif()
 function(bebop_add_internal_test name)
     add_executable(test_${name} test_${name}.c)
     target_link_libraries(test_${name} PRIVATE lua unity)
+    target_sources(test_${name} PRIVATE $<TARGET_OBJECTS:lua>)
     target_include_directories(test_${name} PRIVATE
         ${CMAKE_SOURCE_DIR}/bebop/src
         ${CMAKE_SOURCE_DIR}/bebop/include

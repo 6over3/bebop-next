@@ -1,0 +1,34 @@
+extension InlineArray: @retroactive Equatable where Element: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        for i in 0..<count {
+            if lhs[i] != rhs[i] { return false }
+        }
+        return true
+    }
+}
+
+extension InlineArray: @retroactive Hashable where Element: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        for i in 0..<count {
+            hasher.combine(self[i])
+        }
+    }
+}
+
+extension InlineArray: @retroactive Encodable where Element: Encodable {
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        for i in 0..<count {
+            try container.encode(self[i])
+        }
+    }
+}
+
+extension InlineArray: @retroactive Decodable where Element: Decodable {
+    public init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        self = try InlineArray { _ in
+            try container.decode(Element.self)
+        }
+    }
+}

@@ -21,6 +21,7 @@ target_include_directories(bebop
         ${CMAKE_SOURCE_DIR}/vendor/lua
 )
 
+target_sources(bebop PRIVATE $<TARGET_OBJECTS:lua>)
 target_link_libraries(bebop PRIVATE lua)
 
 if(WIN32)

@@ -17,7 +17,7 @@ set(BEBOPC_SOURCES
 
 add_executable(bebopc ${BEBOPC_SOURCES})
 
-target_link_libraries(bebopc PRIVATE bebop::bebop cyaml::cyaml beboplsp)
+target_link_libraries(bebopc PRIVATE cyaml::cyaml beboplsp)
 
 target_include_directories(bebopc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
