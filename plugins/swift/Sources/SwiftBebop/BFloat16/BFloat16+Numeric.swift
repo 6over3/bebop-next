@@ -1,5 +1,3 @@
-import CBFloat16
-
 extension BFloat16: ExpressibleByIntegerLiteral {
     @inlinable @inline(__always)
     public init(integerLiteral value: Float.IntegerLiteralType) {
@@ -10,12 +8,12 @@ extension BFloat16: ExpressibleByIntegerLiteral {
 extension BFloat16: AdditiveArithmetic {
     @inlinable @inline(__always)
     public static func + (lhs: BFloat16, rhs: BFloat16) -> BFloat16 {
-        BFloat16(bitPattern: cbfloat16_add(lhs._value, rhs._value))
+        BFloat16(Float(lhs) + Float(rhs))
     }
 
     @inlinable @inline(__always)
     public static func - (lhs: BFloat16, rhs: BFloat16) -> BFloat16 {
-        BFloat16(bitPattern: cbfloat16_sub(lhs._value, rhs._value))
+        BFloat16(Float(lhs) - Float(rhs))
     }
 }
 
@@ -29,12 +27,12 @@ extension BFloat16: Numeric {
 
     @inlinable @inline(__always)
     public var magnitude: BFloat16 {
-        BFloat16(bitPattern: cbfloat16_abs(_value))
+        BFloat16(bitPattern: _value & 0x7FFF)
     }
 
     @inlinable @inline(__always)
     public static func * (lhs: BFloat16, rhs: BFloat16) -> BFloat16 {
-        BFloat16(bitPattern: cbfloat16_mul(lhs._value, rhs._value))
+        BFloat16(Float(lhs) * Float(rhs))
     }
 
     @inlinable @inline(__always)
@@ -46,7 +44,7 @@ extension BFloat16: Numeric {
 extension BFloat16: SignedNumeric {
     @inlinable @inline(__always)
     public prefix static func - (operand: BFloat16) -> BFloat16 {
-        BFloat16(bitPattern: cbfloat16_neg(operand._value))
+        BFloat16(bitPattern: operand._value ^ 0x8000)
     }
 
     @inlinable @inline(__always)

@@ -113,7 +113,7 @@ extension BFloat16: FloatingPoint {
 
     @inlinable @inline(__always)
     public static func / (lhs: BFloat16, rhs: BFloat16) -> BFloat16 {
-        BFloat16(bitPattern: cbfloat16_div(lhs._value, rhs._value))
+        BFloat16(Float(lhs) / Float(rhs))
     }
 
     @inlinable @inline(__always)
@@ -137,12 +137,14 @@ extension BFloat16: FloatingPoint {
 
     @inlinable @inline(__always)
     public mutating func formSquareRoot() {
-        _value = cbfloat16_sqrt(_value)
+        self = BFloat16(Float(self).squareRoot())
     }
 
     @inlinable @inline(__always)
     public mutating func addProduct(_ lhs: BFloat16, _ rhs: BFloat16) {
-        _value = cbfloat16_fma(lhs._value, rhs._value, _value)
+        var f = Float(self)
+        f.addProduct(Float(lhs), Float(rhs))
+        self = BFloat16(f)
     }
 
     @inlinable @inline(__always)
@@ -165,17 +167,17 @@ extension BFloat16: FloatingPoint {
 
     @inlinable @inline(__always)
     public func isEqual(to other: BFloat16) -> Bool {
-        cbfloat16_equal(_value, other._value)
+        Float(self) == Float(other)
     }
 
     @inlinable @inline(__always)
     public func isLess(than other: BFloat16) -> Bool {
-        cbfloat16_lt(_value, other._value)
+        Float(self) < Float(other)
     }
 
     @inlinable @inline(__always)
     public func isLessThanOrEqualTo(_ other: BFloat16) -> Bool {
-        cbfloat16_lte(_value, other._value)
+        Float(self) <= Float(other)
     }
 
     @inlinable

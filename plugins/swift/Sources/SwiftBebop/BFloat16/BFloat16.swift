@@ -1,5 +1,3 @@
-import CBFloat16
-
 /// A half-precision brain floating-point value type (bfloat16).
 ///
 /// `BFloat16` uses the same 8-bit exponent as `Float` but only 7 bits of
@@ -16,7 +14,7 @@ public struct BFloat16: Sendable, BitwiseCopyable {
         _value = 0
     }
 
-    /// Create a `BFloat16` from its 16-bit IEEE 754 representation.
+    /// Create a `BFloat16` from its raw 16-bit storage representation.
     @inlinable @inline(__always)
     public init(bitPattern: UInt16) {
         _value = bitPattern
