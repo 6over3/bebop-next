@@ -1,5 +1,4 @@
 import BebopPlugin
-@_spi(RawSyntax) import SwiftSyntax
 
 enum NamingPolicy {
     static func typeName(_ name: String) -> String {
@@ -104,24 +103,17 @@ enum NamingPolicy {
         return result
     }
 
-    private static let hardKeywords: Set<Keyword> = [
-        .Any, .as, .associatedtype, .break, .case, .catch, .class, .continue,
-        .default, .defer, .deinit, .do, .else, .enum, .extension, .fallthrough,
-        .false, .fileprivate, .for, .func, .guard, .if, .import, .in, .`init`,
-        .inout, .internal, .is, .let, .nil, .operator, .precedencegroup,
-        .private, .protocol, .public, .repeat, .rethrows, .return, .self,
-        .Self, .static, .struct, .subscript, .super, .switch, .throw, .throws,
-        .true, .try, .typealias, .var, .where, .while,
+    private static let hardKeywords: Set<String> = [
+        "Any", "as", "associatedtype", "break", "case", "catch", "class", "continue",
+        "default", "defer", "deinit", "do", "else", "enum", "extension", "fallthrough",
+        "false", "fileprivate", "for", "func", "guard", "if", "import", "in", "init",
+        "inout", "internal", "is", "let", "nil", "operator", "precedencegroup",
+        "private", "protocol", "public", "repeat", "rethrows", "return", "self",
+        "Self", "static", "struct", "subscript", "super", "switch", "throw", "throws",
+        "true", "try", "typealias", "var", "where", "while",
     ]
 
     private static func escapeKeyword(_ name: String) -> String {
-        var name = name
-        let needsEscape = name.withUTF8 { buf in
-            guard let kw = Keyword(SyntaxText(baseAddress: buf.baseAddress, count: buf.count)) else {
-                return false
-            }
-            return hardKeywords.contains(kw)
-        }
-        return needsEscape ? "`\(name)`" : name
+        hardKeywords.contains(name) ? "`\(name)`" : name
     }
 }

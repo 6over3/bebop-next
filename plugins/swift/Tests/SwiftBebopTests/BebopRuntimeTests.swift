@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import SwiftBebop
+import SwiftBebopFoundation
 
 // MARK: - Helpers
 
@@ -302,15 +303,28 @@ private func roundTrip<T>(
 // MARK: - UUID
 
 @Test func uuid() throws {
-    let id = UUID()
+    let id = BebopUUID(uuidString: "A1B2C3D4-E5F6-7890-1234-567890ABCDEF")!
     let r = try roundTrip({ $0.writeUUID(id) }, read: { try $0.readUUID() })
     #expect(r == id)
 }
 
 @Test func uuidKnownBytes() throws {
-    let id = UUID(uuidString: "12345678-1234-1234-1234-123456789ABC")!
+    let id = BebopUUID(uuidString: "12345678-1234-1234-1234-123456789ABC")!
     let r = try roundTrip({ $0.writeUUID(id) }, read: { try $0.readUUID() })
     #expect(r == id)
+}
+
+@Test func uuidStringRoundTrip() throws {
+    let str = "12345678-1234-1234-1234-123456789ABC"
+    let id = BebopUUID(uuidString: str)!
+    #expect(id.uuidString == str)
+}
+
+@Test func uuidFoundationBridge() throws {
+    let fid = UUID()
+    let bid = BebopUUID(fid)
+    let back = UUID(bid)
+    #expect(fid == back)
 }
 
 // MARK: - Timestamp
@@ -464,7 +478,7 @@ private func roundTrip<T>(
 // MARK: - Sequential Multi-Type
 
 @Test func mixedTypes() throws {
-    let id = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    let id = BebopUUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     var writer = BebopWriter()
     writer.writeBool(true)
     writer.writeInt8(-42)

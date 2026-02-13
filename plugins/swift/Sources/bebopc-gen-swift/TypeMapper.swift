@@ -34,7 +34,7 @@ enum TypeMapper {
         case .float64: return "Double"
         case .bfloat16: return "BFloat16"
         case .string: return "String"
-        case .uuid: return "UUID"
+        case .uuid: return "BebopUUID"
         case .timestamp: return "BebopTimestamp"
         case .duration: return "Duration"
         case .array:

@@ -1,9 +1,7 @@
-import SwiftSyntax
-import SwiftSyntaxBuilder
 import BebopPlugin
 
 enum GenerateConst {
-    static func generate(_ def: DefinitionDescriptor, options: GeneratorOptions) throws -> [DeclSyntax] {
+    static func generate(_ def: DefinitionDescriptor, options: GeneratorOptions) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("const missing name")
         }
@@ -22,7 +20,7 @@ enum GenerateConst {
         let vis = effectiveVisibility(for: def, options: options)
         let prefix = docComment(def.documentation)
 
-        return [DeclSyntax("\(raw: prefix)\(raw: vis)let \(raw: name): \(raw: swiftType) = \(raw: literal)")]
+        return ["\(prefix)\(vis)let \(name): \(swiftType) = \(literal)"]
     }
 
     private static func literalExpression(_ value: LiteralValue, constName: String) throws -> String {
@@ -60,7 +58,7 @@ enum GenerateConst {
             guard let v = value.uuidValue else {
                 throw CodegenError.malformedDefinition("const '\(constName)' uuid literal missing value")
             }
-            return "UUID(uuidString: \"\(v.uuidString)\")!"
+            return "BebopUUID(uuidString: \"\(v.uuidString)\")!"
         default:
             throw CodegenError.malformedDefinition("const '\(constName)' unsupported literal kind \(kind.rawValue)")
         }

@@ -1,4 +1,16 @@
-import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Bionic)
+import Bionic
+#elseif os(WASI)
+import WASILibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Android)
+import Android
+#endif
 
 /// Write Bebop wire-format data into a growable byte buffer.
 ///
@@ -207,9 +219,9 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     // MARK: - UUID
 
     @inlinable
-    public mutating func writeUUID(_ value: UUID) {
+    public mutating func writeUUID(_ value: BebopUUID) {
         ensureCapacity(for: 16)
-        Swift.withUnsafeBytes(of: value.uuid) { src in
+        Swift.withUnsafeBytes(of: value) { src in
             (storage + _count).copyMemory(from: src.baseAddress!, byteCount: 16)
         }
         _count &+= 16
@@ -246,9 +258,9 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     // MARK: - InlineArray
 
-    /// Bulk-write a fixed-size `InlineArray` of `BitwiseCopyable` elements via memcpy.
+    /// Bulk-write a fixed-size `InlineArray` of `BebopScalar` elements via memcpy.
     @inlinable
-    public mutating func writeInlineArray<let N: Int, T: BitwiseCopyable>(
+    public mutating func writeInlineArray<let N: Int, T: BebopScalar>(
         _ array: InlineArray<N, T>
     ) {
         let byteCount = N &* MemoryLayout<T>.stride
@@ -273,18 +285,6 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
         }
     }
 
-    // MARK: - Data
-
-    @inlinable
-    public mutating func writeData(_ data: Data) {
-        guard !data.isEmpty else { return }
-        ensureCapacity(for: data.count)
-        data.withUnsafeBytes { buf in
-            (storage + _count).copyMemory(from: buf.baseAddress!, byteCount: buf.count)
-        }
-        _count &+= data.count
-    }
-
     // MARK: - Bulk
 
     @inlinable
@@ -305,7 +305,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     /// Only valid for types whose in-memory layout matches the Bebop
     /// little-endian wire format (fixed-width integers and IEEE floats).
     @inlinable
-    public mutating func writeArray<T: BitwiseCopyable>(_ values: [T]) {
+    public mutating func writeArray<T: BebopScalar>(_ values: [T]) {
         let byteCount = values.count &* MemoryLayout<T>.stride
         guard byteCount > 0 else { return }
         ensureCapacity(for: byteCount)
@@ -352,7 +352,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     }
 
     @inlinable
-    public mutating func writeLengthPrefixedArray<T: BitwiseCopyable>(_ values: [T]) {
+    public mutating func writeLengthPrefixedArray<T: BebopScalar>(_ values: [T]) {
         writeUInt32(UInt32(values.count))
         writeArray(values)
     }

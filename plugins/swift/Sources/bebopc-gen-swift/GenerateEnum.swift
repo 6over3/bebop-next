@@ -1,9 +1,7 @@
-import SwiftSyntax
-import SwiftSyntaxBuilder
 import BebopPlugin
 
 enum GenerateEnum {
-    static func generate(_ def: DefinitionDescriptor, options: GeneratorOptions) throws -> [DeclSyntax] {
+    static func generate(_ def: DefinitionDescriptor, options: GeneratorOptions) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("enum missing name")
         }
@@ -39,7 +37,7 @@ enum GenerateEnum {
         baseType: String,
         readMethod: String,
         writeMethod: String
-    ) throws -> [DeclSyntax] {
+    ) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("enum missing name")
         }
@@ -63,38 +61,34 @@ enum GenerateEnum {
             )
         }
 
-        let structDecl = try StructDeclSyntax(
-            "\(raw: prefix)\(raw: vis)struct \(raw: name): RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable"
-        ) {
-            DeclSyntax("\(raw: vis)let rawValue: \(raw: baseType)")
-            DeclSyntax("\(raw: vis)init(rawValue: \(raw: baseType)) { self.rawValue = rawValue }")
+        var body: [String] = []
+        body.append("\(vis)let rawValue: \(baseType)")
+        body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
-            for m in memberDecls {
-                DeclSyntax(
-                    "\(raw: m.prefix)\(raw: vis)static let \(raw: m.caseName) = \(raw: name)(rawValue: \(raw: m.literal))"
-                )
-            }
-
-            try FunctionDeclSyntax(
-                "\(raw: vis)static func decode(from reader: inout BebopReader) throws -> \(raw: name)"
-            ) {
-                StmtSyntax(
-                    "return \(raw: name)(rawValue: try reader.\(raw: readMethod)())"
-                )
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func encode(to writer: inout BebopWriter)") {
-                ExprSyntax("writer.\(raw: writeMethod)(rawValue)")
-            }
-
-            DeclSyntax("\(raw: vis)var encodedSize: Int { \(raw: String(encodedSize)) }")
-
-            DeclSyntax(
-                "\(raw: vis)static let bebopReflection = BebopTypeReflection(name: \(literal: defName), fqn: \(literal: defFqn), kind: .enum, detail: .enum(EnumReflection(members: [\(raw: try reflectionMembers(members, enumName: defName))], isFlags: false)))"
-            )
+        for m in memberDecls {
+            body.append("\(m.prefix)\(vis)static let \(m.caseName) = \(name)(rawValue: \(m.literal))")
         }
 
-        return [DeclSyntax(structDecl)]
+        body.append("""
+        \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
+            return \(name)(rawValue: try reader.\(readMethod)())
+        }
+        """)
+
+        body.append("""
+        \(vis)func encode(to writer: inout BebopWriter) {
+            writer.\(writeMethod)(rawValue)
+        }
+        """)
+
+        body.append("\(vis)var encodedSize: Int { \(String(encodedSize)) }")
+
+        body.append(
+            "\(vis)static let bebopReflection = BebopTypeReflection(name: \(quoted(defName)), fqn: \(quoted(defFqn)), kind: .enum, detail: .enum(EnumReflection(members: [\(try reflectionMembers(members, enumName: defName))], isFlags: false)))"
+        )
+
+        let bodyStr = body.map { indent($0) }.joined(separator: "\n")
+        return ["\(prefix)\(vis)struct \(name): RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {\n\(bodyStr)\n}"]
     }
 
     private static func generateFlags(
@@ -106,7 +100,7 @@ enum GenerateEnum {
         baseType: String,
         readMethod: String,
         writeMethod: String
-    ) throws -> [DeclSyntax] {
+    ) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("enum missing name")
         }
@@ -131,48 +125,48 @@ enum GenerateEnum {
             )
         }
 
-        let structDecl = try StructDeclSyntax(
-            "\(raw: prefix)\(raw: vis)struct \(raw: name): OptionSet, Sendable, BebopRecord, BebopReflectable"
-        ) {
-            DeclSyntax("\(raw: vis)let rawValue: \(raw: baseType)")
-            DeclSyntax("\(raw: vis)init(rawValue: \(raw: baseType)) { self.rawValue = rawValue }")
+        var body: [String] = []
+        body.append("\(vis)let rawValue: \(baseType)")
+        body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
-            for m in memberDecls where m.value != 0 {
-                DeclSyntax(
-                    "\(raw: m.prefix)\(raw: vis)static let \(raw: m.caseName) = \(raw: name)(rawValue: \(raw: m.literal))"
-                )
-            }
-
-            try FunctionDeclSyntax(
-                "\(raw: vis)static func decode(from reader: inout BebopReader) throws -> \(raw: name)"
-            ) {
-                StmtSyntax(
-                    "return \(raw: name)(rawValue: try reader.\(raw: readMethod)())"
-                )
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func encode(to writer: inout BebopWriter)") {
-                ExprSyntax("writer.\(raw: writeMethod)(rawValue)")
-            }
-
-            DeclSyntax("\(raw: vis)var encodedSize: Int { \(raw: String(encodedSize)) }")
-
-            try InitializerDeclSyntax("\(raw: vis)init(from decoder: Decoder) throws") {
-                DeclSyntax("let container = try decoder.singleValueContainer()")
-                ExprSyntax("self.rawValue = try container.decode(\(raw: baseType).self)")
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func encode(to encoder: Encoder) throws") {
-                DeclSyntax("var container = encoder.singleValueContainer()")
-                ExprSyntax("try container.encode(rawValue)")
-            }
-
-            DeclSyntax(
-                "\(raw: vis)static let bebopReflection = BebopTypeReflection(name: \(literal: defName), fqn: \(literal: defFqn), kind: .enum, detail: .enum(EnumReflection(members: [\(raw: try reflectionMembers(members, enumName: defName))], isFlags: true)))"
-            )
+        for m in memberDecls where m.value != 0 {
+            body.append("\(m.prefix)\(vis)static let \(m.caseName) = \(name)(rawValue: \(m.literal))")
         }
 
-        return [DeclSyntax(structDecl)]
+        body.append("""
+        \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
+            return \(name)(rawValue: try reader.\(readMethod)())
+        }
+        """)
+
+        body.append("""
+        \(vis)func encode(to writer: inout BebopWriter) {
+            writer.\(writeMethod)(rawValue)
+        }
+        """)
+
+        body.append("\(vis)var encodedSize: Int { \(String(encodedSize)) }")
+
+        body.append("""
+        \(vis)init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            self.rawValue = try container.decode(\(baseType).self)
+        }
+        """)
+
+        body.append("""
+        \(vis)func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+        """)
+
+        body.append(
+            "\(vis)static let bebopReflection = BebopTypeReflection(name: \(quoted(defName)), fqn: \(quoted(defFqn)), kind: .enum, detail: .enum(EnumReflection(members: [\(try reflectionMembers(members, enumName: defName))], isFlags: true)))"
+        )
+
+        let bodyStr = body.map { indent($0) }.joined(separator: "\n")
+        return ["\(prefix)\(vis)struct \(name): OptionSet, Sendable, BebopRecord, BebopReflectable {\n\(bodyStr)\n}"]
     }
 
     private static func enumMemberLiteral(_ value: UInt64, baseKind: TypeKind) -> String {

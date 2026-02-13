@@ -1,12 +1,9 @@
 import CBFloat16
-#if canImport(Foundation)
-import Foundation
-#endif
 
 extension Float {
     @inlinable @inline(__always)
     public init(_ value: BFloat16) {
-        self = cbfloat16_to_float(value._value)
+        self = Float(bitPattern: UInt32(value._value) << 16)
     }
 
     public init?(exactly other: BFloat16) {
@@ -49,23 +46,3 @@ extension BinaryInteger {
         self = value
     }
 }
-
-#if canImport(Foundation)
-extension BFloat16 {
-    public init?(exactly other: CGFloat) {
-        self = BFloat16(other)
-        guard CGFloat(self) == other else { return nil }
-    }
-}
-
-extension CGFloat {
-    public init(_ other: BFloat16) {
-        self.init(NativeType(other))
-    }
-
-    public init?(exactly other: BFloat16) {
-        self.init(NativeType(other))
-        guard BFloat16(self) == other else { return nil }
-    }
-}
-#endif

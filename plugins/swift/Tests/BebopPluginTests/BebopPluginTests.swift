@@ -190,7 +190,7 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
 }
 
 @Test func literalValueUUID() throws {
-    let id = UUID(uuidString: "12345678-1234-5678-1234-567812345678")!
+    let id = BebopUUID(uuidString: "12345678-1234-5678-1234-567812345678")!
     let v = LiteralValue(kind: .uuid, uuidValue: id)
     let decoded = try roundTrip(v)
     #expect(decoded.kind == .uuid)

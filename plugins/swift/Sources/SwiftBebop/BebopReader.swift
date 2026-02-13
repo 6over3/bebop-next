@@ -1,5 +1,3 @@
-import Foundation
-
 /// Read Bebop wire-format data from a raw byte buffer.
 ///
 /// All multi-byte values are read little-endian. The reader tracks a current
@@ -169,11 +167,11 @@ public struct BebopReader: @unchecked Sendable {
     // MARK: - UUID
 
     @inlinable
-    public mutating func readUUID() throws -> UUID {
+    public mutating func readUUID() throws -> BebopUUID {
         try ensureBytes(16)
-        let bytes = base.loadUnaligned(fromByteOffset: offset, as: uuid_t.self)
+        let uuid = base.loadUnaligned(fromByteOffset: offset, as: BebopUUID.self)
         offset &+= 16
-        return UUID(uuid: bytes)
+        return uuid
     }
 
     // MARK: - Timestamp & Duration
@@ -220,7 +218,7 @@ public struct BebopReader: @unchecked Sendable {
     /// Only valid for types whose in-memory layout matches the Bebop
     /// little-endian wire format (fixed-width integers and IEEE floats).
     @inlinable
-    public mutating func readArray<T: BitwiseCopyable>(_ count: Int, of type: T.Type) throws -> [T] {
+    public mutating func readArray<T: BebopScalar>(_ count: Int, of type: T.Type) throws -> [T] {
         let byteCount = count &* MemoryLayout<T>.stride
         try ensureBytes(byteCount)
         let src = base + offset
@@ -237,9 +235,9 @@ public struct BebopReader: @unchecked Sendable {
 
     // MARK: - InlineArray
 
-    /// Bulk-read a fixed-size `InlineArray` of `BitwiseCopyable` elements via memcpy.
+    /// Bulk-read a fixed-size `InlineArray` of `BebopScalar` elements via memcpy.
     @inlinable
-    public mutating func readInlineArray<let N: Int, T: BitwiseCopyable>(
+    public mutating func readInlineArray<let N: Int, T: BebopScalar>(
         of type: T.Type
     ) throws -> InlineArray<N, T> {
         let byteCount = N &* MemoryLayout<T>.stride
@@ -257,16 +255,6 @@ public struct BebopReader: @unchecked Sendable {
         var reader = self
         let result = try InlineArray<N, T> { _ in try body(&reader) }
         self = reader
-        return result
-    }
-
-    // MARK: - Data
-
-    @inlinable
-    public mutating func readData(_ count: Int) throws -> Data {
-        try ensureBytes(count)
-        let result = Data(bytes: base + offset, count: count)
-        offset &+= count
         return result
     }
 
@@ -316,7 +304,7 @@ public struct BebopReader: @unchecked Sendable {
     // MARK: - Collection helpers (length prefix)
 
     @inlinable
-    public mutating func readLengthPrefixedArray<T: BitwiseCopyable>(of type: T.Type) throws -> [T] {
+    public mutating func readLengthPrefixedArray<T: BebopScalar>(of type: T.Type) throws -> [T] {
         let count = Int(try readUInt32())
         return try readArray(count, of: type)
     }

@@ -1,9 +1,7 @@
-import SwiftSyntax
-import SwiftSyntaxBuilder
 import BebopPlugin
 
 enum GenerateStruct {
-    static func generate(_ def: DefinitionDescriptor, nested: [DeclSyntax] = [], options: GeneratorOptions) throws -> [DeclSyntax] {
+    static func generate(_ def: DefinitionDescriptor, nested: [String] = [], options: GeneratorOptions) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("struct missing name")
         }
@@ -35,60 +33,62 @@ enum GenerateStruct {
             )
         }
 
-        let structDecl = try StructDeclSyntax(
-            "\(raw: prefix)\(raw: vis)struct \(raw: name): BebopRecord, BebopReflectable"
-        ) {
-            for f in fieldDecls {
-                DeclSyntax("\(raw: f.doc)\(raw: vis)\(raw: binding) \(raw: f.swiftName): \(raw: f.swiftType)")
-            }
+        var body: [String] = []
 
-            if !fieldDecls.isEmpty {
-                let ckFields = fieldDecls.map { (swiftName: $0.swiftName, originalName: $0.name) }
-                DeclSyntax("\(raw: codingKeysDecl(ckFields))")
-            }
-
-            try FunctionDeclSyntax(
-                "\(raw: vis)static func decode(from reader: inout BebopReader) throws -> \(raw: name)"
-            ) {
-                for f in fieldDecls {
-                    let readExpr = try TypeMapper.readExpression(for: f.type)
-                    DeclSyntax("let \(raw: f.swiftName) = \(raw: readExpr)")
-                }
-                let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
-                StmtSyntax("return \(raw: name)(\(raw: args))")
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func encode(to writer: inout BebopWriter)") {
-                for f in fieldDecls {
-                    let writeExpr = try TypeMapper.writeExpression(for: f.type, value: f.swiftName)
-                    ExprSyntax("\(raw: writeExpr)")
-                }
-            }
-
-            let fixedSizes = fieldDecls.compactMap { TypeMapper.fixedSize(for: $0.type) }
-            if fixedSizes.count == fieldDecls.count {
-                DeclSyntax("\(raw: vis)var encodedSize: Int { \(raw: String(fixedSizes.reduce(0, +))) }")
-            } else {
-                try VariableDeclSyntax("\(raw: vis)var encodedSize: Int") {
-                    DeclSyntax("var size = 0")
-                    for f in fieldDecls {
-                        let expr = try TypeMapper.sizeExpression(for: f.type, value: f.swiftName)
-                        ExprSyntax("size += \(raw: expr)")
-                    }
-                    StmtSyntax("return size")
-                }
-            }
-
-            DeclSyntax(
-                "\(raw: vis)static let bebopReflection = BebopTypeReflection(name: \(literal: defName), fqn: \(literal: defFqn), kind: .struct, detail: .struct(StructReflection(fields: [\(raw: reflectionFields(fieldDecls))])))"
-            )
-
-            for decl in nested {
-                decl
-            }
+        for f in fieldDecls {
+            body.append("\(f.doc)\(vis)\(binding) \(f.swiftName): \(f.swiftType)")
         }
 
-        return [DeclSyntax(structDecl)]
+        if !fieldDecls.isEmpty {
+            let ckFields = fieldDecls.map { (swiftName: $0.swiftName, originalName: $0.name) }
+            body.append(codingKeysDecl(ckFields))
+        }
+
+        // decode
+        var decodeBody: [String] = []
+        for f in fieldDecls {
+            let readExpr = try TypeMapper.readExpression(for: f.type)
+            decodeBody.append("let \(f.swiftName) = \(readExpr)")
+        }
+        let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
+        decodeBody.append("return \(name)(\(args))")
+        let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {\n\(decodeBodyStr)\n}")
+
+        // encode
+        var encodeBody: [String] = []
+        for f in fieldDecls {
+            let writeExpr = try TypeMapper.writeExpression(for: f.type, value: f.swiftName)
+            encodeBody.append(writeExpr)
+        }
+        let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
+
+        // encodedSize
+        let fixedSizes = fieldDecls.compactMap { TypeMapper.fixedSize(for: $0.type) }
+        if fixedSizes.count == fieldDecls.count {
+            body.append("\(vis)var encodedSize: Int { \(String(fixedSizes.reduce(0, +))) }")
+        } else {
+            var sizeBody: [String] = ["var size = 0"]
+            for f in fieldDecls {
+                let expr = try TypeMapper.sizeExpression(for: f.type, value: f.swiftName)
+                sizeBody.append("size += \(expr)")
+            }
+            sizeBody.append("return size")
+            let sizeBodyStr = sizeBody.map { indent($0) }.joined(separator: "\n")
+            body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
+        }
+
+        body.append(
+            "\(vis)static let bebopReflection = BebopTypeReflection(name: \(quoted(defName)), fqn: \(quoted(defFqn)), kind: .struct, detail: .struct(StructReflection(fields: [\(reflectionFields(fieldDecls))])))"
+        )
+
+        for decl in nested {
+            body.append(decl)
+        }
+
+        let bodyStr = body.map { indent($0) }.joined(separator: "\n")
+        return ["\(prefix)\(vis)struct \(name): BebopRecord, BebopReflectable {\n\(bodyStr)\n}"]
     }
 
     private static func reflectionFields(_ fields: [(name: String, swiftName: String, type: TypeDescriptor, swiftType: String, doc: String)]) -> String {

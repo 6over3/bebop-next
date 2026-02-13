@@ -1,9 +1,7 @@
-import SwiftSyntax
-import SwiftSyntaxBuilder
 import BebopPlugin
 
 enum GenerateMessage {
-    static func generate(_ def: DefinitionDescriptor, nested: [DeclSyntax] = [], options: GeneratorOptions) throws -> [DeclSyntax] {
+    static func generate(_ def: DefinitionDescriptor, nested: [String] = [], options: GeneratorOptions) throws -> [String] {
         guard let defName = def.name else {
             throw CodegenError.malformedDefinition("message missing name")
         }
@@ -38,131 +36,111 @@ enum GenerateMessage {
             )
         }
 
-        let classDecl = try ClassDeclSyntax(
-            "\(raw: prefix)\(raw: vis)final class \(raw: name): BebopRecord, BebopReflectable, @unchecked Sendable"
-        ) {
-            for f in fieldDecls {
-                DeclSyntax("\(raw: f.prefix)\(raw: vis)var \(raw: f.swiftName): \(raw: f.swiftType)?")
-            }
+        var body: [String] = []
 
-            let initParams = fieldDecls.map { "\($0.swiftName): \($0.swiftType)? = nil" }.joined(separator: ", ")
-            try InitializerDeclSyntax("\(raw: vis)init(\(raw: initParams))") {
-                for f in fieldDecls {
-                    ExprSyntax("self.\(raw: f.swiftName) = \(raw: f.swiftName)")
-                }
-            }
-
-            let eqExpr = fieldDecls.map { "lhs.\($0.swiftName) == rhs.\($0.swiftName)" }.joined(separator: " && ")
-            try FunctionDeclSyntax(
-                "\(raw: vis)static func == (lhs: \(raw: name), rhs: \(raw: name)) -> Bool"
-            ) {
-                StmtSyntax("return \(raw: eqExpr.isEmpty ? "true" : eqExpr)")
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func hash(into hasher: inout Hasher)") {
-                for f in fieldDecls {
-                    ExprSyntax("hasher.combine(\(raw: f.swiftName))")
-                }
-            }
-
-            try FunctionDeclSyntax(
-                "\(raw: vis)static func decode(from reader: inout BebopReader) throws -> \(raw: name)"
-            ) {
-                DeclSyntax("let length = try reader.readMessageLength()")
-                DeclSyntax("let end = reader.position + Int(length)")
-
-                for f in fieldDecls {
-                    DeclSyntax("var \(raw: f.swiftName): \(raw: f.swiftType)? = nil")
-                }
-
-                StmtSyntax(
-                    """
-                    while reader.position < end {
-                        let tag = try reader.readTag()
-                        if tag == 0 { break }
-                        switch tag {
-                        \(raw: try switchCases(fieldDecls))
-                        default:
-                            try reader.skip(end - reader.position)
-                        }
-                    }
-                    """
-                )
-
-                let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
-                StmtSyntax("return \(raw: name)(\(raw: args))")
-            }
-
-            try FunctionDeclSyntax("\(raw: vis)func encode(to writer: inout BebopWriter)") {
-                DeclSyntax("let pos = writer.reserveMessageLength()")
-
-                for f in fieldDecls {
-                    let writeExpr = try TypeMapper.writeExpression(for: f.type, value: "_v")
-                    CodeBlockItemSyntax(
-                        """
-                        if let _v = \(raw: f.swiftName) {
-                            writer.writeTag(\(raw: String(f.index)))
-                            \(raw: writeExpr)
-                        }
-                        """
-                    )
-                }
-
-                ExprSyntax("writer.writeEndMarker()")
-                ExprSyntax("writer.fillMessageLength(at: pos)")
-            }
-
-            if fieldDecls.isEmpty {
-                DeclSyntax("\(raw: vis)var encodedSize: Int { 5 }")
-            } else {
-                try VariableDeclSyntax("\(raw: vis)var encodedSize: Int") {
-                    DeclSyntax("var size = 5")
-                    for f in fieldDecls {
-                        let sizeExpr = try TypeMapper.sizeExpression(for: f.type, value: "_v")
-                        let needsValue = sizeExpr.contains("_v")
-                        if needsValue {
-                            CodeBlockItemSyntax(
-                                """
-                                if let _v = \(raw: f.swiftName) { size += 1 + \(raw: sizeExpr) }
-                                """
-                            )
-                        } else {
-                            CodeBlockItemSyntax(
-                                """
-                                if \(raw: f.swiftName) != nil { size += 1 + \(raw: sizeExpr) }
-                                """
-                            )
-                        }
-                    }
-                    StmtSyntax("return size")
-                }
-            }
-
-            if !fieldDecls.isEmpty {
-                let ckFields = fieldDecls.map { (swiftName: $0.swiftName, originalName: $0.name) }
-                DeclSyntax("\(raw: codingKeysDecl(ckFields))")
-            }
-
-            DeclSyntax(
-                "\(raw: vis)static let bebopReflection = BebopTypeReflection(name: \(literal: defName), fqn: \(literal: defFqn), kind: .message, detail: .message(MessageReflection(fields: [\(raw: reflectionFields(fieldDecls))])))"
-            )
-
-            for decl in nested {
-                decl
-            }
+        // fields
+        for f in fieldDecls {
+            body.append("\(f.prefix)\(vis)var \(f.swiftName): \(f.swiftType)?")
         }
 
-        return [DeclSyntax(classDecl)]
-    }
+        // init
+        let initParams = fieldDecls.map { "\($0.swiftName): \($0.swiftType)? = nil" }.joined(separator: ", ")
+        var initBody: [String] = []
+        for f in fieldDecls {
+            initBody.append("self.\(f.swiftName) = \(f.swiftName)")
+        }
+        let initBodyStr = initBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)init(\(initParams)) {\n\(initBodyStr)\n}")
 
-    private static func switchCases(_ fields: [(name: String, swiftName: String, type: TypeDescriptor, swiftType: String, index: UInt32, prefix: String)]) throws -> String {
-        var result = ""
-        for f in fields {
+        // ==
+        let eqExpr = fieldDecls.map { "lhs.\($0.swiftName) == rhs.\($0.swiftName)" }.joined(separator: " && ")
+        let eqBody: [String] = ["return \(eqExpr.isEmpty ? "true" : eqExpr)"]
+        let eqBodyStr = eqBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)static func == (lhs: \(name), rhs: \(name)) -> Bool {\n\(eqBodyStr)\n}")
+
+        // hash
+        var hashBody: [String] = []
+        for f in fieldDecls {
+            hashBody.append("hasher.combine(\(f.swiftName))")
+        }
+        let hashBodyStr = hashBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)func hash(into hasher: inout Hasher) {\n\(hashBodyStr)\n}")
+
+        // decode
+        var decodeBody: [String] = [
+            "let length = try reader.readMessageLength()",
+            "let end = reader.position + Int(length)",
+        ]
+        for f in fieldDecls {
+            decodeBody.append("var \(f.swiftName): \(f.swiftType)? = nil")
+        }
+        var switchLines: [String] = [
+            "while reader.position < end {",
+            "    let tag = try reader.readTag()",
+            "    if tag == 0 { break }",
+            "    switch tag {",
+        ]
+        for f in fieldDecls {
             let readExpr = try TypeMapper.readExpression(for: f.type)
-            result += "case \(f.index):\n"
-            result += "    \(f.swiftName) = \(readExpr)\n"
+            switchLines.append("    case \(f.index):")
+            switchLines.append("        \(f.swiftName) = \(readExpr)")
         }
-        return result
+        switchLines.append("    default:")
+        switchLines.append("        try reader.skip(end - reader.position)")
+        switchLines.append("    }")
+        switchLines.append("}")
+        decodeBody.append(switchLines.joined(separator: "\n"))
+        let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
+        decodeBody.append("return \(name)(\(args))")
+        let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {\n\(decodeBodyStr)\n}")
+
+        // encode
+        var encodeBody: [String] = ["let pos = writer.reserveMessageLength()"]
+        for f in fieldDecls {
+            let writeExpr = try TypeMapper.writeExpression(for: f.type, value: "_v")
+            encodeBody.append("if let _v = \(f.swiftName) {\n    writer.writeTag(\(String(f.index)))\n    \(writeExpr)\n}")
+        }
+        encodeBody.append("writer.writeEndMarker()")
+        encodeBody.append("writer.fillMessageLength(at: pos)")
+        let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
+        body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
+
+        // encodedSize
+        if fieldDecls.isEmpty {
+            body.append("\(vis)var encodedSize: Int { 5 }")
+        } else {
+            var sizeBody: [String] = ["var size = 5"]
+            for f in fieldDecls {
+                let sizeExpr = try TypeMapper.sizeExpression(for: f.type, value: "_v")
+                let needsValue = sizeExpr.contains("_v")
+                if needsValue {
+                    sizeBody.append("if let _v = \(f.swiftName) { size += 1 + \(sizeExpr) }")
+                } else {
+                    sizeBody.append("if \(f.swiftName) != nil { size += 1 + \(sizeExpr) }")
+                }
+            }
+            sizeBody.append("return size")
+            let sizeBodyStr = sizeBody.map { indent($0) }.joined(separator: "\n")
+            body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
+        }
+
+        // coding keys
+        if !fieldDecls.isEmpty {
+            let ckFields = fieldDecls.map { (swiftName: $0.swiftName, originalName: $0.name) }
+            body.append(codingKeysDecl(ckFields))
+        }
+
+        body.append(
+            "\(vis)static let bebopReflection = BebopTypeReflection(name: \(quoted(defName)), fqn: \(quoted(defFqn)), kind: .message, detail: .message(MessageReflection(fields: [\(reflectionFields(fieldDecls))])))"
+        )
+
+        for decl in nested {
+            body.append(decl)
+        }
+
+        let bodyStr = body.map { indent($0) }.joined(separator: "\n")
+        return ["\(prefix)\(vis)final class \(name): BebopRecord, BebopReflectable, @unchecked Sendable {\n\(bodyStr)\n}"]
     }
 
     private static func reflectionFields(_ fields: [(name: String, swiftName: String, type: TypeDescriptor, swiftType: String, index: UInt32, prefix: String)]) -> String {

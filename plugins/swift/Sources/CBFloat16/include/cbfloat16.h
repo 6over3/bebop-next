@@ -2,7 +2,6 @@
 #define CBFLOAT16_H
 
 #include <stdint.h>
-#include <string.h>
 
 #if __has_attribute(__const__)
 #define CBFLOAT16_AI static __inline__ __attribute__((__const__, __always_inline__, __nodebug__))
@@ -32,7 +31,7 @@ CBFLOAT16_AI uint16_t cbfloat16_from_float(float v) {
     return u.i;
 #else
     uint32_t bits;
-    memcpy(&bits, &v, 4);
+    __builtin_memcpy_inline(&bits, &v, 4);
 
     // NaN: quiet the payload
     if ((bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) != 0) {
@@ -42,19 +41,6 @@ CBFLOAT16_AI uint16_t cbfloat16_from_float(float v) {
     // Round to nearest even
     uint32_t lsb = (bits >> 16) & 1;
     return (uint16_t)((bits + 0x7FFFu + lsb) >> 16);
-#endif
-}
-
-CBFLOAT16_AI float cbfloat16_to_float(uint16_t v) {
-#if CBFLOAT16_HAS_NATIVE
-    cbfloat16_union_ u;
-    u.i = v;
-    return (float)u.f;
-#else
-    uint32_t bits = (uint32_t)v << 16;
-    float f;
-    memcpy(&f, &bits, 4);
-    return f;
 #endif
 }
 
