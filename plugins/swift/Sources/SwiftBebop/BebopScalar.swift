@@ -24,3 +24,4 @@ extension Float16: BebopScalar {}
 extension Float: BebopScalar {}
 extension Double: BebopScalar {}
 extension BFloat16: BebopScalar {}
+extension BebopUUID: BebopScalar {}

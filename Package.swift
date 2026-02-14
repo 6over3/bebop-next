@@ -7,7 +7,7 @@ let package = Package(
     products: [
         .library(name: "SwiftBebop", targets: ["SwiftBebop"]),
         .library(name: "SwiftBebopFoundation", targets: ["SwiftBebopFoundation"]),
-        .executable(name: "bebopc-gen-swift", targets: ["bebopc-gen-swift"]),
+        .executable(name: "bebopc-gen-swift", targets: ["bebopc-gen-swift"])
     ],
     targets: [
         .target(name: "CBFloat16", path: "plugins/swift/Sources/CBFloat16"),
@@ -17,7 +17,7 @@ let package = Package(
         .executableTarget(
             name: "bebopc-gen-swift",
             dependencies: [
-                "BebopPlugin",
+                "BebopPlugin"
             ],
             path: "plugins/swift/Sources/bebopc-gen-swift"
         ),
@@ -25,7 +25,7 @@ let package = Package(
         .testTarget(name: "BebopPluginTests", dependencies: ["BebopPlugin"], path: "plugins/swift/Tests/BebopPluginTests"),
         .testTarget(name: "CodegenTests", dependencies: [
             "bebopc-gen-swift",
-            "BebopPlugin",
-        ], path: "plugins/swift/Tests/CodegenTests"),
+            "BebopPlugin"
+        ], path: "plugins/swift/Tests/CodegenTests")
     ]
 )
