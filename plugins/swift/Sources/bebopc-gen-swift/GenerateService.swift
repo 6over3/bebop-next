@@ -243,6 +243,7 @@ enum GenerateService {
               ]
           )
           \(vis)static func method(for id: UInt32) -> Method? { Method(rawValue: id) }
+          // @@bebop_insertion_point(service_scope:\(serviceName))
       }
       """
   }
@@ -329,8 +330,11 @@ enum GenerateService {
         serverStreamBody.append("                for try await item in typed {")
         serverStreamBody.append("                    try Task.checkCancellation()")
         serverStreamBody.append(
-          "                    if let d = context.deadline, d.isPast { throw BebopRpcError(code: .deadlineExceeded) }"
-        )
+          "                    if let d = context.deadline, d.isPast {")
+        serverStreamBody.append(
+          "                        throw BebopRpcError(code: .deadlineExceeded)")
+        serverStreamBody.append(
+          "                    }")
         serverStreamBody.append("                    c.yield(item.serializedData())")
         serverStreamBody.append("                }")
         serverStreamBody.append("                c.finish()")
@@ -356,8 +360,11 @@ enum GenerateService {
         clientStreamBody.append("    return (")
         clientStreamBody.append("        send: { bytes in")
         clientStreamBody.append(
-          "            if let d = context.deadline, d.isPast { throw BebopRpcError(code: .deadlineExceeded) }"
-        )
+          "            if let d = context.deadline, d.isPast {")
+        clientStreamBody.append(
+          "                throw BebopRpcError(code: .deadlineExceeded)")
+        clientStreamBody.append(
+          "            }")
         clientStreamBody.append(
           "            let req = try \(m.requestTypeName).decode(from: bytes)")
         clientStreamBody.append(
@@ -385,8 +392,11 @@ enum GenerateService {
         duplexStreamBody.append("                for try await item in typedResponses {")
         duplexStreamBody.append("                    try Task.checkCancellation()")
         duplexStreamBody.append(
-          "                    if let d = context.deadline, d.isPast { throw BebopRpcError(code: .deadlineExceeded) }"
-        )
+          "                    if let d = context.deadline, d.isPast {")
+        duplexStreamBody.append(
+          "                        throw BebopRpcError(code: .deadlineExceeded)")
+        duplexStreamBody.append(
+          "                    }")
         duplexStreamBody.append("                    c.yield(item.serializedData())")
         duplexStreamBody.append("                }")
         duplexStreamBody.append("                c.finish()")
@@ -402,8 +412,11 @@ enum GenerateService {
         duplexStreamBody.append("    return (")
         duplexStreamBody.append("        send: { bytes in")
         duplexStreamBody.append(
-          "            if let d = context.deadline, d.isPast { throw BebopRpcError(code: .deadlineExceeded) }"
-        )
+          "            if let d = context.deadline, d.isPast {")
+        duplexStreamBody.append(
+          "                throw BebopRpcError(code: .deadlineExceeded)")
+        duplexStreamBody.append(
+          "            }")
         duplexStreamBody.append(
           "            let req = try \(m.requestTypeName).decode(from: bytes)")
         duplexStreamBody.append(

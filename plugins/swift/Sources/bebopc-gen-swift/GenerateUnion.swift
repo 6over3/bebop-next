@@ -33,6 +33,7 @@ enum GenerateUnion {
 
     // decode
     var decodeBody: [String] = [
+      "// @@bebop_insertion_point(decode_start:\(defName))",
       "let length = try reader.readMessageLength()",
       "let end = reader.position + Int(length)",
       "let disc = try reader.readByte()",
@@ -47,19 +48,24 @@ enum GenerateUnion {
       decodeSwitchLines.append("case \(disc):")
       decodeSwitchLines.append("    return .\(caseName)(try \(typeName).decode(from: &reader))")
     }
+    decodeSwitchLines.append("// @@bebop_insertion_point(decode_switch:\(defName))")
     decodeSwitchLines.append("default:")
     decodeSwitchLines.append("    let remaining = end - reader.position")
     decodeSwitchLines.append("    let data = try reader.readBytes(remaining)")
     decodeSwitchLines.append("    return .unknown(discriminator: disc, data: data)")
     decodeSwitchLines.append("}")
     decodeBody.append(decodeSwitchLines.joined(separator: "\n"))
+    decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
     let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
     body.append(
       "\(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {\n\(decodeBodyStr)\n}"
     )
 
     // encode
-    var encodeBody: [String] = ["let pos = writer.reserveMessageLength()"]
+    var encodeBody: [String] = [
+      "// @@bebop_insertion_point(encode_start:\(defName))",
+      "let pos = writer.reserveMessageLength()",
+    ]
     var encodeSwitchLines: [String] = ["switch self {"]
     for branch in branches {
       guard let disc = branch.discriminator else {
@@ -70,12 +76,14 @@ enum GenerateUnion {
       encodeSwitchLines.append("    writer.writeByte(\(disc))")
       encodeSwitchLines.append("    _v.encode(to: &writer)")
     }
+    encodeSwitchLines.append("// @@bebop_insertion_point(encode_switch:\(defName))")
     encodeSwitchLines.append("case .unknown(let disc, let data):")
     encodeSwitchLines.append("    writer.writeByte(disc)")
     encodeSwitchLines.append("    writer.writeBytes(data)")
     encodeSwitchLines.append("}")
     encodeBody.append(encodeSwitchLines.joined(separator: "\n"))
     encodeBody.append("writer.fillMessageLength(at: pos)")
+    encodeBody.append("// @@bebop_insertion_point(encode_end:\(defName))")
     let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
     body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
 
@@ -149,9 +157,11 @@ enum GenerateUnion {
           name: \(quoted(defName)),
           fqn: \(quoted(defFqn)),
           kind: .union,
-          detail: .union(UnionReflection(branches: [
-      \(indent(try reflectionBranches(branches, unionName: defName), 2))
-          ]))
+          detail: .union(
+              UnionReflection(branches: [
+      \(indent(try reflectionBranches(branches, unionName: defName), 3))
+              ])
+          )
       )
       """
     )
@@ -159,6 +169,8 @@ enum GenerateUnion {
     for decl in nested {
       body.append(decl)
     }
+
+    body.append("// @@bebop_insertion_point(union_scope:\(defName))")
 
     let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
     return ["\(prefix)\(vis)enum \(name): BebopRecord, BebopReflectable {\n\(bodyStr)\n}"]

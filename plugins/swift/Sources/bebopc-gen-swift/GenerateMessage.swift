@@ -77,6 +77,7 @@ enum GenerateMessage {
 
     // decode
     var decodeBody: [String] = [
+      "// @@bebop_insertion_point(decode_start:\(defName))",
       "let length = try reader.readMessageLength()",
       "let end = reader.position + Int(length)",
     ]
@@ -99,6 +100,7 @@ enum GenerateMessage {
     switchLines.append("    }")
     switchLines.append("}")
     decodeBody.append(switchLines.joined(separator: "\n"))
+    decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
     let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
     decodeBody.append("return \(name)(\(args))")
     let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
@@ -107,7 +109,10 @@ enum GenerateMessage {
     )
 
     // encode
-    var encodeBody: [String] = ["let pos = writer.reserveMessageLength()"]
+    var encodeBody: [String] = [
+      "// @@bebop_insertion_point(encode_start:\(defName))",
+      "let pos = writer.reserveMessageLength()",
+    ]
     for f in fieldDecls {
       let writeExpr = try TypeMapper.writeExpression(for: f.type, value: "_v")
       encodeBody.append(
@@ -116,6 +121,7 @@ enum GenerateMessage {
     }
     encodeBody.append("writer.writeEndMarker()")
     encodeBody.append("writer.fillMessageLength(at: pos)")
+    encodeBody.append("// @@bebop_insertion_point(encode_end:\(defName))")
     let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
     body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
 
@@ -201,9 +207,11 @@ enum GenerateMessage {
           name: \(quoted(defName)),
           fqn: \(quoted(defFqn)),
           kind: .message,
-          detail: .message(MessageReflection(fields: [
-      \(indent(reflectionFields(fieldDecls), 2))
-          ]))
+          detail: .message(
+              MessageReflection(fields: [
+      \(indent(reflectionFields(fieldDecls), 3))
+              ])
+          )
       )
       """
     )
@@ -211,6 +219,8 @@ enum GenerateMessage {
     for decl in nested {
       body.append(decl)
     }
+
+    body.append("// @@bebop_insertion_point(message_scope:\(defName))")
 
     let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
     return [

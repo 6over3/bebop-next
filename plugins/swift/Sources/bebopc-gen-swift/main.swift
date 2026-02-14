@@ -51,7 +51,7 @@ func run() throws {
   try NamingPolicy.registerSchemas(schemas)
   GenerateService.definitionMap = buildDefinitionMap(schemas)
   let options = parseOptions(request.hostOptions)
-  let generator = SwiftGenerator(options: options)
+  let generator = SwiftGenerator(options: options, compilerVersion: request.compilerVersion)
   let response = ResponseBuilder()
 
   for schema in schemas {

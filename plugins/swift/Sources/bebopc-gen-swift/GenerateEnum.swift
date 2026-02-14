@@ -96,15 +96,19 @@ enum GenerateEnum {
           name: \(quoted(defName)),
           fqn: \(quoted(defFqn)),
           kind: .enum,
-          detail: .enum(EnumReflection(
-              members: [
-      \(indent(try reflectionMembers(members, enumName: defName), 3))
-              ],
-              isFlags: false
-          ))
+          detail: .enum(
+              EnumReflection(
+                  members: [
+      \(indent(try reflectionMembers(members, enumName: defName), 4))
+                  ],
+                  isFlags: false
+              )
+          )
       )
       """
     )
+
+    body.append("// @@bebop_insertion_point(enum_scope:\(defName))")
 
     let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
     return [
@@ -193,15 +197,19 @@ enum GenerateEnum {
           name: \(quoted(defName)),
           fqn: \(quoted(defFqn)),
           kind: .enum,
-          detail: .enum(EnumReflection(
-              members: [
-      \(indent(try reflectionMembers(members, enumName: defName), 3))
-              ],
-              isFlags: true
-          ))
+          detail: .enum(
+              EnumReflection(
+                  members: [
+      \(indent(try reflectionMembers(members, enumName: defName), 4))
+                  ],
+                  isFlags: true
+              )
+          )
       )
       """
     )
+
+    body.append("// @@bebop_insertion_point(enum_scope:\(defName))")
 
     let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
     return [

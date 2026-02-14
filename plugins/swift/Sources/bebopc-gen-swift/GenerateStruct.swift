@@ -118,11 +118,12 @@ enum GenerateStruct {
     }
 
     // decode
-    var decodeBody: [String] = []
+    var decodeBody: [String] = ["// @@bebop_insertion_point(decode_start:\(defName))"]
     for f in fieldDecls {
       let readExpr = try TypeMapper.readExpression(for: f.type)
       decodeBody.append("let \(f.swiftName) = \(readExpr)")
     }
+    decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
     let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
     decodeBody.append("return \(name)(\(args))")
     let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
@@ -131,11 +132,12 @@ enum GenerateStruct {
     )
 
     // encode
-    var encodeBody: [String] = []
+    var encodeBody: [String] = ["// @@bebop_insertion_point(encode_start:\(defName))"]
     for f in fieldDecls {
       let writeExpr = try TypeMapper.writeExpression(for: f.type, value: f.swiftName)
       encodeBody.append(writeExpr)
     }
+    encodeBody.append("// @@bebop_insertion_point(encode_end:\(defName))")
     let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
     body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
 
@@ -160,9 +162,11 @@ enum GenerateStruct {
           name: \(quoted(defName)),
           fqn: \(quoted(defFqn)),
           kind: .struct,
-          detail: .struct(StructReflection(fields: [
-      \(indent(reflectionFields(fieldDecls), 2))
-          ]))
+          detail: .struct(
+              StructReflection(fields: [
+      \(indent(reflectionFields(fieldDecls), 3))
+              ])
+          )
       )
       """
     )
@@ -170,6 +174,8 @@ enum GenerateStruct {
     for decl in nested {
       body.append(decl)
     }
+
+    body.append("// @@bebop_insertion_point(struct_scope:\(defName))")
 
     let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
     return ["\(prefix)\(vis)struct \(name): BebopRecord, BebopReflectable {\n\(bodyStr)\n}"]
