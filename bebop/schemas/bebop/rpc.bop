@@ -1,0 +1,161 @@
+// rpc.bop
+//
+// Copyright 2026 6OVER3 INSTITUTE. All rights reserved.
+//
+// Wire types for Bebop RPC. Full specification in docs/RPC.md.
+//
+// Frame layout (9-byte header + payload):
+//
+//   ┌────────────────┬───────────────┬───────────────────┬─────────────────┐
+//   │ length (uint32) │ flags (byte)  │ stream_id (uint32) │ payload         │
+//   │                │               │                   │ (length bytes)  │
+//   └────────────────┴───────────────┴───────────────────┴─────────────────┘
+//
+// Reserved method IDs:
+//   0  Service discovery (request: bebop.Empty, response: DiscoveryResponse)
+//   1  Batch (request: BatchRequest, response: BatchResponse)
+
+edition = "2026"
+package bebop
+
+import "bebop/decorators.bop"
+import "bebop/empty.bop"
+
+/// Codes 0-16 align with gRPC. 17-255 are application-defined.
+enum StatusCode : byte {
+    OK = 0;
+    CANCELLED = 1;
+    UNKNOWN = 2;
+    INVALID_ARGUMENT = 3;
+    DEADLINE_EXCEEDED = 4;
+    NOT_FOUND = 5;
+    // 6 reserved
+    PERMISSION_DENIED = 7;
+    RESOURCE_EXHAUSTED = 8;
+    // 9-11 reserved
+    UNIMPLEMENTED = 12;
+    INTERNAL = 13;
+    UNAVAILABLE = 14;
+    // 15 reserved
+    UNAUTHENTICATED = 16;
+}
+
+/// Combine with bitwise OR. ERROR and TRAILER each require END_STREAM.
+@flags
+enum FrameFlags : byte {
+    NONE = 0;
+    /// Last frame in this direction.
+    END_STREAM = 1;
+    /// Payload is an RpcError.
+    ERROR = 2;
+    /// Payload is compressed. Algorithm negotiated via metadata.
+    COMPRESSED = 4;
+    /// Payload is a TrailingMetadata.
+    TRAILER = 8;
+}
+
+enum MethodType : byte {
+    UNARY = 0;
+    SERVER_STREAM = 1;
+    CLIENT_STREAM = 2;
+    DUPLEX_STREAM = 3;
+}
+
+/// 9 bytes, fixed layout, no tags. Precedes every payload on the wire.
+struct FrameHeader {
+    /// Payload byte count.
+    length: uint32;
+    flags: FrameFlags;
+    /// 0 when the transport already isolates calls (HTTP/2, separate connections).
+    stream_id: uint32;
+}
+
+/// Sent once at the start of a binary transport call. On HTTP, these
+/// fields map to URL path, headers, and the bebop-deadline header.
+message CallHeader {
+    /// MurmurHash3 of /ServiceName/MethodName.
+    method_id(1): uint32;
+    /// Absolute timestamp. Omit for no deadline.
+    deadline(2): timestamp;
+    /// Keys: ASCII lowercase, digits, hyphens, underscores.
+    /// Keys starting with "bebop-" are reserved.
+    metadata(3): map[string, string];
+}
+
+/// Payload of an ERROR frame. On error, response metadata goes here
+/// instead of in a separate TrailingMetadata frame.
+message RpcError {
+    code(1): StatusCode;
+    detail(2): string;
+    metadata(3): map[string, string];
+}
+
+/// Payload of a TRAILER frame. Sent after the last response data frame.
+message TrailingMetadata {
+    metadata(1): map[string, string];
+}
+
+struct MethodInfo {
+    name: string;
+    method_id: uint32;
+    method_type: MethodType;
+    /// e.g. "type.bebop.sh/myapp.HelloRequest"
+    request_type_url: string;
+    /// e.g. "type.bebop.sh/myapp.HelloResponse"
+    response_type_url: string;
+}
+
+struct ServiceInfo {
+    name: string;
+    methods: MethodInfo[];
+}
+
+/// Method ID 0. Request: bebop.Empty. Servers that don't support
+/// discovery return UNIMPLEMENTED.
+struct DiscoveryResponse {
+    services: ServiceInfo[];
+}
+
+/// When input_from >= 0, the server pipes the first payload from the
+/// referenced call's result as this call's request bytes (payload field
+/// is ignored). When input_from is -1, payload is used directly.
+struct BatchCall {
+    /// Zero-indexed, unique within the batch.
+    call_id: int32;
+    /// MurmurHash3 of /ServiceName/MethodName.
+    method_id: uint32;
+    /// Wire-encoded request. Ignored when input_from >= 0.
+    payload: byte[];
+    /// Forward result of this call_id as input. -1 = use payload.
+    input_from: int32;
+}
+
+/// Method ID 1. The server parallelizes independent calls and resolves
+/// input_from dependencies between layers. Only unary and server-stream
+/// methods are supported; client-stream and duplex return INVALID_ARGUMENT.
+struct BatchRequest {
+    calls: BatchCall[];
+    /// Applied to every call in the batch.
+    metadata: map[string, string];
+}
+
+/// One element per unary response. All buffered elements for server-stream.
+struct BatchSuccess {
+    payloads: byte[][];
+}
+
+union BatchOutcome {
+    Success(1): BatchSuccess
+    Error(2): RpcError
+}
+
+/// Results in the same order as calls in the request.
+struct BatchResult {
+    call_id: int32;
+    outcome: BatchOutcome;
+}
+
+/// If a call fails, dependent calls (via input_from) also fail.
+struct BatchResponse {
+    results: BatchResult[];
+}

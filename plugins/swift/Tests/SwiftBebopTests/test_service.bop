@@ -1,0 +1,30 @@
+import "bebop/decorators.bop"
+
+struct EchoRequest {
+  value: string;
+}
+
+struct EchoResponse {
+  value: string;
+}
+
+struct CountRequest {
+  n: uint32;
+}
+
+struct CountResponse {
+  i: uint32;
+}
+
+/// Widget inventory service.
+service WidgetService {
+  /// Echo back the input.
+  GetWidget(EchoRequest): EchoResponse;
+  /// Stream count responses.
+  ListWidgets(CountRequest): stream CountResponse;
+  /// Collect inputs into one response.
+  @deprecated("use CollectV2")
+  UploadWidgets(stream EchoRequest): EchoResponse;
+  /// Bidirectional echo.
+  SyncWidgets(stream EchoRequest): stream EchoResponse;
+}
