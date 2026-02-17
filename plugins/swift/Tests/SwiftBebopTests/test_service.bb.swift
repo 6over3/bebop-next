@@ -354,6 +354,7 @@ extension BebopRouterBuilder {
                     }
                     return (
                         send: { bytes in
+                            try Task.checkCancellation()
                             if let d = context.deadline, d.isPast {
                                 throw BebopRpcError(code: .deadlineExceeded)
                             }
@@ -396,6 +397,7 @@ extension BebopRouterBuilder {
                     }
                     return (
                         send: { bytes in
+                            try Task.checkCancellation()
                             if let d = context.deadline, d.isPast {
                                 throw BebopRpcError(code: .deadlineExceeded)
                             }

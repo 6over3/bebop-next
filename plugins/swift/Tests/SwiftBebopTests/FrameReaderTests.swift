@@ -88,4 +88,22 @@ private actor ReadCounter {
     #expect(frame != nil)
     #expect(frame!.payload.isEmpty)
   }
+
+  @Test func rejectsPayloadExceedingMaxSize() async throws {
+    let payload: [UInt8] = [1, 2, 3, 4, 5]
+    let stream = ByteStream(FrameWriter.data(payload))
+    let reader = FrameReader(read: { count in await stream.read(count) }, maxPayloadSize: 3)
+    await #expect(throws: BebopRpcError.self) {
+      _ = try await reader.nextFrame()
+    }
+  }
+
+  @Test func allowsPayloadWithinMaxSize() async throws {
+    let payload: [UInt8] = [1, 2, 3]
+    let stream = ByteStream(FrameWriter.data(payload))
+    let reader = FrameReader(read: { count in await stream.read(count) }, maxPayloadSize: 3)
+    let frame = try await reader.nextFrame()
+    #expect(frame != nil)
+    #expect(frame!.payload == payload)
+  }
 }

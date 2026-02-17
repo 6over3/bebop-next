@@ -360,6 +360,8 @@ enum GenerateService {
         clientStreamBody.append("    return (")
         clientStreamBody.append("        send: { bytes in")
         clientStreamBody.append(
+          "            try Task.checkCancellation()")
+        clientStreamBody.append(
           "            if let d = context.deadline, d.isPast {")
         clientStreamBody.append(
           "                throw BebopRpcError(code: .deadlineExceeded)")
@@ -411,6 +413,8 @@ enum GenerateService {
         duplexStreamBody.append("    }")
         duplexStreamBody.append("    return (")
         duplexStreamBody.append("        send: { bytes in")
+        duplexStreamBody.append(
+          "            try Task.checkCancellation()")
         duplexStreamBody.append(
           "            if let d = context.deadline, d.isPast {")
         duplexStreamBody.append(
