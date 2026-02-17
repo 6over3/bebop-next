@@ -196,6 +196,91 @@ import Testing
     }
   }
 
+  @Test func handlerErrorPreservesCodeAndDetail() async throws {
+    struct FailingHandler: WidgetServiceHandler {
+      func getWidget(_ request: EchoRequest, context: some CallContext) async throws -> EchoResponse {
+        throw BebopRpcError(code: .internal, detail: "boom")
+      }
+      func listWidgets(_ request: CountRequest, context: some CallContext) async throws
+        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+      func uploadWidgets(
+        _ requests: AsyncThrowingStream<EchoRequest, Error>, context: some CallContext
+      ) async throws -> EchoResponse { fatalError() }
+      func syncWidgets(
+        _ requests: AsyncThrowingStream<EchoRequest, Error>, context: some CallContext
+      ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
+    }
+
+    let router = buildRouter(handler: FailingHandler())
+    let ctx = TestCallContext(methodId: 1)
+
+    let req = BatchRequest(
+      calls: [
+        BatchCall(
+          callId: 0, methodId: getWidgetId,
+          payload: EchoRequest(value: "fail").serializedData(), inputFrom: -1)
+      ],
+      metadata: [:])
+
+    let responseBytes = try await router.unary(
+      methodId: 1, payload: req.serializedData(), ctx: ctx)
+    let response = try BatchResponse.decode(from: responseBytes)
+    guard case .error(let e) = response.results[0].outcome else {
+      Issue.record("expected error outcome")
+      return
+    }
+    #expect(e.code == .internal)
+    #expect(e.detail == "boom")
+  }
+
+  @Test func handlerErrorCascadesToDependents() async throws {
+    struct FailingHandler: WidgetServiceHandler {
+      func getWidget(_ request: EchoRequest, context: some CallContext) async throws -> EchoResponse {
+        throw BebopRpcError(code: .permissionDenied, detail: "nope")
+      }
+      func listWidgets(_ request: CountRequest, context: some CallContext) async throws
+        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+      func uploadWidgets(
+        _ requests: AsyncThrowingStream<EchoRequest, Error>, context: some CallContext
+      ) async throws -> EchoResponse { fatalError() }
+      func syncWidgets(
+        _ requests: AsyncThrowingStream<EchoRequest, Error>, context: some CallContext
+      ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
+    }
+
+    let router = buildRouter(handler: FailingHandler())
+    let ctx = TestCallContext(methodId: 1)
+
+    let req = BatchRequest(
+      calls: [
+        BatchCall(
+          callId: 0, methodId: getWidgetId,
+          payload: EchoRequest(value: "x").serializedData(), inputFrom: -1),
+        BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
+      ],
+      metadata: [:])
+
+    let responseBytes = try await router.unary(
+      methodId: 1, payload: req.serializedData(), ctx: ctx)
+    let response = try BatchResponse.decode(from: responseBytes)
+
+    let outcomes = Dictionary(
+      response.results.map { ($0.callId, $0.outcome) },
+      uniquingKeysWith: { a, _ in a })
+
+    guard case .error(let e0) = outcomes[0] else {
+      Issue.record("call 0 should error")
+      return
+    }
+    #expect(e0.code == .permissionDenied)
+    #expect(e0.detail == "nope")
+
+    guard case .error = outcomes[1] else {
+      Issue.record("call 1 should cascade")
+      return
+    }
+  }
+
   @Test func failedDependencyCascades() async throws {
     let router = buildRouter()
     let ctx = TestCallContext(methodId: 1)
