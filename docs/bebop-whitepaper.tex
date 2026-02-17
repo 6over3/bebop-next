@@ -2,7 +2,7 @@
 % Bebop
 % Edition 2026
 
-\documentclass[11pt,onecolumn]{article}
+\documentclass[10pt,onecolumn]{article}
 
 
 \usepackage{fontspec}
@@ -17,6 +17,7 @@
 \usepackage{fancyhdr}
 \usepackage{titlesec}
 \usepackage{booktabs}
+\usepackage{multicol}
 \usepackage{multirow}
 \usepackage{pifont}
 \newcommand{\cmark}{\ding{51}}
@@ -52,8 +53,8 @@
 \raggedbottom
 
 
-\setmainfont{Palatino}[Ligatures=TeX]
-\setsansfont{Helvetica Neue}[Scale=0.95]
+% Use default Computer Modern fonts
+% \setmainfont and \setsansfont intentionally omitted
 \setmonofont{Berkeley Mono Variable}[
     Scale=0.82,
     BoldFont=Berkeley Mono Variable,
@@ -80,13 +81,12 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\sffamily Simplicity Scales}
-\fancyhead[R]{\small\sffamily\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0pt}
 
 \fancypagestyle{plain}{
     \fancyhf{}
-    \fancyfoot[C]{\small\sffamily\thepage}
+    \fancyfoot[C]{\small\thepage}
     \renewcommand{\headrulewidth}{0pt}
 }
 
@@ -163,84 +163,63 @@
 
 \begin{document}
 
+\thispagestyle{plain}
 
-\begin{titlepage}
-\newgeometry{margin=1.5in}
-
-\vspace*{1.5in}
+\vspace*{0.15in}
 
 \begin{center}
 
-{\fontsize{36}{42}\selectfont\sffamily\bfseries Simplicity Scales}
+{\fontsize{24}{28}\selectfont\sffamily\bfseries Simplicity Scales}
 
-\vspace{0.4in}
+\vspace{0.06in}
 
-{\large\sffamily\bfseries Bebop: A High-Performance Binary Serialization Format}
+\rule{\textwidth}{0.8pt}
 
-\vspace{0.6in}
+\vspace{0.1in}
 
-{\Large Andrew Sampson}\\[6pt]
-{\normalsize\texttt{a@6over3.com}}
+{\large\sffamily\bfseries Bebop: A Branchless Data Interchange Format and RPC Protocol}
 
-\vspace{0.4in}
+\vspace{0.15in}
+
+\begin{tabular}{@{}c@{\hskip 0.6in}c@{\hskip 0.6in}c@{}}
+\textbf{Andrew Sampson} & \textbf{Ronny Chan} & \textbf{Yuta Saito} \\[2pt]
+6OVER3 Institute & 6OVER3 Institute & \\[1pt]
+\texttt{a@6over3.com} & \texttt{r@6over3.com} & \texttt{kateinoigakukun@gmail.com} \\
+\end{tabular}
+
+\vspace{0.1in}
 
 {\normalsize February 2026}
 
 \end{center}
 
-\vfill
-
-\noindent
-\begin{minipage}[b]{0.5\textwidth}
-\raggedright
-{\small\sffamily\color{bebopblue} EDITION 2026}
-\end{minipage}%
-\hfill
-\begin{minipage}[b]{0.45\textwidth}
-\raggedleft
-\includegraphics[width=2in]{6o3logo_blk.pdf}
-\end{minipage}
-
-\restoregeometry
-\end{titlepage}
-
-
-\thispagestyle{plain}
+\vspace{0.1in}
 
 \begin{center}
-{\sffamily\Large\bfseries Abstract}
+{\sffamily\normalsize\bfseries Abstract}
 \end{center}
 
-\vspace{0.2in}
+\vspace{0.03in}
 
-Machine learning systems move embedding vectors, neural network weights, and prediction outputs between GPUs, services, and storage. The volumes are large enough that serialization overhead matters.
+\noindent The dominant data interchange formats encode integers using a variable number of bytes or represent floating-point numbers as variable-length UTF-8 strings. The decoder must inspect each byte for a continuation bit or parse each character individually, producing data-dependent branches that stall modern CPU pipelines. Protocol Buffers pays this cost on every integer, field tag, and length prefix. JSON pays it on every value.
 
-\vspace{0.15in}
+We present Bebop, a serialization format where every data type uses a fixed number of bytes. A 32-bit integer is always four bytes. Decoding becomes a single memory read with no conditionals. Across 19 decode workloads, Bebop decodes 9--213$\times$ faster than Protocol Buffers. On a 1536-dimension embedding vector, Bebop decodes in 2.8 nanoseconds versus 111 nanoseconds for Protocol Buffers and 4.69 microseconds for simdjson, a 1,675$\times$ gap. On records above 64~KB, the decoder achieves 86\% of peak memory bandwidth. The CPU is no longer the bottleneck.
 
-The bottleneck is branching. Protocol Buffers and similar formats encode integers using a variable number of bytes depending on value. The decoder must check each byte to find where a number ends. On modern CPUs, these unpredictable conditional checks stall the processor pipeline.
-
-\vspace{0.15in}
-
-Bebop makes the opposite choice. Every data type uses a fixed number of bytes, so a 32-bit integer is always four bytes and decoding becomes a single memory read with no conditionals. In benchmarks across 19 decode workloads, Bebop decodes 9--213$\times$ faster than Protocol Buffers, and on large records the decoder saturates memory bandwidth. The CPU is no longer the constraint.
+We also present a transport-agnostic RPC protocol built on the same wire format. The protocol introduces batch pipelining, where dependent cross-service calls execute in a single round trip with server-side dependency resolution. It deploys over HTTP/1.1, HTTP/2, and binary transports without proxies, removing the HTTP/2 requirement that limits gRPC on serverless platforms and in browsers.
 
 \newpage
 
-
 \section{Introduction}
 
-GPU time is expensive. H100s rent for \$2--7 per hour depending on provider~\cite{gpu-pricing}, yet a Weights \& Biases survey found nearly one-third of ML organizations report utilization below 15\%~\cite{wandb-gpu}. An organization running 100 GPUs at \$3/hour with 15\% idle time wastes \$32,000 per month---\$390,000 annually---on hardware doing nothing. Part of that idle time is GPUs waiting on CPUs to serialize and deserialize data.
+Transport and storage bandwidth are scaling faster than the compute that sits between them. PCIe x16 throughput grew from 16~GB/s in 2010 to 121~GB/s in 2022~\cite{pcisig-pcie6}. IEEE~802.3bs ratified 400~Gb/s Ethernet in 2017~\cite{ieee-802.3bs}. Single-mode fiber has carried 402~Tb/s over 50~km in laboratory demonstration~\cite{puttnam-402tbps}. CXL~3.0 extends cache-coherent memory access across chassis boundaries~\cite{sharma-cxl-survey}. Flash read bandwidth scales by ganging devices in parallel, and John Carmack has observed that pipelined flash arrays should already be viable for inference serving if accelerator vendors agreed on a high-speed interface~\cite{carmack-fiber-flash}. These are different technologies on the same trajectory. Moving data is getting cheaper.
 
-In June 2024, OpenAI's API processed 530 billion output tokens and 4.7 trillion input tokens~\cite{openai-api-analysis}. Each response requires serialization. At 1 microsecond per encode, that's 530,000 seconds of CPU time monthly. CPU time itself is cheap; the problem is what it blocks. When data processing sits on the critical path, GPUs wait~\cite{datastalls}, tail latencies spike, and more servers are needed to compensate.
+Processor single-thread performance has not kept pace. Hennessy and Patterson measured the decline in their 2018 Turing Lecture~\cite{hennessy-golden-age}. Annual improvement ran at 52\% during the RISC era, dropped to 22\% after Dennard scaling broke down at the 90~nm node around 2004~\cite{bohr-dennard-retrospective}, and fell to roughly 3\% by 2015. The gap between bandwidth growth and compute growth widens each generation.
 
-\textbf{JSON} dominates web APIs because it is human-readable and universally supported. It also has real costs at scale. Parsing requires examining every character. Binary data must be Base64-encoded, adding 33\% to wire size~\cite{base64}. Parsing a 1KB string allocates 4--14KB of memory~\cite{cockroach-json}. LinkedIn found that switching from JSON to Protocol Buffers reduced P99 latency by 60\% for large payloads~\cite{linkedin-protobuf}. A service handling 1 million requests per second with 100 microseconds of JSON parsing overhead needs 100 CPU cores just for parsing. simdjson~\cite{simdjson}, the fastest JSON parser available, takes 4.69 microseconds to parse a 1536-dimension embedding vector; Bebop decodes the same data in 2.8 nanoseconds---1,675$\times$ faster.
+Serialization formats carry assumptions about which resource is scarce. Protocol Buffers shipped in 2008~\cite{varda-protobuf-announcement} when 1~GbE was standard data center networking. Varint encoding trades CPU cycles for fewer bytes on the wire, a reasonable choice when bandwidth cost dominated. JSON requires character-by-character parsing but provides human readability, a tradeoff that made sense when most payloads were small API responses. Kenton Varda, who maintained Protocol Buffers at Google, noted that the original inventor's own notes described varint as ``a poorly-chosen format due to excessive branching''~\cite{varda-hn}. His later project Cap'n Proto~\cite{capnproto} uses fixed-width encoding to avoid this overhead. The CPU cost was recognized early. The bandwidth context has changed since.
 
-\textbf{Protocol Buffers}~\cite{protobuf} dominates internal service communication because it enforces schemas and produces compact binary output. But Protocol Buffers uses varint encoding for integers, field tags, and length prefixes. The decoder must check each byte to find where a number ends. Kenton Varda, who maintained Protocol Buffers at Google, called varint ``a poorly-chosen format due to excessive branching''~\cite{varda-hn}. His later project Cap'n Proto~\cite{capnproto} uses fixed-width encoding to avoid this overhead.
+Bebop uses fixed-width encoding for every data type. A 32-bit integer is always 4 bytes. Decoding reduces to a single memory read with no conditionals. In benchmarks across 19 decode workloads, Bebop decodes 9--213$\times$ faster than Protocol Buffers. On a 1536-dimension embedding vector, Bebop decodes in 2.8~nanoseconds; simdjson~\cite{simdjson}, the fastest general-purpose JSON parser, takes 4.69~microseconds on equivalent data, a 1,675$\times$ gap. The decoder achieves 86\% of peak memory bandwidth on records above 64~KB. At that point, the CPU has nothing left to stall on. LinkedIn found that switching from JSON to Protocol Buffers reduced P99 latency by 60\% for large payloads~\cite{linkedin-protobuf}; the gap between Protocol Buffers and Bebop is larger still.
 
-\textbf{Bebop} takes the same approach. Every data type uses a fixed number of bytes; a 32-bit integer is always 4 bytes regardless of value. Decoding becomes a single memory read with no conditionals. In benchmarks, Bebop decodes embeddings 40$\times$ faster than Protocol Buffers and API payloads 15--95$\times$ faster. A retrieval-augmented generation system fetching 100 embeddings per query spends 11 microseconds decoding with Protocol Buffers, or 280 nanoseconds with Bebop---a 39$\times$ speedup. For a vector search service handling 10 million queries per day, that difference is 110 seconds of daily CPU time versus 2.8 seconds.
-
-These savings multiply with scale. A Credera case study found that serialization consumed 26\% of total request latency in a microservices system~\cite{credera-serialization}. If serialization is the bottleneck, 10$\times$ faster decoding means serving the same load with one-tenth the servers, or 10$\times$ more requests on existing hardware. At \$50,000 per month in API serving infrastructure, cutting that overhead by 90\% could save \$45,000 monthly---\$540,000 per year.
-
-Bebop requires schema definitions and code generation, so it cannot replace JSON or Protocol Buffers everywhere. But for inference serving, vector search, and training pipelines where serialization sits on the critical path, the speedups pay for the integration effort.
+Fixed-width encoding costs more bytes for small integers. In Section~\ref{sec:eval}, OrderLarge with arrays of 100 small integers produces 1,240 bytes in Bebop versus 423 in Protocol Buffers. For workloads dominated by floats, embeddings, and timestamps, the wire size penalty is negligible. Compression narrows the gap further. With Brotli, all three formats produce ML payloads within 2\% of each other. The decode performance difference persists regardless of compression.
 
 \subsection{Contributions}
 
@@ -252,6 +231,7 @@ This paper makes the following contributions:
 \item Empirical comparison against Protocol Buffers, MessagePack, and simdjson across 19 decode and 23 encode workloads representing ML inference, event streaming, and recursive data structures
 \item A schema language with compile-time extensibility through embedded Lua scripting
 \item Reference implementations in C achieving 86\% memory bandwidth utilization during decode
+\item An RPC protocol with batch pipelining for dependent cross-service calls, reducing round trips without requiring application-level coordination
 \end{enumerate}
 \end{minipage}
 
@@ -1611,6 +1591,99 @@ message DefinitionDescriptor {
 Type references use \texttt{TypeDescriptor} with a \texttt{kind} field (BOOL, INT32, STRING, ARRAY, MAP, DEFINED, etc.) and recursive structure for nested types. Service methods include a stable 32-bit routing ID computed from \texttt{/ServiceName/MethodName} using MurmurHash3 with the \texttt{lowbias32} finalizer~\cite{hashprospector} (bias 0.17 vs.\ standard 0.23).
 
 
+\newpage
+\section{RPC Protocol}
+
+\subsection{Motivation}
+
+In microservice architectures, serialization sits inside the RPC layer. The framing, error encoding, metadata handling, and call multiplexing all add latency on top of the serialization itself. gRPC couples Protocol Buffers to HTTP/2 with its own framing protocol, length-prefixed messages, and HPACK-compressed headers~\cite{grpc-http2-spec}. Replacing the serialization format means replacing the RPC stack.
+
+Bebop's RPC protocol uses Bebop encoding for every layer: frame headers, call headers, error payloads, metadata, the batch protocol, and service discovery responses. An implementation that can decode Bebop messages can decode every part of the protocol. One encoding, one set of generated types, one decoder path.
+
+\subsection{Protocol Design}
+
+A Bebop RPC frame has a fixed 9-byte header:
+
+\vspace{4pt}
+\begin{center}
+\begin{tikzpicture}
+\wirefield{0}{3}{length}
+\wirefield{3}{4}{flags}
+\wirefield{4}{8}{stream\_id}
+\wirelabel{0}{3}{uint32}
+\wirelabel{3}{4}{byte}
+\wirelabel{4}{8}{uint32}
+\end{tikzpicture}
+\end{center}
+\vspace{4pt}
+
+\noindent The \texttt{length} field is the payload byte count. \texttt{flags} is a bitfield combining \texttt{END\_STREAM}, \texttt{ERROR}, \texttt{COMPRESSED}, and \texttt{TRAILER}. \texttt{stream\_id} provides multiplexing on transports that require it. A complete unary RPC uses 18 bytes of framing overhead: 9 bytes in each direction.
+
+The protocol supports four method types: unary (single request, single response), server streaming (one request, multiple responses), client streaming (multiple requests, one response), and duplex streaming (both directions). These match gRPC's taxonomy, and status codes 0--16 align with gRPC's definitions, so bridging between the two protocols requires no code remapping.
+
+Method dispatch uses a 4-byte hash of \texttt{/ServiceName/MethodName} computed at schema compile time via MurmurHash3. The router performs integer comparison instead of string matching on every incoming call.
+
+The protocol is transport-agnostic. On HTTP/1.1 and HTTP/2, each request-response pair maps to a standard HTTP exchange, with metadata carried in HTTP headers. On binary transports (TCP, WebSocket, IPC, Unix sockets), the full frame protocol runs directly, with a \texttt{CallHeader} initiating each call and stream IDs providing multiplexing. This separation means the same service definition generates handlers that deploy identically on an HTTP load balancer, a WebSocket gateway, or a raw TCP socket.
+
+\subsection{Batch Pipelining}
+\label{sec:batch-pipelining}
+
+Dependent cross-service calls typically require sequential round trips. Fetching a user record and then querying their friends list costs two round trips: the second call cannot begin until the first completes. In a chain of $N$ dependent calls, latency grows as $N \times \text{RTT}$.
+
+Bebop RPC provides a batch protocol that collapses dependent calls into a single round trip. Each call in a batch carries an \texttt{input\_from} field. When set to $-1$, the call uses its own payload. When set to the index of a previous call, the server forwards that call's result as input. The server builds a dependency graph from these references, partitions calls into execution layers, and runs all calls within a layer concurrently. Layer $k+1$ waits only for the calls in layer $k$ that it depends on.
+
+\begin{lstlisting}[language=bebop]
+message BatchCall {
+    call_id(1): int32;
+    method_id(2): uint32;
+    payload(3): byte[];
+    input_from(4): int32;  // -1 = use payload, >=0 = forward result
+}
+\end{lstlisting}
+
+If a call fails, all calls that depend on it also fail with status \texttt{INVALID\_ARGUMENT}. If the batch deadline expires mid-execution, remaining calls fail with \texttt{DEADLINE\_EXCEEDED}. Server-stream methods within a batch buffer their results into arrays; true streaming semantics would require multiplexed response framing, so client-stream and duplex methods are excluded from batching.
+
+gRPC has no built-in batching primitive~\cite{grpc-core-concepts}. Dependent calls require sequential round trips or application-level batch message types defined in the Protobuf schema. Bebop's batch protocol handles dependency resolution and concurrent execution at the framework level.
+
+\subsection{Deadline Propagation}
+
+Bebop RPC transmits deadlines as absolute timestamps with nanosecond precision. Every downstream hop checks the same wall-clock cutoff. The Google SRE book identifies deadline propagation as a defense against cascading failures~\cite{google-sre-cascading}. Without propagation, downstream services continue working on requests the caller has already abandoned.
+
+gRPC converts absolute deadlines to relative timeouts with elapsed time deducted at each hop~\cite{grpc-deadlines-guide}. Bebop avoids the deduction step by transmitting the absolute timestamp directly on binary transports. On HTTP transports, the deadline is a millisecond Unix timestamp in the \texttt{bebop-deadline} header. Both representations refer to the same wall-clock instant, so no rounding accumulates across hops.
+
+\subsection{Deployment Model}
+
+gRPC requires HTTP/2~\cite{grpc-http2-spec}. This creates friction in several environments. AWS Lambda's API Gateway communicates with functions over HTTP/1.1; a Coinbase engineering investigation found gRPC ``very close to possible'' for unary calls but hit blocking issues with trailing headers, and streaming was unsupported entirely~\cite{henry-grpc-lambda}. Cloudflare Workers lack HTTP/2 streaming support in the \texttt{workerd} runtime~\cite{cloudflare-workerd-grpc}. In browsers, gRPC-Web requires an Envoy proxy because browser APIs do not expose HTTP/2 framing or trailing headers~\cite{brandhorst-grpc-web}.
+
+Twitch built Twirp~\cite{nelson-twirp} as an HTTP/1.1-compatible alternative to gRPC after grpc-go's embedded HTTP/2 implementation caused production outages. Twirp drops streaming entirely in exchange for deployment simplicity.
+
+Bebop RPC is transport-agnostic. Unary and streaming methods work over HTTP/1.1 through HTTP/3, binary TCP, WebSocket, WebRTC, WebTransport, and IPC. In browsers, any available transport works directly with no proxy. Metadata maps to HTTP headers. Errors map to HTTP status codes. The same \texttt{.bop} service definition generates server handlers and typed client stubs for every target language.
+
+\subsection{Comparison with gRPC}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Feature} & \textbf{gRPC} & \textbf{Bebop RPC} \\
+\midrule
+Wire encoding & Protobuf + HTTP/2 framing & Bebop throughout \\
+Frame overhead & 5B length prefix + HTTP/2 frame & 9B fixed header \\
+Batch pipelining & Application-level & Native with dependency graph \\
+Transport & HTTP/2 required & Any \\
+Serverless & Limited & HTTP/1.1 compatible \\
+Method dispatch & String path matching & 4-byte hash comparison \\
+Deadline model & Relative timeout with deduction & Absolute timestamp \\
+Status codes & 0--16 & 0--16 aligned + 17--255 app-defined \\
+Browser support & Requires Envoy proxy & Native \\
+\bottomrule
+\end{tabular}
+\caption{Feature comparison between gRPC and Bebop RPC.}
+\label{tab:rpc-comparison}
+\end{table}
+
+
 \section{Related Work}
 
 Protocol Buffers~\cite{protobuf} prioritizes wire compactness through varint encoding. The branching cost during decode was recognized early~\cite{varda-hn}. Bebop prioritizes decode speed instead.
@@ -1623,24 +1696,30 @@ MessagePack~\cite{msgpack} embeds type tags in the wire format; Avro~\cite{avro}
 
 simdjson~\cite{simdjson} uses SIMD to accelerate JSON parsing. Section~\ref{sec:eval} compares performance.
 
+Bebop's RPC protocol builds on ideas from several frameworks. gRPC~\cite{grpc-http2-spec} provides RPC over HTTP/2 with Protocol Buffers as the default wire format. Bebop aligns its status codes with gRPC's and adopts the same four method types, but removes the HTTP/2 requirement and adds batch pipelining. Section~7 details these differences.
+
+Apache Thrift~\cite{slee-thrift} combines an IDL, multiple serialization formats, and transport abstraction in a single framework. Thrift predates gRPC and influenced its design.
+
+Twirp~\cite{nelson-twirp} dropped streaming entirely in favor of HTTP/1.1 compatibility and deployment simplicity. Bebop RPC retains streaming by supporting multiple transports.
+
 
 \section{Conclusion}
 
-Serialization sits on the critical path of every ML inference call, every embedding lookup, every streaming token. When a third of ML organizations report GPU utilization below 15\%, and serialization consumes a quarter of microservice request latency, the format you choose for moving bytes has real consequences. Wasted hardware. Delayed responses. Money left on the table.
+Varint encoding saved bytes at the cost of branch-heavy decode loops. As the gap between bandwidth growth and compute growth widens, that tradeoff ages poorly.
 
-Bebop decodes tensor data 213$\times$ faster than Protocol Buffers. Not through clever optimization, but by removing work. Fixed-width encoding eliminates the branch-per-byte loop that varints require. No tag dispatch for structs. No runtime length computation. The decoder becomes pointer arithmetic and bounds checks, simple enough that it saturates memory bandwidth on large records. The CPU stops being the bottleneck.
+Bebop decodes tensor data 213$\times$ faster than Protocol Buffers. Fixed-width encoding eliminates the branch-per-byte loop that varints require. No tag dispatch for structs. No runtime length computation. The decoder reduces to pointer arithmetic and bounds checks, simple enough that it saturates memory bandwidth on large records.
 
-The tradeoff is wire size. Bebop's fixed-width integers cost more bytes than varints for small values. For ML workloads where embeddings dominate, this penalty is negligible because thousands of float32s encode identically either way. For workloads with many small integers, Protocol Buffers produces smaller payloads. Even then, Bebop's schema language, toolchain, and type system may justify adoption.
+The tradeoff is wire size. Fixed-width integers cost more bytes than varints for small values. Section~\ref{sec:eval} shows where this matters and where compression eliminates the difference.
+
+Faster serialization matters more when the RPC layer preserves the gain. Batch pipelining turns $N$ dependent calls into a single exchange, and HTTP/1.1 compatibility means the protocol deploys where gRPC cannot.
 
 What surprised us was how much performance came from doing less. Fixed sizes, predictable layouts, no per-value decisions. The same choices that make Bebop fast also keep the compiler small. The implementation is 35,000 lines of C with single-pass code generation. Simplicity compounded.
 
-Future work includes SIMD-accelerated array decoding, GPU-side deserialization for direct device memory placement, and streaming decode for records larger than available memory. The wire format is stable; these are implementation improvements that maintain compatibility.
-
-For teams running inference at scale, the arithmetic is straightforward. If your service spends 100 microseconds per request on serialization and handles a million requests per second, that's 100 CPU cores parsing bytes. Bebop can give most of them back.
+Future work includes SIMD-accelerated array decoding, GPU-side deserialization for direct device memory placement, streaming decode for records larger than available memory, and RPC runtime implementations for additional target languages. The wire format and RPC protocol are stable; these are implementation improvements that maintain compatibility.
 
 \section*{Acknowledgments}
 
-[To be added.]
+We thank Tristram Jenkins, PhD, of Tokyo University and Yoonseo Kang for detailed feedback on earlier drafts of this paper.
 
 \section*{Availability}
 
@@ -1649,19 +1728,18 @@ Bebop is open source. The compiler, runtime libraries, and benchmark code are av
 
 \newpage
 
-\begin{thebibliography}{10}
+\begin{thebibliography}{30}
+
+% Serialization formats
 
 \bibitem{protobuf}
 Google. \textit{Protocol Buffers}. \url{https://protobuf.dev/}, 2008.
 
-\bibitem{base64}
-Wikipedia contributors. ``Base64.'' \textit{Wikipedia}. \url{https://en.wikipedia.org/wiki/Base64}, 2024.
-
-\bibitem{cockroach-json}
-CockroachDB Engineering. ``High-performance JSON parsing in Go.'' \textit{Cockroach Labs Blog}, 2023. \url{https://www.cockroachlabs.com/blog/high-performance-json-parsing/}
-
 \bibitem{varda-hn}
-K. Varda. Comment on Hacker News, 2016. \url{https://news.ycombinator.com/item?id=11656973}
+K. Varda. Comment on Hacker News, May 2016. \url{https://news.ycombinator.com/item?id=11657767}
+
+\bibitem{varda-protobuf-announcement}
+K. Varda. ``Protocol Buffers: Google's Data Interchange Format.'' \textit{Google Open Source Blog}, July 2008. \url{https://opensource.googleblog.com/2008/07/protocol-buffers-googles-data.html}
 
 \bibitem{capnproto}
 K. Varda. \textit{Cap'n Proto}. \url{https://capnproto.org/}, 2013.
@@ -1673,7 +1751,7 @@ Google. ``Field Presence.'' \textit{Protocol Buffers Documentation}, 2020. \url{
 Google. \textit{FlatBuffers}. \url{https://flatbuffers.dev/}, 2014.
 
 \bibitem{sbe}
-Real Logic. \textit{Simple Binary Encoding}. \url{https://github.com/aeron-io/simple-binary-encoding}, 2014.
+Real Logic. \textit{Simple Binary Encoding}. \url{https://github.com/aeron-io/simple-binary-encoding}, 2013.
 
 \bibitem{msgpack}
 S. Furuhashi. \textit{MessagePack}. \url{https://msgpack.org/}, 2008.
@@ -1684,14 +1762,28 @@ Apache Software Foundation. \textit{Apache Avro}. \url{https://avro.apache.org/}
 \bibitem{simdjson}
 G. Langdale and D. Lemire. ``Parsing Gigabytes of JSON per Second.'' \textit{The VLDB Journal}, 28(6):941--960, 2019.
 
-\bibitem{hashprospector}
-C. Wellons. ``Hash Function Prospector.'' \url{https://github.com/skeeto/hash-prospector}, 2018.
+% Hardware and architecture
 
-\bibitem{m1-bench}
-H. Suzuki. ``Optimization Notes: Apple M1.'' \url{https://github.com/ocxtal/insn_bench_aarch64}, 2021.
+\bibitem{hennessy-golden-age}
+J.~L.~Hennessy and D.~A.~Patterson. ``A New Golden Age for Computer Architecture.'' \textit{Communications of the ACM}, 62(2):48--60, 2019. Based on Turing Lecture delivered at ISCA, June 2018.
 
-\bibitem{golden-cove}
-C. Lam. ``Popping the Hood on Golden Cove.'' Chips and Cheese, \url{https://chipsandcheese.com/p/popping-the-hood-on-golden-cove}, 2022.
+\bibitem{bohr-dennard-retrospective}
+M. Bohr. ``A 30 Year Retrospective on Dennard's MOSFET Scaling Paper.'' \textit{IEEE Solid-State Circuits Newsletter}, 12(1):11--13, 2007.
+
+\bibitem{pcisig-pcie6}
+PCI-SIG. \textit{PCI Express Base Specification Revision 6.0}, Version 1.0, January 2022.
+
+\bibitem{ieee-802.3bs}
+IEEE. ``IEEE Standard for Ethernet -- Amendment 10: Media Access Control Parameters, Physical Layers, and Management Parameters for 200~Gb/s and 400~Gb/s Operation.'' IEEE Std 802.3bs-2017, December 2017.
+
+\bibitem{sharma-cxl-survey}
+D.~Das~Sharma, R.~Blankenship, and D.~Berger. ``An Introduction to the Compute Express Link (CXL) Interconnect.'' \textit{ACM Computing Surveys}, 56(11):1--37, 2024.
+
+\bibitem{puttnam-402tbps}
+B.~J.~Puttnam, H.~Furukawa, et~al. ``402~Tb/s GMI Data-Rate OESCLU-Band Transmission.'' Post-deadline paper Th4A.3, Optical Fiber Communication Conference (OFC), San Diego, March 2024.
+
+\bibitem{carmack-fiber-flash}
+J. Carmack. Post on fiber optic delay-line memory and flash bandwidth for AI inference. X (formerly Twitter), February 2026. \url{https://x.com/ID_AA_Carmack/status/2019839335382790342}
 
 \bibitem{eyerman-branch}
 S. Eyerman, J. E. Smith, and L. Eeckhout. ``Characterizing the Branch Misprediction Penalty.'' \textit{Proc.\ IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)}, pp.\ 48--58, 2006.
@@ -1699,28 +1791,51 @@ S. Eyerman, J. E. Smith, and L. Eeckhout. ``Characterizing the Branch Mispredict
 \bibitem{fog-microarch}
 A. Fog. ``The microarchitecture of Intel, AMD and VIA CPUs: An optimization guide for assembly programmers and compiler makers.'' Technical University of Denmark, \url{https://www.agner.org/optimize/microarchitecture.pdf}, 2025.
 
+\bibitem{m1-bench}
+H. Suzuki. ``Optimization Notes: Apple M1.'' \url{https://github.com/ocxtal/insn_bench_aarch64}, 2021.
+
+\bibitem{golden-cove}
+C. Lam. ``Popping the Hood on Golden Cove.'' Chips and Cheese, \url{https://chipsandcheese.com/p/popping-the-hood-on-golden-cove}, 2021.
+
 \bibitem{m3-ultra}
 Apple Inc. ``Mac Studio Technical Specifications.'' \url{https://www.apple.com/mac-studio/specs/}, 2025.
 
-\bibitem{openai-api-analysis}
-FutureSearch. ``OpenAI's API Profitability in 2024.'' \url{https://futuresearch.ai/openai-api-profit/}, 2024.
+% RPC and deployment
 
-\bibitem{wandb-gpu}
-Weights \& Biases. ``GPU Utilization Survey.'' Referenced in Alluxio, ``Maximize GPU Utilization for Model Training.'' \url{https://www.alluxio.io/blog/maximize-gpu-utilization-for-model-training}, 2024.
+\bibitem{grpc-http2-spec}
+gRPC Authors. ``gRPC over HTTP2.'' \url{https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md}, 2015.
 
-\bibitem{datastalls}
-J.~Mohan, A.~Phanishayee, A.~Raniwala, and V.~Chidambaram.
-``Analyzing and Mitigating Data Stalls in DNN Training.''
-\textit{Proceedings of the VLDB Endowment}, 14(5):771--784, 2021.
+\bibitem{grpc-core-concepts}
+gRPC Authors. ``Core concepts, architecture and lifecycle.'' \url{https://grpc.io/docs/what-is-grpc/core-concepts/}, 2023.
 
-\bibitem{gpu-pricing}
-Thunder Compute. ``NVIDIA H100 Pricing: Cheapest On-Demand Cloud GPU Rates.'' \url{https://www.thundercompute.com/blog/nvidia-h100-pricing}, January 2026.
+\bibitem{grpc-deadlines-guide}
+gRPC Authors. ``Deadlines.'' \url{https://grpc.io/docs/guides/deadlines/}, 2023.
+
+\bibitem{henry-grpc-lambda}
+P. Henry. ``gRPC to AWS Lambda: Is it Possible?'' \textit{Coinbase Blog}, March 2019. \url{https://www.coinbase.com/blog/grpc-to-aws-lambda-is-it-possible}
+
+\bibitem{cloudflare-workerd-grpc}
+``Support for calling gRPC endpoints from Cloudflare Workers.'' Discussion \#4534, \texttt{cloudflare/workerd} GitHub repository, 2025. \url{https://github.com/cloudflare/workerd/discussions/4534}
+
+\bibitem{brandhorst-grpc-web}
+J. Brandhorst. ``The state of gRPC in the browser.'' \textit{gRPC Blog}, January 2019. \url{https://grpc.io/blog/state-of-grpc-web/}
+
+\bibitem{nelson-twirp}
+S. Nelson. ``Twirp: a sweet new RPC framework for Go.'' \textit{Twitch Blog}, January 2018. \url{https://blog.twitch.tv/en/2018/01/16/twirp-a-sweet-new-rpc-framework-for-go-5f2febbf35f/}
+
+\bibitem{slee-thrift}
+M. Slee, A. Agarwal, and M. Kwiatkowski. ``Thrift: Scalable Cross-Language Services Implementation.'' Facebook Technical Paper, April 2007. \url{https://thrift.apache.org/static/files/thrift-20070401.pdf}
+
+\bibitem{google-sre-cascading}
+M. Ulrich. ``Addressing Cascading Failures.'' In \textit{Site Reliability Engineering: How Google Runs Production Systems}, ch.~22, O'Reilly Media, 2016. \url{https://sre.google/sre-book/addressing-cascading-failures/}
+
+% Benchmarks and applications
 
 \bibitem{linkedin-protobuf}
-N.~Grewal. ``How LinkedIn Adopted Protocol Buffers to Reduce Latency by 60\%.'' \textit{System Design Newsletter}, 2023.
+N.~Kim. ``How LinkedIn Adopted Protocol Buffers to Reduce Latency by 60\%.'' \textit{System Design Newsletter}, 2023. \url{https://newsletter.systemdesign.one/p/protocol-buffers-vs-json}
 
-\bibitem{credera-serialization}
-Credera. ``A Common Pitfall with Microservice Architectures.'' \url{https://www.credera.com/insights/a-common-pitfall-with-microservice-architectures}, 2019.
+\bibitem{hashprospector}
+C. Wellons. ``Hash Function Prospector.'' \url{https://github.com/skeeto/hash-prospector}, 2018.
 
 \end{thebibliography}
 
