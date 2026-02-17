@@ -7,7 +7,9 @@ let package = Package(
     products: [
         .library(name: "SwiftBebop", targets: ["SwiftBebop"]),
         .library(name: "SwiftBebopFoundation", targets: ["SwiftBebopFoundation"]),
-        .executable(name: "bebopc-gen-swift", targets: ["bebopc-gen-swift"])
+        .executable(name: "bebopc-gen-swift", targets: ["bebopc-gen-swift"]),
+        .plugin(name: "BebopBuildToolPlugin", targets: ["BebopBuildToolPlugin"]),
+        .plugin(name: "BebopCommandPlugin", targets: ["BebopCommandPlugin"])
     ],
     targets: [
         .target(name: "CBFloat16", path: "plugins/swift/Sources/CBFloat16"),
@@ -20,6 +22,19 @@ let package = Package(
                 "BebopPlugin"
             ],
             path: "plugins/swift/Sources/bebopc-gen-swift"
+        ),
+        .plugin(
+            name: "BebopBuildToolPlugin",
+            capability: .buildTool(),
+            path: "plugins/swift/Sources/BebopBuildToolPlugin"
+        ),
+        .plugin(
+            name: "BebopCommandPlugin",
+            capability: .command(
+                intent: .custom(verb: "format-bop", description: "Format Bebop schema files"),
+                permissions: [.writeToPackageDirectory(reason: "Format Bebop schema files in place")]
+            ),
+            path: "plugins/swift/Sources/BebopCommandPlugin"
         ),
         .testTarget(name: "SwiftBebopTests", dependencies: ["SwiftBebop", "SwiftBebopFoundation"], path: "plugins/swift/Tests/SwiftBebopTests"),
         .testTarget(name: "BebopPluginTests", dependencies: ["BebopPlugin"], path: "plugins/swift/Tests/BebopPluginTests"),

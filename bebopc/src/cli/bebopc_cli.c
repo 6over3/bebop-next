@@ -214,6 +214,9 @@ static cli_format_t _parse_format(const char* str)
   if (bebopc_strcaseeq(str, "msbuild")) {
     return CLI_FORMAT_MSBUILD;
   }
+  if (bebopc_strcaseeq(str, "xcode")) {
+    return CLI_FORMAT_XCODE;
+  }
   return CLI_FORMAT_TERMINAL;
 }
 

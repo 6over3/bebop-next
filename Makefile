@@ -44,7 +44,9 @@ VERSION_MINOR := $(word 2,$(subst ., ,$(VERSION_BASE)))
 VERSION_PATCH := $(word 3,$(subst ., ,$(VERSION_BASE)))
 VERSION_SUFFIX := $(word 2,$(subst -, ,$(VERSION)))
 
-.PHONY: all debug release test clean publish dist vscode archive
+PREFIX ?= $(HOME)/.local
+
+.PHONY: all debug release test clean publish dist vscode archive install uninstall
 
 all: release
 
@@ -101,3 +103,22 @@ vscode:
 
 archive:
 	@tar -czf bebop-$(VERSION)-$(DETECTED_OS)-$(ARCH).tar.gz -C $(DIST_DIR) .
+
+install: dist
+	@$(MKDIR) $(PREFIX)/bin $(PREFIX)/lib $(PREFIX)/include $(PREFIX)/share/bebop
+	@$(CP) $(DIST_DIR)/bin/* $(PREFIX)/bin/
+	@$(CP) $(DIST_DIR)/lib/* $(PREFIX)/lib/
+	@cmake -E copy_directory $(DIST_DIR)/include $(PREFIX)/include
+	@cmake -E copy_directory $(DIST_DIR)/share/bebop $(PREFIX)/share/bebop
+	@echo "Installed bebop $(VERSION) to $(PREFIX)"
+
+uninstall:
+	@$(RM) $(PREFIX)/bin/bebopc $(PREFIX)/bin/bebopc-gen-*
+ifeq ($(OS),Windows_NT)
+	@$(RM) $(PREFIX)/lib/bebop.lib
+else
+	@$(RM) $(PREFIX)/lib/libbebop.a
+endif
+	@$(RM) $(PREFIX)/include/bebop
+	@$(RM) $(PREFIX)/share/bebop
+	@echo "Uninstalled bebop from $(PREFIX)"

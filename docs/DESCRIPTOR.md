@@ -291,13 +291,13 @@ Two mutually exclusive modes:
 
 **Inline branch** - Body declared in the union:
 ```bebop
-union Shape { Circle(1): { radius: float32; } }
+union Shape { Circle(1): { radius: float32; }; }
 ```
 Sets `inline_fqn = "mypackage.Shape.Circle"`. The inline definition lives in the parent DefinitionDescriptor's `nested` array.
 
 **Type-reference branch** - References an existing type:
 ```bebop
-union Shape { rect(2): Rect }
+union Shape { rect(2): Rect; }
 ```
 Sets `type_ref_fqn = "mypackage.Rect"` and `name = "rect"`.
 

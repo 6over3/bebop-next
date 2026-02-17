@@ -3402,8 +3402,12 @@ static void bebop__parse_file(bebop_parser_t* p)
           break;
         }
 
-        if (!BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_SEMICOLON)) {
-          BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_COMMA);
+        if (!BEBOP_PARSE_CONSUME_AFTER(
+                p, BEBOP_TOKEN_SEMICOLON, "Expected ';' after union branch"
+            ))
+        {
+          frame->state = PARSE_STATE_UNION_BODY;
+          break;
         }
 
         if (branch_def) {

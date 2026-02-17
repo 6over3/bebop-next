@@ -211,6 +211,9 @@ uint32_t bebopc_render_diagnostics(bebopc_ctx_t* ctx, bebop_parse_result_t* resu
       case CLI_FORMAT_MSBUILD:
         diag_set_format(&diag_ctx, DIAG_FMT_MSBUILD);
         break;
+      case CLI_FORMAT_XCODE:
+        diag_set_format(&diag_ctx, DIAG_FMT_XCODE);
+        break;
       default:
         diag_set_format(&diag_ctx, DIAG_FMT_TERMINAL);
         break;

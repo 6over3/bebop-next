@@ -31,24 +31,24 @@ union Result {
     // Default visibility (local for nested)
     Success(1): {
         value: string;
-    }
+    };
     // Explicitly exported branch - accessible via Result.Error
     export Error(2): {
         code: int32;
         details: string;
-    }
+    };
     // Explicitly local branch (redundant, nested is local by default)
     Warning(3): {
         msg: string;
-    }
+    };
 }
 
 // Union with mutable struct branches
 union MutableResult {
     MutSuccess(1): mut {
         value: string;
-    }
+    };
     export MutError(2): mut {
         code: int32;
-    }
+    };
 }

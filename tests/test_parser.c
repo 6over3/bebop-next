@@ -1046,9 +1046,9 @@ void test_parse_union(void)
 {
   const char* source = "/** A test union */\n"
                          "union TestUnion {\n"
-                         "    A(1): { x: int32; }\n"
-                         "    B(2): message { name(1): string; }\n"
-                         "    C(3): mut { flag: bool; }\n"
+                         "    A(1): { x: int32; };\n"
+                         "    B(2): message { name(1): string; };\n"
+                         "    C(3): mut { flag: bool; };\n"
                          "}\n";
 
   bebop_parse_result_t* result = parse_expect_success(source);
@@ -1958,7 +1958,7 @@ void test_parse_union_type_ref(void)
                          "union Event {\n"
                          "    Created(1): {\n"
                          "        id: string;\n"
-                         "    }\n"
+                         "    };\n"
                          "    meta(2): Metadata;\n"
                          "}\n";
 
@@ -1990,7 +1990,7 @@ void test_parse_union_type_ref(void)
 void test_fail_union_ref_union(void)
 {
   const char* source = "union Inner {\n"
-                         "    A(1): { x: int32; }\n"
+                         "    A(1): { x: int32; };\n"
                          "}\n"
                          "\n"
                          "union Outer {\n"

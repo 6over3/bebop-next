@@ -1,0 +1,1775 @@
+(
+
+    {
+        Identifier = "xcode.lang.bebop.identifier";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = (
+                "struct",
+                "message",
+                "enum",
+                "union",
+                "service",
+                "const",
+                "mut",
+                "readonly",
+                "export",
+                "local",
+                "stream",
+                "edition",
+                "package",
+                "import",
+                "with",
+                "targets",
+                "param",
+                "validate",
+                "map",
+                "array",
+                "bool",
+                "byte",
+                "uint8",
+                "sbyte",
+                "int8",
+                "int16",
+                "uint16",
+                "int32",
+                "uint32",
+                "int64",
+                "uint64",
+                "int128",
+                "uint128",
+                "float16",
+                "float32",
+                "float64",
+                "bfloat16",
+                "half",
+                "bf16",
+                "string",
+                "uuid",
+                "guid",
+                "timestamp",
+                "duration",
+                "true",
+                "false",
+                "inf",
+                "nan",
+            );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.identifier";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.identifier.type";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
+            Words = (
+                "bool",
+                "byte",
+                "uint8",
+                "sbyte",
+                "int8",
+                "int16",
+                "uint16",
+                "int32",
+                "uint32",
+                "int64",
+                "uint64",
+                "int128",
+                "uint128",
+                "float16",
+                "float32",
+                "float64",
+                "bfloat16",
+                "half",
+                "bf16",
+                "string",
+                "uuid",
+                "guid",
+                "timestamp",
+                "duration",
+                "map",
+                "stream",
+            );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.identifier.type";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.identifier.plain";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = ();
+            Type = "xcode.syntax.identifier";
+            AltType = "xcode.syntax.identifier";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.identifier.constant";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = (
+                "true",
+                "false",
+                "inf",
+                "nan",
+            );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.number";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.identifier.decorator.param";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = (
+                "true",
+                "false",
+                "inf",
+                "nan",
+            );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.identifier.variable";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.at.decorator";
+        Syntax = {
+            StartChars = "@";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
+            Type = "xcode.syntax.attribute";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.hash.decorator";
+        Syntax = {
+            StartChars = "#";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Type = "xcode.syntax.attribute";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.interestingOperators";
+        Syntax = {
+            Words = (
+                ".", ":", "=", "->", "|", "&", "~",
+                "<<", ">>", ",", ";", "!", "?",
+            );
+            Type = "xcode.syntax.plain";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.package.path";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
+            Type = "xcode.syntax.attribute";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.number.hex";
+        Syntax = {
+            StartChars = "-0";
+            Chars = "0123456789abcdefABCDEFxX-";
+            Match = ( "^-?0[xX][0-9a-fA-F]+" );
+            Type = "xcode.syntax.number";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.number.float";
+        Syntax = {
+            StartChars = "-0123456789";
+            Chars = "0123456789.eE+-";
+            Match = (
+                "^-?[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?",
+                "^-?[0-9]+[eE][+-]?[0-9]+",
+            );
+            Type = "xcode.syntax.number";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.number.integer";
+        Syntax = {
+            StartChars = "-0123456789";
+            Chars = "0123456789-";
+            Match = ( "^-?[0-9]+" );
+            Type = "xcode.syntax.number";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.string.byte";
+        Syntax = {
+            Start = "b\"";
+            End = "\"";
+            EscapeChar = "\\";
+            Type = "xcode.syntax.string";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.string.double";
+        Syntax = {
+            Start = "\"";
+            End = "\"";
+            EscapeChar = "\\";
+            Type = "xcode.syntax.string";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.string.single";
+        Syntax = {
+            Start = "'";
+            End = "'";
+            EscapeChar = "\\";
+            Type = "xcode.syntax.string";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.comment.doc.block";
+        Syntax = {
+            Start = "/**";
+            End = "*/";
+            Foldable = YES;
+            IncludeRules = ( "xcode.lang.url", "xcode.lang.url.mail", "xcode.lang.comment.mark" );
+            Type = "xcode.syntax.comment.doc";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.comment.block";
+        Syntax = {
+            Start = "/*";
+            End = "*/";
+            Foldable = YES;
+            IncludeRules = ( "xcode.lang.url", "xcode.lang.url.mail", "xcode.lang.comment.mark" );
+            Type = "xcode.syntax.comment";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.comment.doc.line";
+        Syntax = {
+            Start = "///";
+            End = "\n";
+            IncludeRules = ( "xcode.lang.url", "xcode.lang.url.mail", "xcode.lang.comment.mark" );
+            Type = "xcode.syntax.comment.doc";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.comment.line";
+        Syntax = {
+            Start = "//";
+            End = "\n";
+            IncludeRules = ( "xcode.lang.url", "xcode.lang.url.mail", "xcode.lang.comment.mark" );
+            Type = "xcode.syntax.comment";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop";
+        Description = "Bebop Coloring";
+        BasedOn = "xcode.lang.simpleColoring";
+        IncludeInMenu = YES;
+        UsesCLikeIndentation = YES;
+        Name = "Bebop";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            IncludeRules = (
+                "xcode.lang.bebop.edition",
+                "xcode.lang.bebop.package",
+                "xcode.lang.bebop.import",
+                "xcode.lang.bebop.decorator.definition",
+                "xcode.lang.bebop.const.definition",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.service.local",
+                "xcode.lang.bebop.service",
+                "xcode.lang.bebop.block",
+                "xcode.lang.bebop.parenexpr",
+                "xcode.lang.bebop.bracketexpr",
+            );
+            Type = "xcode.syntax.plain";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.lexer";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.string.byte",
+                "xcode.lang.bebop.string.double",
+                "xcode.lang.bebop.string.single",
+                "xcode.lang.bebop.at.decorator",
+                "xcode.lang.bebop.hash.decorator",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.identifier",
+                "xcode.lang.bebop.interestingOperators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.lexer.type";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.string.byte",
+                "xcode.lang.bebop.string.double",
+                "xcode.lang.bebop.string.single",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.identifier.type",
+                "xcode.lang.bebop.interestingOperators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.lexer.package";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.package.path",
+                "xcode.lang.bebop.identifier",
+                "xcode.lang.bebop.interestingOperators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.lexer.decorator.args";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.string.byte",
+                "xcode.lang.bebop.string.double",
+                "xcode.lang.bebop.string.single",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.identifier.decorator.param",
+                "xcode.lang.bebop.interestingOperators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.lexer.enum.body";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.string.byte",
+                "xcode.lang.bebop.string.double",
+                "xcode.lang.bebop.string.single",
+                "xcode.lang.bebop.at.decorator",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.enum.member.equals",
+                "xcode.lang.bebop.identifier.constant",
+                "xcode.lang.bebop.enum.body.operators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.lexer.const";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.comment.doc.block",
+                "xcode.lang.bebop.comment.block",
+                "xcode.lang.bebop.comment.doc.line",
+                "xcode.lang.bebop.comment.line",
+                "xcode.lang.bebop.string.byte",
+                "xcode.lang.bebop.string.double",
+                "xcode.lang.bebop.string.single",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.const.name",
+                "xcode.lang.bebop.identifier",
+                "xcode.lang.bebop.interestingOperators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.member.equals";
+        Syntax = {
+            Words = ( "=" );
+            Type = "xcode.syntax.plain";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.body.operators";
+        Syntax = {
+            Words = (
+                ".", ":", "->", "|", "&", "~",
+                "<<", ">>", ",", ";", "!", "?", "+", "-",
+            );
+            Type = "xcode.syntax.plain";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.const.name";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = ();
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.declaration.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "xcode.lang.bebop.identifier" );
+            Type = "xcode.syntax.name.type";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.declaration.name.branch";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "xcode.lang.bebop.identifier|struct|message|enum|union|service|const|mut|readonly|export|local|stream|edition|package|import|with|targets|param|validate|map|array|bool|byte|uint8|sbyte|int8|int16|uint16|int32|uint32|int64|uint64|int128|uint128|float16|float32|float64|bfloat16|half|bf16|string|uuid|guid|timestamp|duration|true|false|inf|nan" );
+            Type = "xcode.syntax.name.type";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.field.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.identifier",
+            );
+            Type = "xcode.syntax.name.other";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.method.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.identifier",
+            );
+            Type = "xcode.syntax.name.other";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.usage.withargs";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.at.decorator",
+                "xcode.lang.bebop.decorator.usage.arglist",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.usage.noargs";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.at.decorator",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.usage.arglist";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.decorator.args";
+            Start = "(";
+            End = ")";
+            Recursive = YES;
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.usage.withargs.enum";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Rules = (
+                "xcode.lang.bebop.at.decorator",
+                "xcode.lang.bebop.decorator.usage.arglist",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.usage.noargs.enum";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Rules = (
+                "xcode.lang.bebop.at.decorator",
+            );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.edition";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "edition",
+                "=",
+                "xcode.lang.bebop.string.double|xcode.lang.bebop.string.single",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.package";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.package";
+            Start = "package";
+            End = "\n";
+            Type = "xcode.syntax.module.import";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.import";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "import",
+                "xcode.lang.bebop.string.double|xcode.lang.bebop.string.single",
+            );
+            Type = "xcode.syntax.module.import";
+            ShouldTraverse = YES;
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.decorator.definition";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.decorator.definition.declarator",
+                "xcode.lang.bebop.decorator.definition.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.decorator.definition.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.hash.decorator",
+                "xcode.lang.bebop.decorator.definition.arglist?",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.decorator.definition.arglist";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "(";
+            End = ")";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.decorator.definition.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.luablock",
+                "xcode.lang.bebop.block",
+                "xcode.lang.bebop.parenexpr",
+                "xcode.lang.bebop.bracketexpr",
+            );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.const.definition";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.const";
+            Start = "const";
+            End = ";";
+            IncludeRules = (
+                "xcode.lang.bebop.parenexpr",
+                "xcode.lang.bebop.bracketexpr",
+            );
+            Type = "xcode.syntax.declaration.variable";
+            ShouldTraverse = YES;
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.struct.local";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.struct.local.declarator",
+                "xcode.lang.bebop.struct.block",
+            );
+            Type = "xcode.syntax.declaration.struct";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.struct.local.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "local", "mut?", "struct", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.struct.export";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.struct.export.declarator",
+                "xcode.lang.bebop.struct.block",
+            );
+            Type = "xcode.syntax.declaration.struct";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.struct.export.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "export", "mut?", "struct", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.struct";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.struct.declarator",
+                "xcode.lang.bebop.struct.block",
+            );
+            Type = "xcode.syntax.declaration.struct";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.struct.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "mut?", "struct", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.struct.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.field",
+                "xcode.lang.bebop.bracketexpr",
+                "xcode.lang.bebop.parenexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.field";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.field.name",
+                "xcode.lang.bebop.field.type",
+            );
+            Type = "xcode.syntax.declaration.property";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.field.type";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = ":";
+            Until = ";|}";
+            IncludeRules = (
+                "xcode.lang.bebop.bracketexpr.type",
+                "xcode.lang.bebop.parenexpr.type",
+            );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.message.local";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.message.local.declarator",
+                "xcode.lang.bebop.message.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.message.local.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "local", "message", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.message.export";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.message.export.declarator",
+                "xcode.lang.bebop.message.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.message.export.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "export", "message", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.message";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.message.declarator",
+                "xcode.lang.bebop.message.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.message.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "message", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.message.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.message.field",
+                "xcode.lang.bebop.bracketexpr",
+                "xcode.lang.bebop.parenexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.message.field";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.field.name",
+                "xcode.lang.bebop.message.field.tag",
+                "xcode.lang.bebop.field.type",
+            );
+            Type = "xcode.syntax.declaration.property";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.message.field.tag";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "(";
+            End = ")";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.enum.local";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.enum.local.declarator",
+                "xcode.lang.bebop.enum.basetype?",
+                "xcode.lang.bebop.enum.block",
+            );
+            Type = "xcode.syntax.declaration.enum";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.enum.local.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "local", "enum", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.export";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.enum.export.declarator",
+                "xcode.lang.bebop.enum.basetype?",
+                "xcode.lang.bebop.enum.block",
+            );
+            Type = "xcode.syntax.declaration.enum";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.enum.export.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "export", "enum", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.enum.declarator",
+                "xcode.lang.bebop.enum.basetype?",
+                "xcode.lang.bebop.enum.block",
+            );
+            Type = "xcode.syntax.declaration.enum";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.enum.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "enum", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.basetype";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = ":";
+            Until = "{|}";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs.enum",
+                "xcode.lang.bebop.decorator.usage.noargs.enum",
+                "xcode.lang.bebop.enum.member",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.member";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Start = "xcode.lang.bebop.enum.member.start";
+            Until = ";|}";
+            IncludeRules = (
+                "xcode.lang.bebop.parenexpr",
+            );
+            Type = "xcode.syntax.declaration.enum.case";
+            ShouldTraverse = YES;
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.member.start";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Rules = (
+                "xcode.lang.bebop.enum.member.name",
+                "xcode.lang.bebop.enum.member.equals",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.enum.member.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.enum.body";
+            Rules = (
+                "xcode.lang.bebop.identifier.constant|export|local|true|false|inf|nan",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.union.local";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.local.declarator",
+                "xcode.lang.bebop.union.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.local.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "local", "union", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.export";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.export.declarator",
+                "xcode.lang.bebop.union.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.export.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "export", "union", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.declarator",
+                "xcode.lang.bebop.union.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "union", "xcode.lang.bebop.declaration.name" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.union.branch.export.message",
+                "xcode.lang.bebop.union.branch.message",
+                "xcode.lang.bebop.union.branch.export.mutstruct",
+                "xcode.lang.bebop.union.branch.mutstruct",
+                "xcode.lang.bebop.union.branch.export.struct",
+                "xcode.lang.bebop.union.branch.struct",
+                "xcode.lang.bebop.union.branch.export.typeref",
+                "xcode.lang.bebop.union.branch.typeref",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.parenexpr",
+                "xcode.lang.bebop.bracketexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.message";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.message.declarator",
+                "xcode.lang.bebop.message.block",
+                ";",
+            );
+            Type = "xcode.syntax.definition.class";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.message.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+                "message",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.message";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.export.message.declarator",
+                "xcode.lang.bebop.message.block",
+                ";",
+            );
+            Type = "xcode.syntax.definition.class";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.message.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "export",
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+                "message",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.mutstruct";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.mutstruct.declarator",
+                "xcode.lang.bebop.struct.block",
+                ";",
+            );
+            Type = "xcode.syntax.declaration.struct";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.mutstruct.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+                "mut",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.mutstruct";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.export.mutstruct.declarator",
+                "xcode.lang.bebop.struct.block",
+                ";",
+            );
+            Type = "xcode.syntax.declaration.struct";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.mutstruct.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "export",
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+                "mut",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        // Inline struct branch: Name(N): { fields... };
+        // Uses Start/End so the inner block uses the standard lexer for fields.
+        Identifier = "xcode.lang.bebop.union.branch.struct";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.struct.declarator",
+                "xcode.lang.bebop.union.branch.struct.body",
+                ";",
+            );
+            Type = "xcode.syntax.declaration.struct";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.struct.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.struct.body";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.field",
+                "xcode.lang.bebop.bracketexpr",
+                "xcode.lang.bebop.parenexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.struct";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.export.struct.declarator",
+                "xcode.lang.bebop.union.branch.struct.body",
+                ";",
+            );
+            Type = "xcode.syntax.declaration.struct";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.struct.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "export",
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+                ":",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        // Type-reference branch: Name(N): some.Type;
+        // The type portion uses lexer.type so dotted paths like base.Point
+        // are tokenized as single tokens with type highlighting.
+        Identifier = "xcode.lang.bebop.union.branch.typeref";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.typeref.declarator",
+                "xcode.lang.bebop.union.branch.typeref.type",
+            );
+            Type = "xcode.syntax.declaration.property";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.typeref.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.typeref";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.union.branch.export.typeref.declarator",
+                "xcode.lang.bebop.union.branch.typeref.type",
+            );
+            Type = "xcode.syntax.declaration.property";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.union.branch.export.typeref.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "export",
+                "xcode.lang.bebop.declaration.name.branch",
+                "xcode.lang.bebop.union.branch.discriminator",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.union.branch.discriminator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "(";
+            End = ")";
+        };
+    },
+    {
+        // Type portion of a typeref branch.
+        // Uses lexer.type so dotted type paths (base.Point, base.Color)
+        // are consumed as single tokens.
+        // Until = ";|}" so it stops at the branch-ending semicolon.
+        Identifier = "xcode.lang.bebop.union.branch.typeref.type";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = ":";
+            Until = ";|}";
+            IncludeRules = (
+                "xcode.lang.bebop.bracketexpr.type",
+                "xcode.lang.bebop.parenexpr.type",
+            );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.service.local";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.service.local.declarator",
+                "xcode.lang.bebop.service.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.service.local.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "local", "service", "xcode.lang.bebop.declaration.name", "xcode.lang.bebop.service.with?" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.service";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.service.declarator",
+                "xcode.lang.bebop.service.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.service.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = ( "service", "xcode.lang.bebop.declaration.name", "xcode.lang.bebop.service.with?" );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.service.with";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = "with";
+            Until = "{|}";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.service.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.service.method",
+                "xcode.lang.bebop.parenexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.service.method";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.service.method.declarator",
+                "xcode.lang.bebop.service.method.return",
+            );
+            Type = "xcode.syntax.definition.function";
+            ShouldTraverse = YES;
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.service.method.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Rules = (
+                "xcode.lang.bebop.method.name",
+                "xcode.lang.bebop.service.method.params",
+            );
+            Type = "xcode.syntax.method.declarator";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.service.method.params";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = "(";
+            End = ")";
+            Type = "xcode.syntax.name.partial";
+            IncludeRules = (
+                "xcode.lang.bebop.bracketexpr.type",
+                "xcode.lang.bebop.parenexpr.type",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.service.method.return";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = ":";
+            Until = ";|}";
+            IncludeRules = (
+                "xcode.lang.bebop.bracketexpr.type",
+                "xcode.lang.bebop.parenexpr.type",
+            );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.lua.identifier";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
+            Words = (
+                "and", "break", "do", "else", "elseif", "end", "false",
+                "for", "function", "if", "in", "local", "nil", "not",
+                "or", "repeat", "return", "then", "true", "until", "while",
+                "assert", "collectgarbage", "dofile", "error",
+                "getfenv", "getmetatable", "ipairs", "load", "loadfile",
+                "loadstring", "module", "next", "pairs", "pcall", "print",
+                "rawequal", "rawget", "rawset", "require", "select",
+                "setfenv", "setmetatable", "tonumber", "tostring", "type",
+                "unpack", "xpcall", "_G", "_VERSION",
+                "__add", "__concat", "__div", "__eq", "__gc", "__index",
+                "__le", "__lt", "__metatable", "__mode", "__mul",
+                "__newindex", "__pow", "__sub", "__tostring", "__unm",
+                "coroutine", "string", "table", "math", "io", "os", "debug",
+                "warn", "self", "target",
+            );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.identifier";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.operators";
+        Syntax = {
+            Words = ( "..", ".", ":", "#", "==", "~=", "<=", ">=", "<", ">", "=" );
+            Type = "xcode.syntax.plain";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.comment";
+        Syntax = {
+            Start = "--";
+            End = "\n";
+            IncludeRules = ( "xcode.lang.url", "xcode.lang.url.mail", "xcode.lang.comment.mark" );
+            Type = "xcode.syntax.comment";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.string.single";
+        Syntax = { Start = "'"; End = "'"; EscapeChar = "\\"; Type = "xcode.syntax.string"; };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.string.double";
+        Syntax = { Start = "\""; End = "\""; EscapeChar = "\\"; Type = "xcode.syntax.string"; };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.lexer";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.bebop.lua.comment",
+                "xcode.lang.bebop.lua.string.double",
+                "xcode.lang.bebop.lua.string.single",
+                "xcode.lang.bebop.lua.identifier",
+                "xcode.lang.bebop.number.hex",
+                "xcode.lang.bebop.number.float",
+                "xcode.lang.bebop.number.integer",
+                "xcode.lang.bebop.lua.operators",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.luablock";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "[[";
+            End = "]]";
+            Foldable = YES;
+            Recursive = NO;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function",
+                "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.if",
+                "xcode.lang.bebop.lua.block.while",
+                "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr",
+                "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.function";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "xcode.lang.bebop.lua.function.declarator";
+            End = "end";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function",
+                "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.if",
+                "xcode.lang.bebop.lua.block.while",
+                "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr",
+                "xcode.lang.bebop.lua.bracketexpr",
+            );
+            Type = "xcode.syntax.definition.function";
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.function.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Rules = ( "function", "xcode.lang.bebop.lua.identifier" );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function",
+                "xcode.lang.bebop.lua.block.if",
+                "xcode.lang.bebop.lua.block.while",
+                "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr",
+                "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.block.if";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "if"; End = "end"; Foldable = YES; Recursive = YES; StartAtBOL = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function", "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.while", "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr", "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.block.while";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "while"; End = "end"; Foldable = YES; Recursive = YES; StartAtBOL = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function", "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.if", "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr", "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.block.repeat";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "repeat"; End = "until"; Foldable = YES; Recursive = YES; StartAtBOL = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function", "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.if", "xcode.lang.bebop.lua.block.while",
+                "xcode.lang.bebop.lua.block.for",
+                "xcode.lang.bebop.lua.parenexpr", "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.block.for";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "for"; End = "end"; Foldable = YES; Recursive = YES; StartAtBOL = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.lua.function", "xcode.lang.bebop.lua.block",
+                "xcode.lang.bebop.lua.block.if", "xcode.lang.bebop.lua.block.while",
+                "xcode.lang.bebop.lua.block.repeat",
+                "xcode.lang.bebop.lua.parenexpr", "xcode.lang.bebop.lua.bracketexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.parenexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "("; End = ")"; Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.lua.bracketexpr" );
+        };
+    },
+    {
+        Identifier = "xcode.lang.bebop.lua.bracketexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lua.lexer";
+            Start = "["; End = "]"; Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.lua.parenexpr" );
+        };
+    },
+
+
+    {
+        Identifier = "xcode.lang.bebop.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.bebop.luablock",
+                "xcode.lang.bebop.decorator.usage.withargs",
+                "xcode.lang.bebop.decorator.usage.noargs",
+                "xcode.lang.bebop.struct.export",
+                "xcode.lang.bebop.struct.local",
+                "xcode.lang.bebop.struct",
+                "xcode.lang.bebop.message.export",
+                "xcode.lang.bebop.message.local",
+                "xcode.lang.bebop.message",
+                "xcode.lang.bebop.enum.export",
+                "xcode.lang.bebop.enum.local",
+                "xcode.lang.bebop.enum",
+                "xcode.lang.bebop.union.export",
+                "xcode.lang.bebop.union.local",
+                "xcode.lang.bebop.union",
+                "xcode.lang.bebop.parenexpr",
+                "xcode.lang.bebop.bracketexpr",
+            );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.parenexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "(";
+            End = ")";
+            Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.bracketexpr" );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.bracketexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer";
+            Start = "[";
+            End = "]";
+            Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.parenexpr" );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.parenexpr.type";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = "(";
+            End = ")";
+            Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.bracketexpr.type" );
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.bebop.bracketexpr.type";
+        Syntax = {
+            Tokenizer = "xcode.lang.bebop.lexer.type";
+            Start = "[";
+            End = "]";
+            Recursive = YES;
+            IncludeRules = ( "xcode.lang.bebop.parenexpr.type" );
+        };
+    },
+
+)

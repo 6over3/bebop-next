@@ -655,7 +655,7 @@ Discriminators must be in range 0--255.
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\textwidth}
 \small\raggedright
-\texttt{union Shape \{ Circle(1): \{ radius: float32; \} \}}\\
+\texttt{union Shape \{ Circle(1): \{ radius: float32; \}; \}}\\
 \texttt{Shape.Circle \{ radius: 5.0 \}}
 \vspace{4pt}
 
@@ -1290,11 +1290,11 @@ Discriminated variant. Branches can be inline structs, inline messages, or refer
 union Result {
     Success(1): {
         value: string;
-    }
+    };
     Error(2): {
         code: int32;
         message: string;
-    }
+    };
 }
 \end{lstlisting}
 \end{minipage}

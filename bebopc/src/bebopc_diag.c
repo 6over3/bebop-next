@@ -427,10 +427,56 @@ static int _diag_label_cmp(const void* a, const void* b)
 
 #define CONTEXT_LINES 2
 
+static void _diag_render_xcode(diag_buf_t* buf, const diag_t* diag)
+{
+  const char* sev_name = diag->severity == DIAG_ERROR ? "error"
+      : diag->severity == DIAG_WARNING                ? "warning"
+                                                      : "note";
+  const char* path = (diag->source && diag->source->path) ? diag->source->path : "<input>";
+
+  if (diag->label_count > 0 && diag->source) {
+    uint32_t line, col;
+    diag_source_loc(diag->source, diag->labels[0].start, &line, &col);
+    _diag_buf_fmt(buf, "%s:%u:%u: %s: ", path, line, col, sev_name);
+  } else {
+    _diag_buf_fmt(buf, "%s: %s: ", path, sev_name);
+  }
+
+  if (diag->code) {
+    _diag_buf_fmt(buf, "[%s] ", diag->code);
+  }
+  _diag_buf_str(buf, diag->message ? diag->message : "");
+  _diag_buf_char(buf, '\n');
+
+  if (diag->note) {
+    if (diag->label_count > 0 && diag->source) {
+      uint32_t line, col;
+      diag_source_loc(diag->source, diag->labels[0].start, &line, &col);
+      _diag_buf_fmt(buf, "%s:%u:%u: note: %s\n", path, line, col, diag->note);
+    } else {
+      _diag_buf_fmt(buf, "%s: note: %s\n", path, diag->note);
+    }
+  }
+
+  for (uint32_t i = 0; i < diag->label_count; i++) {
+    if (!diag->labels[i].message) {
+      continue;
+    }
+    uint32_t line, col;
+    diag_source_loc(diag->source, diag->labels[i].start, &line, &col);
+    _diag_buf_fmt(buf, "%s:%u:%u: note: %s\n", path, line, col, diag->labels[i].message);
+  }
+}
+
 void diag_render(diag_ctx_t* ctx, diag_buf_t* buf, const diag_t* diag)
 {
   _diag_init_box(ctx);
   if (!diag || !diag->source) {
+    return;
+  }
+
+  if (ctx->format == DIAG_FMT_XCODE) {
+    _diag_render_xcode(buf, diag);
     return;
   }
 

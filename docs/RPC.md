@@ -102,8 +102,8 @@ struct BatchSuccess {
 }
 
 union BatchOutcome {
-    Success(1): BatchSuccess
-    Error(2): RpcError
+    Success(1): BatchSuccess;
+    Error(2): RpcError;
 }
 
 struct BatchResult {

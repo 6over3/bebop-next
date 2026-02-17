@@ -23,7 +23,7 @@
   X(LLM, 0, "llm", false, NULL, CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Print LLM usage instructions") \
   X(CONFIG, 'c', "config", true, "FILE", CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Config file path") \
   X(COLOR, 0, "color", true, "MODE", CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Color mode: auto|always|never") \
-  X(FORMAT, 0, "format", true, "FMT", CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Output format: terminal|json|msbuild") \
+  X(FORMAT, 0, "format", true, "FMT", CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Output format: terminal|json|msbuild|xcode") \
   X(VERBOSE, 'v', "verbose", false, NULL, CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Verbose output") \
   X(QUIET, 'q', "quiet", false, NULL, CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Suppress non-error output") \
   X(NO_WARN, 0, "no-warn", false, NULL, CLI_OPT_FLAG_ROOT | CLI_OPT_FLAG_ALL, "Suppress warnings") \

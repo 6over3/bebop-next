@@ -30,16 +30,16 @@ readonly message Whoops {
 }
 
 union Z {
-    A(1): message { b(1): uint32; }
+    A(1): message { b(1): uint32; };
     /**
      * This branch is, too!
      */
-    B(2): mut { c: bool; }
-    C(1): mut { }
+    B(2): mut { c: bool; };
+    C(1): mut { };
 }
 
 union U {
-  S(1): mut { x: int32; }
+  S(1): mut { x: int32; };
 }
 
 mut struct Ox {

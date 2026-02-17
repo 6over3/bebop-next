@@ -3,10 +3,10 @@ edition = "2026"
 union Inner {
     A(1): {
         x: int32;
-    }
+    };
 }
 
 // Error: union branches cannot reference unions
 union Outer {
-    Nested(1): Inner
+    Nested(1): Inner;
 }

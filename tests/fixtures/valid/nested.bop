@@ -49,11 +49,11 @@ message Event {
 union Result {
     Success(1): {
         value: string;
-    }
+    };
     Error(2): {
         code: int32;
         errorMessage: string;
-    }
+    };
 
     // Additional nested type (not a branch)
     export enum StatusCode {

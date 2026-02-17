@@ -145,8 +145,8 @@ struct BatchSuccess {
 }
 
 union BatchOutcome {
-    Success(1): BatchSuccess
-    Error(2): RpcError
+    Success(1): BatchSuccess;
+    Error(2): RpcError;
 }
 
 /// Results in the same order as calls in the request.

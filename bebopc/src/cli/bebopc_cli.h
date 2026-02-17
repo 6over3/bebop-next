@@ -22,7 +22,8 @@ typedef enum {
 typedef enum {
   CLI_FORMAT_TERMINAL = 0,
   CLI_FORMAT_JSON,
-  CLI_FORMAT_MSBUILD
+  CLI_FORMAT_MSBUILD,
+  CLI_FORMAT_XCODE
 } cli_format_t;
 
 typedef struct {

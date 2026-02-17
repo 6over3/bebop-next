@@ -112,20 +112,20 @@ void test_emit_union(void)
 {
   roundtrip(
         "union Shape {\n"
-        "    Circle(1): { radius: float32; }\n"
-        "    Rectangle(2): { width: float32; height: float32; }\n"
+        "    Circle(1): { radius: float32; };\n"
+        "    Rectangle(2): { width: float32; height: float32; };\n"
         "}\n");
 
   roundtrip(
         "union Result {\n"
-        "    Success(1): { value: string; }\n"
-        "    export Error(2): { code: int32; }\n"
+        "    Success(1): { value: string; };\n"
+        "    export Error(2): { code: int32; };\n"
         "}\n");
 
   roundtrip(
         "union MutResult {\n"
-        "    MutData(1): mut { x: int32; }\n"
-        "    export ExportedMut(2): mut { s: string; }\n"
+        "    MutData(1): mut { x: int32; };\n"
+        "    export ExportedMut(2): mut { s: string; };\n"
         "}\n");
 }
 
@@ -214,8 +214,8 @@ void test_emit_complex(void)
         "}\n"
         "\n"
         "union Account {\n"
-        "    Anonymous(1): { sessionId: string; }\n"
-        "    Registered(2): { user: User; role: Role; }\n"
+        "    Anonymous(1): { sessionId: string; };\n"
+        "    Registered(2): { user: User; role: Role; };\n"
         "}\n");
 }
 
@@ -287,7 +287,7 @@ void test_emit_nested_types(void)
 
   roundtrip(
         "union Result {\n"
-        "    Success(1): { value: string; }\n"
+        "    Success(1): { value: string; };\n"
         "    enum Code { Ok = 0; Fail = 1; }\n"
         "}\n");
 
@@ -312,12 +312,12 @@ void test_emit_multiline_doc(void)
         " */\n"
         "union Documented {\n"
         "    /** Branch A doc */\n"
-        "    A(1): { x: int32; }\n"
+        "    A(1): { x: int32; };\n"
         "    /**\n"
         "     * Branch B has\n"
         "     * multiline docs too.\n"
         "     */\n"
-        "    B(2): { s: string; }\n"
+        "    B(2): { s: string; };\n"
         "}\n");
 }
 

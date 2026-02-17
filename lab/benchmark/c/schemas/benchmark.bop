@@ -30,12 +30,12 @@ message TreeNode {
 struct JsonNull {}
 
 union JsonValue {
-    Null(1): JsonNull
-    Bool(2): message { value(1): bool; }
-    Number(3): message { value(1): float64; }
-    String(4): message { value(1): string; }
-    List(5): message { values(1): JsonValue[]; }
-    Object(6): message { fields(1): map[string, JsonValue]; }
+    Null(1): JsonNull;
+    Bool(2): message { value(1): bool; };
+    Number(3): message { value(1): float64; };
+    String(4): message { value(1): string; };
+    List(5): message { values(1): JsonValue[]; };
+    Object(6): message { fields(1): map[string, JsonValue]; };
 }
 
 message Document {
