@@ -1,12 +1,12 @@
 public struct FrameReader: Sendable {
   public typealias ReadBytes = @Sendable (Int) async throws -> [UInt8]
 
-  public static let defaultMaxPayloadSize = 4 * 1024 * 1024
+  public static let defaultMaxPayloadSize = UInt.max
 
   private let read: ReadBytes
-  private let maxPayloadSize: Int
+  private let maxPayloadSize: UInt
 
-  public init(read: @escaping ReadBytes, maxPayloadSize: Int = Self.defaultMaxPayloadSize) {
+  public init(read: @escaping ReadBytes, maxPayloadSize: UInt = Self.defaultMaxPayloadSize) {
     self.read = read
     self.maxPayloadSize = maxPayloadSize
   }
@@ -23,7 +23,7 @@ public struct FrameReader: Sendable {
       return try FrameHeader.decode(from: &reader)
     }
     let payloadLength = Int(header.length)
-    guard payloadLength <= maxPayloadSize else {
+    guard UInt(payloadLength) <= maxPayloadSize else {
       throw BebopRpcError(
         code: .resourceExhausted,
         detail: "frame payload \(payloadLength) exceeds limit \(maxPayloadSize)")

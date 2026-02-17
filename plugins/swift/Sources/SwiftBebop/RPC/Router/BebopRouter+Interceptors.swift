@@ -1,8 +1,15 @@
 extension BebopRouter {
   func checkCallViability(_ ctx: C) throws {
-    try Task.checkCancellation()
-    if let deadline = ctx.deadline, deadline.isPast {
-      throw BebopRpcError(code: .deadlineExceeded)
+    guard !Task.isCancelled else {
+      throw CancellationError()
+    }
+    guard !ctx.isCancelled else {
+      throw BebopRpcError(code: .cancelled)
+    }
+    if let deadline = ctx.deadline {
+      guard !deadline.isPast else {
+        throw BebopRpcError(code: .deadlineExceeded)
+      }
     }
   }
 

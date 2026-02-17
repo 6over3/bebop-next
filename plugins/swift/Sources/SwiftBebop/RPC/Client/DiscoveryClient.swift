@@ -10,7 +10,7 @@ public struct DiscoveryClient<C: BebopChannel>: Sendable {
   public func listServices(
     options: CallOptions = .init()
   ) async throws -> DiscoveryResponse {
-    let data = try await channel.unary(method: 0, request: [], options: options)
+    let data = try await channel.unary(method: BebopReservedMethod.discovery, request: [], options: options)
     return try DiscoveryResponse.decode(from: data)
   }
 }

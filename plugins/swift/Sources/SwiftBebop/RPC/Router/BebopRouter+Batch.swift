@@ -4,8 +4,6 @@ extension BatchCall {
 }
 
 extension BebopRouter {
-  static var maxBatchSize: Int { 1000 }
-
   func handleBatch(payload: [UInt8], ctx: C) async throws -> [UInt8] {
     let request = try BatchRequest.decode(from: payload)
     let calls = request.calls
@@ -14,10 +12,10 @@ extension BebopRouter {
       return BatchResponse(results: []).serializedData()
     }
 
-    guard calls.count <= Self.maxBatchSize else {
+    guard UInt(calls.count) <= maxBatchSize else {
       throw BebopRpcError(
         code: .resourceExhausted,
-        detail: "batch contains \(calls.count) calls, max is \(Self.maxBatchSize)")
+        detail: "batch contains \(calls.count) calls, max is \(maxBatchSize)")
     }
 
     try validateBatchCalls(calls)
@@ -155,6 +153,11 @@ extension BebopRouter {
         let stream = try await dispatch(resolvedPayload, ctx)
         var payloads: [[UInt8]] = []
         for try await element in stream {
+          guard UInt(payloads.count) < maxBatchStreamElements else {
+            throw BebopRpcError(
+              code: .resourceExhausted,
+              detail: "batch stream exceeded \(maxBatchStreamElements) elements")
+          }
           payloads.append(element)
         }
         return .success(BatchSuccess(payloads: payloads))

@@ -1,4 +1,4 @@
-public final class Batch<Channel: BebopChannel> {
+public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
   @usableFromInline let channel: Channel
   private var calls: [BatchCall] = []
   private var nextId: Int32 = 0
@@ -81,12 +81,11 @@ public final class Batch<Channel: BebopChannel> {
 
   // MARK: - Execution
 
-  @usableFromInline static var batchMethodId: UInt32 { 1 }
   public func execute(options: CallOptions = .default) async throws -> BatchResults {
     let request = BatchRequest(calls: calls, metadata: metadata)
     let requestBytes = request.serializedData()
     let responseBytes = try await channel.unary(
-      method: Self.batchMethodId,
+      method: BebopReservedMethod.batch,
       request: requestBytes,
       options: options
     )

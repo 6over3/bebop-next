@@ -1,8 +1,13 @@
-public struct BebopRouter<C: CallContext>: Sendable {
-  static var discoveryMethodId: UInt32 { 0 }
-  static var batchMethodId: UInt32 { 1 }
+/// Wire-protocol reserved method IDs.
+public enum BebopReservedMethod {
+  public static let discovery: UInt32 = 0
+  public static let batch: UInt32 = 1
+}
 
+public struct BebopRouter<C: CallContext>: Sendable {
   public let discoveryEnabled: Bool
+  public let maxBatchSize: UInt
+  public let maxBatchStreamElements: UInt
 
   let methods: [UInt32: MethodRegistration<C>]
   let serviceInfos: [ServiceInfo]
@@ -12,12 +17,16 @@ public struct BebopRouter<C: CallContext>: Sendable {
     methods: [UInt32: MethodRegistration<C>],
     serviceInfos: [ServiceInfo],
     interceptors: [any BebopInterceptor],
-    discoveryEnabled: Bool
+    discoveryEnabled: Bool,
+    maxBatchSize: UInt,
+    maxBatchStreamElements: UInt
   ) {
     self.methods = methods
     self.serviceInfos = serviceInfos
     self.interceptors = interceptors
     self.discoveryEnabled = discoveryEnabled
+    self.maxBatchSize = maxBatchSize
+    self.maxBatchStreamElements = maxBatchStreamElements
   }
 
   // MARK: - Dispatch
@@ -25,8 +34,8 @@ public struct BebopRouter<C: CallContext>: Sendable {
   public func unary(
     methodId: UInt32, payload: [UInt8], ctx: C
   ) async throws -> [UInt8] {
-    if methodId == Self.discoveryMethodId { return try handleDiscovery() }
-    if methodId == Self.batchMethodId { return try await handleBatch(payload: payload, ctx: ctx) }
+    if methodId == BebopReservedMethod.discovery { return try handleDiscovery() }
+    if methodId == BebopReservedMethod.batch { return try await handleBatch(payload: payload, ctx: ctx) }
 
     guard let reg = methods[methodId] else {
       throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
