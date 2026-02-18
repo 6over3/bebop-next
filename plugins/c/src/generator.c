@@ -1743,11 +1743,11 @@ static void gen_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     }
   } else if (lk == BEBOP_LITERAL_TIMESTAMP) {
     int64_t seconds;
-    int32_t nanos;
-    bebop_descriptor_literal_as_timestamp(lit, &seconds, &nanos);
+    int32_t nanos, offset_ms;
+    bebop_descriptor_literal_as_timestamp(lit, &seconds, &nanos, &offset_ms);
     emit(ctx,
-         "const Bebop_Timestamp %s = {.seconds = %lldLL, .nanos = %d};",
-         name, (long long)seconds, nanos);
+         "const Bebop_Timestamp %s = {.seconds = %lldLL, .nanos = %d, .offset_ms = %d};",
+         name, (long long)seconds, nanos, offset_ms);
   } else if (lk == BEBOP_LITERAL_DURATION) {
     int64_t seconds;
     int32_t nanos;

@@ -142,6 +142,7 @@ static void _desc_build_literal(
       dst->timestamp_value.has_value = true;
       dst->timestamp_value.value.seconds = src->timestamp_val.seconds;
       dst->timestamp_value.value.nanos = src->timestamp_val.nanos;
+      dst->timestamp_value.value.offset_ms = src->timestamp_val.offset_ms;
       break;
     case BEBOP_LITERAL_DURATION:
       dst->duration_value.has_value = true;
@@ -1784,7 +1785,7 @@ const uint8_t* bebop_descriptor_literal_as_bytes(
 }
 
 void bebop_descriptor_literal_as_timestamp(
-    const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos
+    const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 )
 {
   if (!l || !BEBOP_WIRE_IS_SOME(l->timestamp_value)) {
@@ -1794,6 +1795,9 @@ void bebop_descriptor_literal_as_timestamp(
     if (out_nanos) {
       *out_nanos = 0;
     }
+    if (out_offset_ms) {
+      *out_offset_ms = 0;
+    }
     return;
   }
   if (out_seconds) {
@@ -1801,6 +1805,9 @@ void bebop_descriptor_literal_as_timestamp(
   }
   if (out_nanos) {
     *out_nanos = l->timestamp_value.value.nanos;
+  }
+  if (out_offset_ms) {
+    *out_offset_ms = l->timestamp_value.value.offset_ms;
   }
 }
 

@@ -813,7 +813,7 @@ BEBOP_API const uint8_t* bebop_literal_as_bytes(const bebop_literal_t* lit, size
 
 //! Get timestamp value (seconds and nanoseconds since Unix epoch)
 BEBOP_API void bebop_literal_as_timestamp(
-    const bebop_literal_t* lit, int64_t* out_seconds, int32_t* out_nanos
+    const bebop_literal_t* lit, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 );
 
 //! Get duration value (seconds and nanoseconds)
@@ -1288,7 +1288,7 @@ BEBOP_API const uint8_t* bebop_descriptor_literal_as_bytes(
 );
 
 BEBOP_API void bebop_descriptor_literal_as_timestamp(
-    const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos
+    const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 );
 
 BEBOP_API void bebop_descriptor_literal_as_duration(

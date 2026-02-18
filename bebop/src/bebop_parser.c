@@ -1046,7 +1046,7 @@ static bool bebop__parse_literal(
         const char* str = BEBOP_STR(p->ctx, out->string_val);
         const size_t len = BEBOP_STR_LEN(p->ctx, out->string_val);
         if (bebop_util_parse_timestamp(
-                str, len, &out->timestamp_val.seconds, &out->timestamp_val.nanos
+                str, len, &out->timestamp_val.seconds, &out->timestamp_val.nanos, &out->timestamp_val.offset_ms
             ))
         {
           out->kind = BEBOP_LITERAL_TIMESTAMP;

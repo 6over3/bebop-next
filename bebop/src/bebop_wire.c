@@ -600,12 +600,12 @@ Bebop_WireResult Bebop_Reader_GetTimestamp(Bebop_Reader* reader, Bebop_Timestamp
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
     return BEBOP_WIRE_ERR_NULL;
   }
-  if (BEBOP_WIRE_UNLIKELY(reader->current + 12 > reader->end)) {
+  if (BEBOP_WIRE_UNLIKELY(reader->current + 16 > reader->end)) {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
 
-  memcpy(out, reader->current, 12);
-  reader->current += 12;
+  memcpy(out, reader->current, 16);
+  reader->current += 16;
   return BEBOP_WIRE_OK;
 }
 
@@ -1033,15 +1033,15 @@ Bebop_WireResult Bebop_Writer_SetTimestamp(Bebop_Writer* writer, Bebop_Timestamp
   if (!writer) {
     return BEBOP_WIRE_ERR_NULL;
   }
-  if (BEBOP_WIRE_UNLIKELY(writer->current + 12 > writer->end)) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 12);
+  if (BEBOP_WIRE_UNLIKELY(writer->current + 16 > writer->end)) {
+    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 16);
     if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
       return result;
     }
   }
 
-  memcpy(writer->current, &value, 12);
-  writer->current += 12;
+  memcpy(writer->current, &value, 16);
+  writer->current += 16;
   return BEBOP_WIRE_OK;
 }
 

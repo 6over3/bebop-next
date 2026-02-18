@@ -479,7 +479,7 @@ bool bebop_util_parse_uint(const char* str, size_t len, uint64_t* out);
 bool bebop_util_parse_float(const char* str, size_t len, double* out);
 bool bebop_util_parse_uuid(const char* str, size_t len, uint8_t out[16]);
 bool bebop_util_parse_timestamp(
-    const char* str, size_t len, int64_t* out_seconds, int32_t* out_nanos
+    const char* str, size_t len, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 );
 bool bebop_util_parse_duration(
     const char* str, size_t len, int64_t* out_seconds, int32_t* out_nanos
@@ -546,6 +546,7 @@ struct bebop_literal {
     struct {
       int64_t seconds;
       int32_t nanos;
+      int32_t offset_ms;
     } timestamp_val;
 
     struct {
@@ -2642,7 +2643,7 @@ const uint8_t* bebop_literal_as_bytes(const bebop_literal_t* lit, size_t* out_le
 }
 
 void bebop_literal_as_timestamp(
-    const bebop_literal_t* lit, int64_t* out_seconds, int32_t* out_nanos
+    const bebop_literal_t* lit, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 )
 {
   if (!lit || lit->kind != BEBOP_LITERAL_TIMESTAMP) {
@@ -2652,6 +2653,9 @@ void bebop_literal_as_timestamp(
     if (out_nanos) {
       *out_nanos = 0;
     }
+    if (out_offset_ms) {
+      *out_offset_ms = 0;
+    }
     return;
   }
   if (out_seconds) {
@@ -2659,6 +2663,9 @@ void bebop_literal_as_timestamp(
   }
   if (out_nanos) {
     *out_nanos = lit->timestamp_val.nanos;
+  }
+  if (out_offset_ms) {
+    *out_offset_ms = lit->timestamp_val.offset_ms;
   }
 }
 
@@ -2938,6 +2945,7 @@ static uint32_t bebop__scalar_fixed_size(const bebop_type_kind_t kind)
     case BEBOP_TYPE_UUID:
       return 16;
     case BEBOP_TYPE_TIMESTAMP:
+      return 16;
     case BEBOP_TYPE_DURATION:
       return 12;
     default:

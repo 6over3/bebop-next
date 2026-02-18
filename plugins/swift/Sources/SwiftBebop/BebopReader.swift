@@ -179,11 +179,12 @@ public struct BebopReader: @unchecked Sendable {
 
   @inlinable
   public mutating func readTimestamp() throws -> BebopTimestamp {
-    try ensureBytes(12)
+    try ensureBytes(16)
     let seconds = Int64(littleEndian: base.loadUnaligned(fromByteOffset: offset, as: Int64.self))
     let nanos = Int32(littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 8, as: Int32.self))
-    offset &+= 12
-    return BebopTimestamp(seconds: seconds, nanoseconds: nanos)
+    let offsetMs = Int32(littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 12, as: Int32.self))
+    offset &+= 16
+    return BebopTimestamp(seconds: seconds, nanoseconds: nanos, offsetMs: offsetMs)
   }
 
   @inlinable
