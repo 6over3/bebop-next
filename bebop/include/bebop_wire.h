@@ -236,21 +236,12 @@ typedef struct {
 
 // Timestamp - point in time as seconds + nanoseconds since Unix epoch
 // with ISO 8601-2 offset in milliseconds
-#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-#pragma pack(push, 1)
-#endif
 typedef struct {
   int64_t seconds;
   int32_t nanos;
   int32_t offset_ms;
 }
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((packed))
-#endif
 Bebop_Timestamp;
-#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-#pragma pack(pop)
-#endif
 
 // Duration - signed time span
 #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
