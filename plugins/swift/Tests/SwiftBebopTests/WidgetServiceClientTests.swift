@@ -5,14 +5,14 @@ import Testing
 @Suite struct WidgetServiceClientTests {
   @Test func unaryGetWidget() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let response = try await client.getWidget(EchoRequest(value: "hello"))
-    #expect(response.value == "hello")
+    let reply = try await client.getWidget(EchoRequest(value: "hello"))
+    #expect(reply.value.value == "hello")
   }
 
   @Test func unaryGetWidgetDeconstructed() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let response = try await client.getWidget(value: "decon")
-    #expect(response.value == "decon")
+    let reply = try await client.getWidget(value: "decon")
+    #expect(reply.value.value == "decon")
   }
 
   @Test func serverStreamListWidgets() async throws {
@@ -37,11 +37,11 @@ import Testing
 
   @Test func clientStreamUploadWidgets() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let response = try await client.uploadWidgets { send in
+    let reply = try await client.uploadWidgets { send in
       try await send(EchoRequest(value: "a"))
       try await send(EchoRequest(value: "b"))
     }
-    #expect(response.value == "a,b")
+    #expect(reply.value.value == "a,b")
   }
 
   @Test func duplexStreamSyncWidgets() async throws {

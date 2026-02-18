@@ -84,12 +84,12 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
   public func execute(options: CallOptions = .default) async throws -> BatchResults {
     let request = BatchRequest(calls: calls, metadata: metadata)
     let requestBytes = request.serializedData()
-    let responseBytes = try await channel.unary(
+    let reply = try await channel.unary(
       method: BebopReservedMethod.batch,
       request: requestBytes,
       options: options
     )
-    let response = try BatchResponse.decode(from: responseBytes)
+    let response = try BatchResponse.decode(from: reply.value)
     return BatchResults(response)
   }
 }

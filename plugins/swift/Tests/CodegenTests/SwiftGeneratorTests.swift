@@ -932,12 +932,12 @@ struct SwiftGeneratorTests {
     // Unary full request method
     #expect(
       code.contains(
-        "func getUser(\n        _ request: GetUserRequest,\n        options: CallOptions = .default\n    ) async throws -> User"
+        "func getUser(\n        _ request: GetUserRequest,\n        options: CallOptions = .default\n    ) async throws -> Reply<User, C.Metadata>"
       ))
     // Server stream full request method
     #expect(
       code.contains(
-        "func listFriends(\n        _ request: ListFriendsRequest,\n        options: CallOptions = .default\n    ) async throws -> AsyncThrowingStream<User, Error>"
+        "func listFriends(\n        _ request: ListFriendsRequest,\n        options: CallOptions = .default\n    ) async throws -> StreamReply<User, C.Metadata>"
       ))
   }
 
@@ -946,7 +946,7 @@ struct SwiftGeneratorTests {
     // GetUserRequest has 1 field (id: UInt32), so deconstructed overload should exist
     #expect(
       code.contains(
-        "func getUser(\n        id: UInt32,\n        options: CallOptions = .default\n    ) async throws -> User"
+        "func getUser(\n        id: UInt32,\n        options: CallOptions = .default\n    ) async throws -> Reply<User, C.Metadata>"
       ))
   }
 
@@ -955,7 +955,7 @@ struct SwiftGeneratorTests {
     // ListFriendsRequest has 1 field (user_id: UInt32)
     #expect(
       code.contains(
-        "func listFriends(\n        userId: UInt32,\n        options: CallOptions = .default\n    ) async throws -> AsyncThrowingStream<User, Error>"
+        "func listFriends(\n        userId: UInt32,\n        options: CallOptions = .default\n    ) async throws -> StreamReply<User, C.Metadata>"
       ))
   }
 
@@ -1038,7 +1038,7 @@ struct SwiftGeneratorTests {
     // Message fields become optional params
     #expect(
       code.contains(
-        "func search(\n        query: String? = nil, limit: UInt32? = nil,\n        options: CallOptions = .default\n    ) async throws -> SearchResult"
+        "func search(\n        query: String? = nil, limit: UInt32? = nil,\n        options: CallOptions = .default\n    ) async throws -> Reply<SearchResult, C.Metadata>"
       ))
   }
 

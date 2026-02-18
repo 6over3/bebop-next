@@ -5,8 +5,8 @@ import Testing
 @Suite struct EndToEndTests {
   @Test func fullUnaryFlow() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let res = try await client.getWidget(value: "e2e")
-    #expect(res.value == "e2e")
+    let reply = try await client.getWidget(value: "e2e")
+    #expect(reply.value.value == "e2e")
   }
 
   @Test func fullServerStreamFlow() async throws {
@@ -21,11 +21,11 @@ import Testing
 
   @Test func fullClientStreamFlow() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let res = try await client.uploadWidgets { send in
+    let reply = try await client.uploadWidgets { send in
       try await send(EchoRequest(value: "hello"))
       try await send(EchoRequest(value: "world"))
     }
-    #expect(res.value == "hello,world")
+    #expect(reply.value.value == "hello,world")
   }
 
   @Test func fullDuplexStreamFlow() async throws {
@@ -76,8 +76,8 @@ import Testing
     }
 
     let client = WidgetServiceClient(channel: buildChannel(interceptors: [TagInterceptor()]))
-    let res = try await client.getWidget(value: "intercepted")
-    #expect(res.value == "intercepted")
+    let reply = try await client.getWidget(value: "intercepted")
+    #expect(reply.value.value == "intercepted")
   }
 
   @Test func errorFromHandlerPropagates() async {
@@ -101,7 +101,7 @@ import Testing
 
     let client = WidgetServiceClient(channel: buildChannel(handler: FailHandler()))
     do {
-      _ = try await client.getWidget(value: "fail")
+      _ = try await client.getWidget(value: "fail").value
       Issue.record("should have thrown")
     } catch let err as BebopRpcError {
       #expect(err.code == .internal)

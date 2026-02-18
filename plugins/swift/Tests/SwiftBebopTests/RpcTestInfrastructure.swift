@@ -67,39 +67,45 @@ struct WidgetHandler: WidgetServiceHandler {
 }
 
 struct LoopbackChannel: BebopChannel {
+  typealias Metadata = Void
+
   let router: BebopRouter<TestCallContext>
 
-  func unary(method: UInt32, request: [UInt8], options: CallOptions) async throws -> [UInt8] {
+  func unary(method: UInt32, request: [UInt8], options: CallOptions) async throws -> Reply<[UInt8], Void> {
     let ctx = TestCallContext(
       methodId: method, metadata: options.metadata, deadline: options.deadline)
-    return try await router.unary(methodId: method, payload: request, ctx: ctx)
+    let data = try await router.unary(methodId: method, payload: request, ctx: ctx)
+    return Reply(value: data, metadata: ())
   }
 
   func serverStream(method: UInt32, request: [UInt8], options: CallOptions) async throws
-    -> AsyncThrowingStream<[UInt8], Error>
+    -> StreamReply<[UInt8], Void>
   {
     let ctx = TestCallContext(
       methodId: method, metadata: options.metadata, deadline: options.deadline)
-    return try await router.serverStream(methodId: method, payload: request, ctx: ctx)
+    let stream = try await router.serverStream(methodId: method, payload: request, ctx: ctx)
+    return StreamReply(stream: stream, trailing: { () })
   }
 
   func clientStream(method: UInt32, options: CallOptions) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
-    finish: @Sendable () async throws -> [UInt8]
+    finish: @Sendable () async throws -> Reply<[UInt8], Void>
   ) {
     let ctx = TestCallContext(
       methodId: method, metadata: options.metadata, deadline: options.deadline)
-    return try await router.clientStream(methodId: method, ctx: ctx)
+    let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: ctx)
+    return (send: send, finish: { Reply(value: try await rawFinish(), metadata: ()) })
   }
 
   func duplexStream(method: UInt32, options: CallOptions) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> Void,
-    responses: AsyncThrowingStream<[UInt8], Error>
+    responses: StreamReply<[UInt8], Void>
   ) {
     let ctx = TestCallContext(
       methodId: method, metadata: options.metadata, deadline: options.deadline)
-    return try await router.duplexStream(methodId: method, ctx: ctx)
+    let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: ctx)
+    return (send: send, finish: finish, responses: StreamReply(stream: responses, trailing: { () }))
   }
 }
 

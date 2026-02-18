@@ -1,23 +1,25 @@
 /// Transport-layer abstraction for RPC clients.
 public protocol BebopChannel: Sendable {
+  associatedtype Metadata: Sendable
+
   func unary(
     method: UInt32,
     request: [UInt8],
     options: CallOptions
-  ) async throws -> [UInt8]
+  ) async throws -> Reply<[UInt8], Metadata>
 
   func serverStream(
     method: UInt32,
     request: [UInt8],
     options: CallOptions
-  ) async throws -> AsyncThrowingStream<[UInt8], Error>
+  ) async throws -> StreamReply<[UInt8], Metadata>
 
   func clientStream(
     method: UInt32,
     options: CallOptions
   ) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
-    finish: @Sendable () async throws -> [UInt8]
+    finish: @Sendable () async throws -> Reply<[UInt8], Metadata>
   )
 
   func duplexStream(
@@ -26,6 +28,6 @@ public protocol BebopChannel: Sendable {
   ) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> Void,
-    responses: AsyncThrowingStream<[UInt8], Error>
+    responses: StreamReply<[UInt8], Metadata>
   )
 }
