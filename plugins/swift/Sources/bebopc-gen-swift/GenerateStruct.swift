@@ -50,7 +50,9 @@ enum GenerateStruct {
     }
 
     // public init
-    if !fieldDecls.isEmpty {
+    if fieldDecls.isEmpty {
+      body.append("\(vis)init() {}")
+    } else {
       let initParams = fieldDecls.map { "\($0.swiftName): \($0.swiftType)" }
         .joined(separator: ", ")
       let initAssigns = fieldDecls.map { "self.\($0.swiftName) = \($0.swiftName)" }

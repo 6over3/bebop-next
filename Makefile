@@ -99,7 +99,7 @@ endif
 	@cmake -E copy_directory $(BUILD_DIR)/share/bebop $(DIST_DIR)/share/bebop
 
 vscode:
-	cd plugins/vscode && npm install && npm run compile && npm run package
+	cd plugins/vscode && npm pkg set version=$(VERSION_BASE) && npm install && npm run compile && npm run package
 
 archive:
 	@tar -czf bebop-$(VERSION)-$(DETECTED_OS)-$(ARCH).tar.gz -C $(DIST_DIR) .

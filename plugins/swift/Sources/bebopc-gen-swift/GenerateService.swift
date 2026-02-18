@@ -149,7 +149,8 @@ enum GenerateService {
       return nil
     }
 
-    guard let fieldList = fields, !fieldList.isEmpty, fieldList.count <= 4 else { return nil }
+    let fieldList = fields ?? []
+    guard fieldList.count <= 4 else { return nil }
 
     return fieldList.compactMap { f -> (String, String, Bool)? in
       guard let name = f.name, let fieldType = f.type else { return nil }
@@ -585,6 +586,21 @@ enum GenerateService {
     vis: String,
     isStream: Bool
   ) -> String {
+    let returnType =
+      isStream
+      ? "AsyncThrowingStream<\(m.responseTypeName), Error>"
+      : m.responseTypeName
+
+    if params.isEmpty {
+      return """
+        \(vis)func \(m.swiftName)(
+            options: CallOptions = .default
+        ) async throws -> \(returnType) {
+            try await \(m.swiftName)(\(m.requestTypeName)(), options: options)
+        }
+        """
+    }
+
     let paramList = params.map { p in
       if p.isOptional {
         return "\(p.swiftName): \(p.swiftType)? = nil"
@@ -594,11 +610,6 @@ enum GenerateService {
 
     let constructArgs = params.map { "\($0.swiftName): \($0.swiftName)" }
       .joined(separator: ", ")
-
-    let returnType =
-      isStream
-      ? "AsyncThrowingStream<\(m.responseTypeName), Error>"
-      : m.responseTypeName
 
     return """
       \(vis)func \(m.swiftName)(
@@ -690,6 +701,20 @@ enum GenerateService {
     vis: String,
     isStream: Bool
   ) -> String {
+    let refType =
+      isStream
+      ? "StreamRef<\(m.responseTypeName)>"
+      : "CallRef<\(m.responseTypeName)>"
+
+    if params.isEmpty {
+      return """
+        @discardableResult
+        \(vis)func \(m.swiftName)() -> \(refType) {
+            \(m.swiftName)(\(m.requestTypeName)())
+        }
+        """
+    }
+
     let paramList = params.map { p in
       if p.isOptional {
         return "\(p.swiftName): \(p.swiftType)? = nil"
@@ -699,11 +724,6 @@ enum GenerateService {
 
     let constructArgs = params.map { "\($0.swiftName): \($0.swiftName)" }
       .joined(separator: ", ")
-
-    let refType =
-      isStream
-      ? "StreamRef<\(m.responseTypeName)>"
-      : "CallRef<\(m.responseTypeName)>"
 
     return """
       @discardableResult

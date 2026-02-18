@@ -388,7 +388,7 @@ union Shape {
 
 ### Branch syntax
 
-Four forms:
+Each branch must end with a semicolon. Four forms:
 
 **Inline struct** (default):
 
