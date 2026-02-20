@@ -67,16 +67,16 @@ import Testing
 
   @Test func clientStreamSendNothing() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let reply = try await client.uploadWidgets { _ in }
-    #expect(reply.value.value == "")
+    let response = try await client.uploadWidgets { _ in }
+    #expect(response.value.value == "")
   }
 
   @Test func clientStreamSendSingleItem() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let reply = try await client.uploadWidgets { send in
+    let response = try await client.uploadWidgets { send in
       try await send(EchoRequest(value: "solo"))
     }
-    #expect(reply.value.value == "solo")
+    #expect(response.value.value == "solo")
   }
 
   @Test func duplexInterleavedSendAndReceive() async throws {

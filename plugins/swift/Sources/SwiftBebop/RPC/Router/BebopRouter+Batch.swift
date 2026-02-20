@@ -4,7 +4,7 @@ extension BatchCall {
 }
 
 extension BebopRouter {
-  func handleBatch(payload: [UInt8], ctx: C) async throws -> [UInt8] {
+  func handleBatch(payload: [UInt8], ctx: RpcContext) async throws -> [UInt8] {
     let request = try BatchRequest.decode(from: payload)
     let calls = request.calls
 
@@ -114,9 +114,11 @@ extension BebopRouter {
   private func executeBatchCall(
     _ call: BatchCall,
     outcomes: [Int32: BatchOutcome],
-    ctx: C
+    ctx: RpcContext
   ) async -> BatchOutcome {
     let resolvedPayload: [UInt8]
+    var upstreamMeta: [String: String] = [:]
+
     if call.hasDependency {
       guard let depOutcome = outcomes[call.inputFrom] else {
         return .error(
@@ -129,6 +131,7 @@ extension BebopRouter {
             RpcError(code: .invalidArgument, detail: "dependency \(call.inputFrom) has no payload"))
         }
         resolvedPayload = first
+        upstreamMeta = success.metadata
       case .error, .unknown:
         return .error(
           RpcError(code: .invalidArgument, detail: "dependency \(call.inputFrom) failed"))
@@ -141,16 +144,18 @@ extension BebopRouter {
       return .error(RpcError(code: .notFound, detail: "method \(call.methodId)"))
     }
 
+    let callCtx = ctx.makeBatchContext(upstreamMetadata: upstreamMeta)
+
     do {
-      try await runInterceptors(methodId: call.methodId, ctx: ctx)
+      try await runInterceptors(methodId: call.methodId, ctx: callCtx)
 
       switch reg {
       case .unary(let dispatch):
-        let result = try await dispatch(resolvedPayload, ctx)
-        return .success(BatchSuccess(payloads: [result]))
+        let result = try await dispatch(resolvedPayload, callCtx)
+        return .success(BatchSuccess(payloads: [result], metadata: callCtx.responseMetadata))
 
       case .serverStream(let dispatch):
-        let stream = try await dispatch(resolvedPayload, ctx)
+        let stream = try await dispatch(resolvedPayload, callCtx)
         var payloads: [[UInt8]] = []
         for try await element in stream {
           guard UInt(payloads.count) < maxBatchStreamElements else {
@@ -160,7 +165,7 @@ extension BebopRouter {
           }
           payloads.append(element)
         }
-        return .success(BatchSuccess(payloads: payloads))
+        return .success(BatchSuccess(payloads: payloads, metadata: callCtx.responseMetadata))
 
       case .clientStream, .duplexStream:
         return .error(

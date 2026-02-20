@@ -7,7 +7,7 @@ import Testing
     let counter: Counter
 
     func intercept(
-      methodId: UInt32, ctx: some CallContext,
+      methodId: UInt32, ctx: RpcContext,
       proceed: @Sendable () async throws -> Void
     ) async throws {
       await counter.increment()
@@ -17,7 +17,7 @@ import Testing
 
   struct RejectingInterceptor: BebopInterceptor {
     func intercept(
-      methodId: UInt32, ctx: some CallContext,
+      methodId: UInt32, ctx: RpcContext,
       proceed: @Sendable () async throws -> Void
     ) async throws {
       throw BebopRpcError(code: .permissionDenied, detail: "rejected")
@@ -28,7 +28,7 @@ import Testing
     let allowedMethods: Set<UInt32>
 
     func intercept(
-      methodId: UInt32, ctx: some CallContext,
+      methodId: UInt32, ctx: RpcContext,
       proceed: @Sendable () async throws -> Void
     ) async throws {
       guard allowedMethods.contains(methodId) else {
@@ -41,7 +41,7 @@ import Testing
   @Test func interceptorRunsBeforeHandler() async throws {
     let counter = Counter()
     let router = buildRouter(interceptors: [CountingInterceptor(counter: counter)])
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "test")
     _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
     let count = await counter.value
@@ -50,7 +50,7 @@ import Testing
 
   @Test func interceptorCanReject() async throws {
     let router = buildRouter(interceptors: [RejectingInterceptor()])
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "test")
     do {
       _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
@@ -70,7 +70,7 @@ import Testing
       CountingInterceptor(counter: c1),
       CountingInterceptor(counter: c2),
     ])
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "test")
     _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
     #expect(await c1.value == 1)
@@ -83,7 +83,7 @@ import Testing
       RejectingInterceptor(),
       CountingInterceptor(counter: counter),
     ])
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "test")
     do {
       _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
@@ -93,7 +93,7 @@ import Testing
 
   @Test func interceptorAffectsServerStream() async throws {
     let router = buildRouter(interceptors: [RejectingInterceptor()])
-    let ctx = TestCallContext(methodId: listWidgetsId)
+    let ctx = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
     let req = CountRequest(n: 3)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.serverStream(
@@ -103,7 +103,7 @@ import Testing
 
   @Test func interceptorAffectsClientStream() async {
     let router = buildRouter(interceptors: [RejectingInterceptor()])
-    let ctx = TestCallContext(methodId: uploadWidgetsId)
+    let ctx = RpcContext(methodId: uploadWidgetsId, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.clientStream(methodId: uploadWidgetsId, ctx: ctx)
     }
@@ -111,7 +111,7 @@ import Testing
 
   @Test func interceptorAffectsDuplexStream() async {
     let router = buildRouter(interceptors: [RejectingInterceptor()])
-    let ctx = TestCallContext(methodId: syncWidgetsId)
+    let ctx = RpcContext(methodId: syncWidgetsId, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.duplexStream(methodId: syncWidgetsId, ctx: ctx)
     }
@@ -121,14 +121,14 @@ import Testing
     let filter = MethodFilterInterceptor(allowedMethods: [getWidgetId])
     let router = buildRouter(interceptors: [filter])
 
-    let ctx1 = TestCallContext(methodId: getWidgetId)
+    let ctx1 = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "allowed")
     let res = try await router.unary(
       methodId: getWidgetId, payload: req.serializedData(), ctx: ctx1)
     let echo = try EchoResponse.decode(from: res)
     #expect(echo.value == "allowed")
 
-    let ctx2 = TestCallContext(methodId: listWidgetsId)
+    let ctx2 = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.serverStream(
         methodId: listWidgetsId, payload: CountRequest(n: 1).serializedData(), ctx: ctx2)

@@ -28,7 +28,7 @@ import Testing
     let requestBytes = request.serializedData()
 
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: 1)
+    let ctx = RpcContext(methodId: 1, metadata: [:], deadline: nil)
 
     let batchReq = BatchRequest(
       calls: [
@@ -56,7 +56,7 @@ import Testing
 
   @Test func pipelinedCallUsesResponseBytesDirectly() async throws {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: 1)
+    let ctx = RpcContext(methodId: 1, metadata: [:], deadline: nil)
 
     let batchReq = BatchRequest(
       calls: [

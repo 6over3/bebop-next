@@ -390,7 +390,7 @@ Handlers SHOULD check `isCancelled` periodically during long operations.
 
 When a deadline passes, the server SHOULD treat it like cancellation, with one difference: if the server can still send, it SHOULD send DEADLINE_EXCEEDED before closing. The client may still be connected and waiting.
 
-Both cancellation and deadline expiry are surfaced through `CallContext.isCancelled`. Handlers do not need to distinguish between them.
+Both cancellation and deadline expiry are surfaced through `RpcContext.isCancelled`. Handlers do not need to distinguish between them.
 
 ## 9. Metadata
 
@@ -732,35 +732,158 @@ Same byte layout as TCP. Each transport-level message SHOULD contain one complet
 
 ## 18. Call context
 
-Handlers receive a `CallContext` for every call. Every `CallContext` provides:
+`RpcContext` is a concrete class that flows through the entire call chain: client to transport to router to interceptor to handler to downstream stubs.
 
-- **Request metadata** — from `CallHeader.metadata` or HTTP headers. Read-only.
-- **Response metadata** — mutable. Sent as trailing metadata after the handler returns.
-- **Deadline** — when the call expires. Nil if no deadline was set.
-- **Cancellation** — true when the client disconnected or the deadline expired.
+Every `RpcContext` provides:
 
-`CallContext` is an interface. Transport implementations provide concrete types. The handler signature references only the interface.
+| Field | Mutability | Description |
+|-------|-----------|-------------|
+| `metadata` | Read-only | Request metadata from `CallHeader.metadata` or HTTP headers. |
+| `responseMetadata` | Write | Trailing metadata sent after the handler returns. |
+| `deadline` | Read-only | When the call expires. Nil if no deadline was set. |
+| `isCancelled` | Read-only | True when the client disconnected or the deadline expired. |
+| `attachments` | Read/write | Typed key-value storage for transport-specific data. |
 
-### 18.1. Transport-specific access
+### 18.1. Context lifecycle
 
-Handlers that need transport-specific features downcast the context:
+A call creates three context boundaries: client-side, wire, and server-side.
 
 ```
-func sayHello(ctx: CallContext, request: HelloRequest) -> HelloResponse {
-    if let httpCtx = ctx as? HttpCallContext {
-        httpCtx.setResponseHeader("Cache-Control", "max-age=60")
+Client                          Wire                     Server
+──────                          ────                     ──────
+RpcContext(metadata: md)
+  │
+  ├─ metadata    ──────────▶  CallHeader.metadata  ──▶  RpcContext.metadata
+  ├─ deadline    ──────────▶  CallHeader.deadline  ──▶  RpcContext.deadline
+  │                                                      │
+  │                                                      ├─ router dispatches
+  │                                                      ├─ interceptors run
+  │                                                      ├─ handler executes
+  │                                                      │    reads context.metadata
+  │                                                      │    calls context.setResponseMetadata(k, v)
+  │                                                      │
+  │                          TrailingMetadata       ◀──  RpcContext.responseMetadata
+  │                          (or RpcError.metadata)
+  ▼
+Response(value, transportMeta)
+```
+
+The client creates an `RpcContext` with metadata and an optional deadline. The transport encodes these into the `CallHeader` on the wire. The server constructs a new `RpcContext` from the received call header, populates transport-specific state in `attachments`, and passes it through the router and interceptor chain to the handler.
+
+The handler reads `context.metadata` for incoming request metadata and calls `context.setResponseMetadata(key, value)` to attach response metadata. After the handler returns, the transport reads `context.responseMetadata` and sends it as trailing metadata (TRAILER frame on binary transports, HTTP trailers or response headers on HTTP).
+
+On error, response metadata goes in `RpcError.metadata`. No separate trailer frame.
+
+### 18.2. Metadata propagation
+
+Metadata does not propagate automatically. A handler that calls a downstream service must explicitly choose what to forward.
+
+```
+                     Handler
+                    ┌────────────────────────────┐
+incoming context ──▶│ context.metadata            │
+                    │   ["auth": "bearer xyz",    │
+                    │    "x-trace-id": "abc"]      │
+                    │                              │
+                    │ // Forward everything        │
+                    │ downstream.call(             │
+                    │   ctx: context.forwarding()) │──▶ metadata: ["auth":..., "x-trace-id":...]
+                    │                              │
+                    │ // Forward + add keys        │
+                    │ downstream.call(             │
+                    │   ctx: context.deriving(     │
+                    │     appending: ["caller":    │
+                    │       "widget-svc"]))        │──▶ metadata: ["auth":..., "x-trace-id":..., "caller":...]
+                    │                              │
+                    │ // Fresh context             │
+                    │ downstream.call(             │
+                    │   ctx: RpcContext(metadata:  │
+                    │     ["service": "widget"]))  │──▶ metadata: ["service": "widget"]
+                    │                              │
+                    │ // No context (default)      │
+                    │ downstream.call(request)     │──▶ metadata: [:]
+                    └────────────────────────────┘
+```
+
+Three derivation methods:
+
+- `context.forwarding()` — copy metadata and deadline. Use when the downstream call acts on behalf of the original caller.
+- `context.deriving(appending: [...])` — copy metadata and deadline, merge extra keys. New keys override existing ones.
+- `RpcContext(metadata: [...])` — start clean. Nothing from the incoming call propagates.
+
+The default is safe: calling a downstream service with no context argument sends empty metadata. This prevents accidental credential leakage across service boundaries.
+
+Deadlines propagate with `forwarding()` and `deriving(appending:)`. Servers MUST use the earlier of the propagated deadline and any locally configured timeout. See section 10.
+
+### 18.3. Batch context
+
+In a batch, all calls share the batch-level metadata from `BatchRequest.metadata`. Each call gets its own `RpcContext` so handlers can set response metadata independently.
+
+When a call depends on another via `input_from`, the upstream call's response metadata merges into the downstream call's request metadata:
+
+```
+BatchRequest.metadata: ["auth": "token"]
+
+call 0: CreateWidget  ──▶  context.metadata = ["auth": "token"]
+                            handler sets context.setResponseMetadata("widget-id", "42")
+                            │
+                            ▼ success
+call 1: GetWidget      ──▶  context.metadata = ["auth": "token", "widget-id": "42"]
+         (input_from=0)                          ↑ merged from call 0's response metadata
+```
+
+This lets pipelined calls pass context without the client knowing the intermediate values. The merge follows last-writer-wins: upstream response metadata keys override batch metadata keys.
+
+### 18.4. Transport-specific access
+
+Transports store per-call state in the context's attachments. Each attachment is a typed key conforming to `AttachmentKey`, which associates a key type with its value type at compile time:
+
+```
+protocol AttachmentKey {
+    associatedtype Value: Sendable
+}
+```
+
+Transport packages define keys and convenience accessors:
+
+```
+// In the HTTP transport package
+enum HttpRequestKey: AttachmentKey {
+    typealias Value = HttpRequest
+}
+
+extension RpcContext {
+    var httpRequest: HttpRequest? { self[HttpRequestKey.self] }
+}
+
+// Handler reads transport state — no cast needed
+func sayHello(request: HelloRequest, context: RpcContext) -> HelloResponse {
+    if let req = context.httpRequest {
+        context.setResponseMetadata("Cache-Control", "max-age=60")
     }
     // ...
 }
 ```
 
-Handlers that stick to the interface work on every transport. Handlers that downcast only work on the transport they target.
+The subscript `context[K.self]` returns `K.Value?`, so the compiler enforces that a key always maps to the correct type. No runtime casts at the call site.
 
-### 18.2. Interceptors
+Handlers that use only core `RpcContext` APIs work on every transport. Handlers that use transport-specific attachments only work on the transport that populates those keys.
 
-Interceptors wrap handler dispatch. They receive the method ID and call context, and decide whether to proceed or reject the call.
+### 18.5. Interceptors
+
+Interceptors wrap handler dispatch. They receive the method ID and `RpcContext`, and decide whether to proceed or reject the call.
+
+```
+func intercept(methodId: UInt32, ctx: RpcContext, proceed: () async throws -> Void) async throws {
+    let traceId = ctx.metadata["x-trace-id"] ?? generateTraceId()
+    ctx.setResponseMetadata("x-trace-id", traceId)
+    try await proceed()
+}
+```
 
 Interceptors run in registration order. The first registered interceptor is the outermost. Interceptors can short-circuit by throwing an error instead of calling `proceed`.
+
+Interceptors read and write the same `RpcContext` the handler receives. Response metadata set by an interceptor is visible to the transport alongside metadata set by the handler.
 
 ## 19. Design rationale
 
@@ -775,6 +898,12 @@ The call header, frame header, error payload, batch protocol, and discovery resp
 Binary transports use frames even for unary calls. The cost is 18 bytes per call (9 each direction). The benefit: the ERROR flag handles error signaling uniformly. Without framing, a binary transport would need a separate mechanism to distinguish a response from an error.
 
 HTTP unary calls skip framing because HTTP already provides request/response boundaries and status codes.
+
+### Single context type
+
+gRPC stores incoming and outgoing metadata in separate hidden slots of a general-purpose `context.Context`. Reading the wrong direction is a silent bug — `FromOutgoingContext` on the server returns nothing instead of failing. Bebop avoids this by making direction structural: `context.metadata` is always what was received, `context.responseMetadata` is always what the handler is sending back. For downstream calls, the handler derives a new context — there is no "outgoing metadata" slot on the current context that could be confused with the incoming one.
+
+gRPC also splits response metadata into headers (sent before the first response byte) and trailers (sent after). Bebop has only trailing response metadata. This means a server cannot send metadata to the client before the handler finishes, but it eliminates an entire class of ordering bugs and simplifies transport implementations.
 
 ### Trailing metadata
 

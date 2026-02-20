@@ -1,14 +1,14 @@
-enum MethodRegistration<C: CallContext>: Sendable {
-  case unary(@Sendable ([UInt8], C) async throws -> [UInt8])
+enum MethodRegistration: Sendable {
+  case unary(@Sendable ([UInt8], RpcContext) async throws -> [UInt8])
   case serverStream(
-    @Sendable ([UInt8], C) async throws -> AsyncThrowingStream<[UInt8], Error>)
+    @Sendable ([UInt8], RpcContext) async throws -> AsyncThrowingStream<[UInt8], Error>)
   case clientStream(
-    @Sendable (C) async throws -> (
+    @Sendable (RpcContext) async throws -> (
       send: @Sendable ([UInt8]) async throws -> Void,
       finish: @Sendable () async throws -> [UInt8]
     ))
   case duplexStream(
-    @Sendable (C) async throws -> (
+    @Sendable (RpcContext) async throws -> (
       send: @Sendable ([UInt8]) async throws -> Void,
       finish: @Sendable () async throws -> Void,
       responses: AsyncThrowingStream<[UInt8], Error>

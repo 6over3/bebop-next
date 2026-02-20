@@ -1,10 +1,10 @@
 /// Mutable builder for `BebopRouter`.
-public final class BebopRouterBuilder<C: CallContext> {
+public final class BebopRouterBuilder {
   public var discoveryEnabled: Bool = true
   public var maxBatchSize: UInt = UInt.max
   public var maxBatchStreamElements: UInt = UInt.max
 
-  private var methods: [UInt32: MethodRegistration<C>] = [:]
+  private var methods: [UInt32: MethodRegistration] = [:]
   private var serviceInfos: [ServiceInfo] = []
   private var interceptors: [any BebopInterceptor] = []
 
@@ -16,18 +16,18 @@ public final class BebopRouterBuilder<C: CallContext> {
 
   public func register<S: BebopServiceDefinition>(
     _ service: S.Type,
-    unary: @escaping @Sendable (S.Method, C, [UInt8]) async throws -> [UInt8],
+    unary: @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> [UInt8],
     serverStream:
-      @escaping @Sendable (S.Method, C, [UInt8]) async throws -> AsyncThrowingStream<
+      @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> AsyncThrowingStream<
         [UInt8], Error
       >,
     clientStream:
-      @escaping @Sendable (S.Method, C) async throws -> (
+      @escaping @Sendable (S.Method, RpcContext) async throws -> (
         send: @Sendable ([UInt8]) async throws -> Void,
         finish: @Sendable () async throws -> [UInt8]
       ),
     duplexStream:
-      @escaping @Sendable (S.Method, C) async throws -> (
+      @escaping @Sendable (S.Method, RpcContext) async throws -> (
         send: @Sendable ([UInt8]) async throws -> Void,
         finish: @Sendable () async throws -> Void,
         responses: AsyncThrowingStream<[UInt8], Error>
@@ -44,7 +44,7 @@ public final class BebopRouterBuilder<C: CallContext> {
       precondition(
         methods[m.rawValue] == nil,
         "duplicate method ID 0x\(String(m.rawValue, radix: 16, uppercase: true))")
-      let reg: MethodRegistration<C>
+      let reg: MethodRegistration
       switch m.methodType {
       case .unary:
         reg = .unary { payload, ctx in try await unary(m, ctx, payload) }
@@ -61,8 +61,8 @@ public final class BebopRouterBuilder<C: CallContext> {
     }
   }
 
-  public func build() -> BebopRouter<C> {
-    BebopRouter<C>(
+  public func build() -> BebopRouter {
+    BebopRouter(
       methods: methods,
       serviceInfos: serviceInfos,
       interceptors: interceptors,

@@ -5,7 +5,7 @@ import Testing
 @Suite struct RouterUnaryTests {
   @Test func echoRoundTrip() async throws {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     let req = EchoRequest(value: "hello")
     let resBytes = try await router.unary(
       methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
@@ -15,7 +15,7 @@ import Testing
 
   @Test func unknownMethodThrowsNotFound() async {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: 0xDEAD)
+    let ctx = RpcContext(methodId: 0xDEAD, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.unary(methodId: 0xDEAD, payload: [], ctx: ctx)
     }
@@ -23,7 +23,7 @@ import Testing
 
   @Test func wrongMethodTypeThrowsUnimplemented() async {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: listWidgetsId)
+    let ctx = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.unary(methodId: listWidgetsId, payload: [], ctx: ctx)
     }

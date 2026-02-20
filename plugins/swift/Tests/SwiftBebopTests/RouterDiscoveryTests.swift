@@ -5,7 +5,7 @@ import Testing
 @Suite struct RouterDiscoveryTests {
   @Test func returnsServiceInfo() async throws {
     let router = buildRouter()
-    let ctx = TestCallContext()
+    let ctx = RpcContext()
     let bytes = try await router.unary(methodId: 0, payload: [], ctx: ctx)
     let response = try DiscoveryResponse.decode(from: bytes)
     #expect(response.services.count == 1)
@@ -15,7 +15,7 @@ import Testing
 
   @Test func disabledDiscoveryThrows() async {
     let router = buildRouter(discoveryEnabled: false)
-    let ctx = TestCallContext()
+    let ctx = RpcContext()
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.unary(methodId: 0, payload: [], ctx: ctx)
     }

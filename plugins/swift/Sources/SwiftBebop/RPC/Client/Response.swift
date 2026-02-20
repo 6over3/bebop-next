@@ -1,4 +1,4 @@
-public struct Reply<Value: Sendable, Metadata: Sendable>: Sendable {
+public struct Response<Value: Sendable, Metadata: Sendable>: Sendable {
   public let value: Value
   public let metadata: Metadata
 
@@ -9,7 +9,7 @@ public struct Reply<Value: Sendable, Metadata: Sendable>: Sendable {
 
   public func map<T: Sendable>(
     _ transform: (Value) throws -> T
-  ) rethrows -> Reply<T, Metadata> {
-    Reply<T, Metadata>(value: try transform(value), metadata: metadata)
+  ) rethrows -> Response<T, Metadata> {
+    Response<T, Metadata>(value: try transform(value), metadata: metadata)
   }
 }

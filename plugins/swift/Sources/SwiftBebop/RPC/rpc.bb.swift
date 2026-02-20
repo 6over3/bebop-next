@@ -273,20 +273,25 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
     /// Keys starting with "bebop-" are reserved.
     public var metadata: [String: String]?
 
-    public init(methodId: UInt32? = nil, deadline: BebopTimestamp? = nil, metadata: [String: String]? = nil) {
+    /// Stream resume position. 0 = start from beginning.
+    public var cursor: UInt64?
+
+    public init(methodId: UInt32? = nil, deadline: BebopTimestamp? = nil, metadata: [String: String]? = nil, cursor: UInt64? = nil) {
         self.methodId = methodId
         self.deadline = deadline
         self.metadata = metadata
+        self.cursor = cursor
     }
 
     public static func == (lhs: CallHeader, rhs: CallHeader) -> Bool {
-        return lhs.methodId == rhs.methodId && lhs.deadline == rhs.deadline && lhs.metadata == rhs.metadata
+        return lhs.methodId == rhs.methodId && lhs.deadline == rhs.deadline && lhs.metadata == rhs.metadata && lhs.cursor == rhs.cursor
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(methodId)
         hasher.combine(deadline)
         hasher.combine(metadata)
+        hasher.combine(cursor)
     }
 
     public static func decode(from reader: inout BebopReader) throws -> CallHeader {
@@ -296,6 +301,7 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
         var methodId: UInt32? = nil
         var deadline: BebopTimestamp? = nil
         var metadata: [String: String]? = nil
+        var cursor: UInt64? = nil
         while reader.position < end {
             let tag = try reader.readTag()
             if tag == 0 { break }
@@ -306,12 +312,14 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
                 deadline = try reader.readTimestamp()
             case 3:
                 metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
+            case 4:
+                cursor = try reader.readUInt64()
             default:
                 try reader.skip(end - reader.position)
             }
         }
         // @@bebop_insertion_point(decode_end:CallHeader)
-        return CallHeader(methodId: methodId, deadline: deadline, metadata: metadata)
+        return CallHeader(methodId: methodId, deadline: deadline, metadata: metadata, cursor: cursor)
     }
 
     public func encode(to writer: inout BebopWriter) {
@@ -330,6 +338,10 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
             writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
         _w.writeString(_v) }
         }
+        if let _v = cursor {
+            writer.writeTag(4)
+            writer.writeUInt64(_v)
+        }
         writer.writeEndMarker()
         writer.fillMessageLength(at: pos)
         // @@bebop_insertion_point(encode_end:CallHeader)
@@ -340,6 +352,7 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
         if methodId != nil { size += 1 + 4 }
         if deadline != nil { size += 1 + 12 }
         if let _v = metadata { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        if cursor != nil { size += 1 + 8 }
         return size
     }
 
@@ -347,6 +360,7 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
         case methodId = "method_id"
         case deadline
         case metadata
+        case cursor
     }
 
     public static let bebopReflection = BebopTypeReflection(
@@ -369,6 +383,11 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
                     name: "metadata",
                     index: 3,
                     typeName: "[String: String]"
+                ),
+                BebopFieldReflection(
+                    name: "cursor",
+                    index: 4,
+                    typeName: "UInt64"
                 )
             ])
         )
@@ -879,7 +898,7 @@ public struct BatchRequest: BebopRecord, BebopReflectable {
         case metadata
     }
 
-    public init(calls: [BatchCall], metadata: [String: String]) {
+    public init(calls: [BatchCall], metadata: [String: String] = [:]) {
         self.calls = calls
         self.metadata = metadata
     }
@@ -934,30 +953,38 @@ public struct BatchRequest: BebopRecord, BebopReflectable {
 public struct BatchSuccess: BebopRecord, BebopReflectable {
     public let payloads: [[UInt8]]
 
+    public let metadata: [String: String]
+
     enum CodingKeys: String, CodingKey {
         case payloads
+        case metadata
     }
 
-    public init(payloads: [[UInt8]]) {
+    public init(payloads: [[UInt8]], metadata: [String: String] = [:]) {
         self.payloads = payloads
+        self.metadata = metadata
     }
 
     public static func decode(from reader: inout BebopReader) throws -> BatchSuccess {
         // @@bebop_insertion_point(decode_start:BatchSuccess)
         let payloads = try reader.readDynamicArray { _r in try _r.readLengthPrefixedArray(of: UInt8.self) }
+        let metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
         // @@bebop_insertion_point(decode_end:BatchSuccess)
-        return BatchSuccess(payloads: payloads)
+        return BatchSuccess(payloads: payloads, metadata: metadata)
     }
 
     public func encode(to writer: inout BebopWriter) {
         // @@bebop_insertion_point(encode_start:BatchSuccess)
         writer.writeDynamicArray(payloads) { _w, _el in _w.writeLengthPrefixedArray(_el) }
+        writer.writeDynamicMap(metadata) { _w, _k, _v in _w.writeString(_k)
+        _w.writeString(_v) }
         // @@bebop_insertion_point(encode_end:BatchSuccess)
     }
 
     public var encodedSize: Int {
         var size = 0
         size += (4 + payloads.reduce(0) { _acc, _el in _acc + (4 + _el.count &* 1) })
+        size += (4 + metadata.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) })
         return size
     }
 
@@ -971,6 +998,11 @@ public struct BatchSuccess: BebopRecord, BebopReflectable {
                     name: "payloads",
                     index: 0,
                     typeName: "[[UInt8]]"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 0,
+                    typeName: "[String: String]"
                 )
             ])
         )

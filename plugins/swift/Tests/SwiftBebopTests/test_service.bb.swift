@@ -288,25 +288,25 @@ public protocol WidgetServiceHandler: BebopHandler {
     /// Echo back the input.
     func getWidget(
         _ request: EchoRequest,
-        context: some CallContext
+        context: RpcContext
     ) async throws -> EchoResponse
 
     /// Stream count responses.
     func listWidgets(
         _ request: CountRequest,
-        context: some CallContext
+        context: RpcContext
     ) async throws -> AsyncThrowingStream<CountResponse, Error>
 
     @available(*, deprecated, message: "use CollectV2")
     func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>,
-        context: some CallContext
+        context: RpcContext
     ) async throws -> EchoResponse
 
     /// Bidirectional echo.
     func syncWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>,
-        context: some CallContext
+        context: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error>
 }
 
@@ -423,51 +423,51 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
     /// Echo back the input.
     public func getWidget(
         _ request: EchoRequest,
-        options: CallOptions = .default
-    ) async throws -> Reply<EchoResponse, C.Metadata> {
+        context: RpcContext = RpcContext()
+    ) async throws -> Response<EchoResponse, C.Metadata> {
         try await channel.unary(
             method: 0xA3F73AA7,
             request: request.serializedData(),
-            options: options
+            context: context
         ).map { try EchoResponse.decode(from: $0) }
     }
 
     public func getWidget(
         value: String,
-        options: CallOptions = .default
-    ) async throws -> Reply<EchoResponse, C.Metadata> {
-        try await getWidget(EchoRequest(value: value), options: options)
+        context: RpcContext = RpcContext()
+    ) async throws -> Response<EchoResponse, C.Metadata> {
+        try await getWidget(EchoRequest(value: value), context: context)
     }
 
     /// Stream count responses.
     public func listWidgets(
         _ request: CountRequest,
-        options: CallOptions = .default
-    ) async throws -> StreamReply<CountResponse, C.Metadata> {
+        context: RpcContext = RpcContext()
+    ) async throws -> StreamResponse<CountResponse, C.Metadata> {
         try await channel.serverStream(
             method: 0xBB7F3698,
             request: request.serializedData(),
-            options: options
+            context: context
         ).map { try CountResponse.decode(from: $0) }
     }
 
     public func listWidgets(
         n: UInt32,
-        options: CallOptions = .default
-    ) async throws -> StreamReply<CountResponse, C.Metadata> {
-        try await listWidgets(CountRequest(n: n), options: options)
+        context: RpcContext = RpcContext()
+    ) async throws -> StreamResponse<CountResponse, C.Metadata> {
+        try await listWidgets(CountRequest(n: n), context: context)
     }
 
     @available(*, deprecated, message: "use CollectV2")
     public func uploadWidgets(
-        options: CallOptions = .default,
+        context: RpcContext = RpcContext(),
         body: (
             _ send: @Sendable (EchoRequest) async throws -> Void
         ) async throws -> Void
-    ) async throws -> Reply<EchoResponse, C.Metadata> {
+    ) async throws -> Response<EchoResponse, C.Metadata> {
         let (rawSend, rawFinish) = try await channel.clientStream(
             method: 0xC1A30C3B,
-            options: options
+            context: context
         )
         try await body({ try await rawSend($0.serializedData()) })
         return try await rawFinish().map { try EchoResponse.decode(from: $0) }
@@ -475,16 +475,16 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
 
     /// Bidirectional echo.
     public func syncWidgets(
-        options: CallOptions = .default,
+        context: RpcContext = RpcContext(),
         body: (
             _ send: @Sendable (EchoRequest) async throws -> Void,
             _ finish: @Sendable () async throws -> Void,
-            _ responses: StreamReply<EchoResponse, C.Metadata>
+            _ responses: StreamResponse<EchoResponse, C.Metadata>
         ) async throws -> Void
     ) async throws {
         let (rawSend, rawFinish, rawResponses) = try await channel.duplexStream(
             method: 0x317F5C17,
-            options: options
+            context: context
         )
         do {
             try await body(

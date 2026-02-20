@@ -4,14 +4,14 @@ import Testing
 
 @Suite struct RouterBuilderTests {
   @Test func buildEmptyRouter() {
-    let builder = BebopRouterBuilder<TestCallContext>()
+    let builder = BebopRouterBuilder()
     let router = builder.build()
     #expect(router.discoveryEnabled)
     #expect(router.methodType(for: getWidgetId) == nil)
   }
 
   @Test func disableDiscovery() {
-    let builder = BebopRouterBuilder<TestCallContext>()
+    let builder = BebopRouterBuilder()
     builder.discoveryEnabled = false
     let router = builder.build()
     #expect(!router.discoveryEnabled)

@@ -1,4 +1,4 @@
-public struct StreamReply<Element: Sendable, Metadata: Sendable>: AsyncSequence, Sendable {
+public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequence, Sendable {
   public typealias Failure = any Error
 
   private let _stream: AsyncThrowingStream<Element, any Error>
@@ -29,7 +29,7 @@ public struct StreamReply<Element: Sendable, Metadata: Sendable>: AsyncSequence,
 
   public func map<T: Sendable>(
     _ transform: @escaping @Sendable (Element) throws -> T
-  ) -> StreamReply<T, Metadata> {
+  ) -> StreamResponse<T, Metadata> {
     let mapped = AsyncThrowingStream<T, any Error> { continuation in
       let task = Task {
         do {
@@ -44,6 +44,6 @@ public struct StreamReply<Element: Sendable, Metadata: Sendable>: AsyncSequence,
       }
       continuation.onTermination = { _ in task.cancel() }
     }
-    return StreamReply<T, Metadata>(stream: mapped, trailing: self._trailing)
+    return StreamResponse<T, Metadata>(stream: mapped, trailing: self._trailing)
   }
 }

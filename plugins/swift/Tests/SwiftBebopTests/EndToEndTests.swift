@@ -5,8 +5,8 @@ import Testing
 @Suite struct EndToEndTests {
   @Test func fullUnaryFlow() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let reply = try await client.getWidget(value: "e2e")
-    #expect(reply.value.value == "e2e")
+    let response = try await client.getWidget(value: "e2e")
+    #expect(response.value.value == "e2e")
   }
 
   @Test func fullServerStreamFlow() async throws {
@@ -21,11 +21,11 @@ import Testing
 
   @Test func fullClientStreamFlow() async throws {
     let client = WidgetServiceClient(channel: buildChannel())
-    let reply = try await client.uploadWidgets { send in
+    let response = try await client.uploadWidgets { send in
       try await send(EchoRequest(value: "hello"))
       try await send(EchoRequest(value: "world"))
     }
-    #expect(reply.value.value == "hello,world")
+    #expect(response.value.value == "hello,world")
   }
 
   @Test func fullDuplexStreamFlow() async throws {
@@ -68,7 +68,7 @@ import Testing
   @Test func interceptorInEndToEnd() async throws {
     struct TagInterceptor: BebopInterceptor {
       func intercept(
-        methodId: UInt32, ctx: some CallContext,
+        methodId: UInt32, ctx: RpcContext,
         proceed: @Sendable () async throws -> Void
       ) async throws {
         try await proceed()
@@ -76,26 +76,26 @@ import Testing
     }
 
     let client = WidgetServiceClient(channel: buildChannel(interceptors: [TagInterceptor()]))
-    let reply = try await client.getWidget(value: "intercepted")
-    #expect(reply.value.value == "intercepted")
+    let response = try await client.getWidget(value: "intercepted")
+    #expect(response.value.value == "intercepted")
   }
 
   @Test func errorFromHandlerPropagates() async {
     struct FailHandler: WidgetServiceHandler {
-      func getWidget(_ request: EchoRequest, context: some CallContext) async throws -> EchoResponse
+      func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse
       {
         throw BebopRpcError(code: .internal, detail: "boom")
       }
-      func listWidgets(_ request: CountRequest, context: some CallContext) async throws
+      func listWidgets(_ request: CountRequest, context: RpcContext) async throws
         -> AsyncThrowingStream<CountResponse, Error>
       { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>,
-        context: some CallContext
+        context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
       func syncWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>,
-        context: some CallContext
+        context: RpcContext
       ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
     }
 

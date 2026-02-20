@@ -80,6 +80,8 @@ message CallHeader {
     /// Keys: ASCII lowercase, digits, hyphens, underscores.
     /// Keys starting with "bebop-" are reserved.
     metadata(3): map[string, string];
+    /// Stream resume position. 0 = start from beginning.
+    cursor(4): uint64;
 }
 
 /// Payload of an ERROR frame. On error, response metadata goes here
@@ -142,6 +144,7 @@ struct BatchRequest {
 /// One element per unary response. All buffered elements for server-stream.
 struct BatchSuccess {
     payloads: byte[][];
+    metadata: map[string, string];
 }
 
 union BatchOutcome {

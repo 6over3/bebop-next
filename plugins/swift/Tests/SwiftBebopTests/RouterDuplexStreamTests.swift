@@ -5,7 +5,7 @@ import Testing
 @Suite struct RouterDuplexStreamTests {
   @Test func echoesBidirectionally() async throws {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: syncWidgetsId)
+    let ctx = RpcContext(methodId: syncWidgetsId, metadata: [:], deadline: nil)
     let (send, finish, responses) = try await router.duplexStream(methodId: syncWidgetsId, ctx: ctx)
 
     try await send(EchoRequest(value: "x").serializedData())
@@ -22,7 +22,7 @@ import Testing
 
   @Test func wrongMethodTypeThrows() async {
     let router = buildRouter()
-    let ctx = TestCallContext(methodId: getWidgetId)
+    let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
     await #expect(throws: BebopRpcError.self) {
       _ = try await router.duplexStream(methodId: getWidgetId, ctx: ctx)
     }

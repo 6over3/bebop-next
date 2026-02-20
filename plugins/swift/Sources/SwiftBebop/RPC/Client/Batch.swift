@@ -81,15 +81,15 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
 
   // MARK: - Execution
 
-  public func execute(options: CallOptions = .default) async throws -> BatchResults {
+  public func execute(context: RpcContext = RpcContext()) async throws -> BatchResults {
     let request = BatchRequest(calls: calls, metadata: metadata)
     let requestBytes = request.serializedData()
-    let reply = try await channel.unary(
+    let result = try await channel.unary(
       method: BebopReservedMethod.batch,
       request: requestBytes,
-      options: options
+      context: context
     )
-    let response = try BatchResponse.decode(from: reply.value)
+    let response = try BatchResponse.decode(from: result.value)
     return BatchResults(response)
   }
 }

@@ -2,7 +2,7 @@
 public protocol BebopInterceptor: Sendable {
   func intercept(
     methodId: UInt32,
-    ctx: some CallContext,
+    ctx: RpcContext,
     proceed: @Sendable () async throws -> Void
   ) async throws
 }

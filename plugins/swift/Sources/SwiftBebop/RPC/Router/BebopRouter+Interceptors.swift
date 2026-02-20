@@ -1,5 +1,5 @@
 extension BebopRouter {
-  func checkCallViability(_ ctx: C) throws {
+  func checkCallViability(_ ctx: RpcContext) throws {
     guard !Task.isCancelled else {
       throw CancellationError()
     }
@@ -15,13 +15,12 @@ extension BebopRouter {
 
   func runInterceptors(
     methodId: UInt32,
-    ctx: C
+    ctx: RpcContext
   ) async throws {
     try checkCallViability(ctx)
 
     guard !interceptors.isEmpty else { return }
 
-    // Innermost first so first-added interceptor is outermost
     var next: @Sendable () async throws -> Void = {}
     for i in stride(from: interceptors.count - 1, through: 0, by: -1) {
       let interceptor = interceptors[i]

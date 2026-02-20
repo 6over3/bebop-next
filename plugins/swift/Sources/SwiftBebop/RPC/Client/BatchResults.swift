@@ -39,6 +39,28 @@ public struct BatchResults: Sendable {
     }
   }
 
+  public func metadata<R: BebopRecord>(for ref: CallRef<R>) throws -> [String: String] {
+    switch try outcome(for: ref.callId) {
+    case .success(let success):
+      return success.metadata
+    case .error(let rpcError):
+      throw BebopRpcError(from: rpcError)
+    case .unknown:
+      throw BebopRpcError(code: .internal, detail: "batch call \(ref.callId): unknown outcome")
+    }
+  }
+
+  public func metadata<R: BebopRecord>(for ref: StreamRef<R>) throws -> [String: String] {
+    switch try outcome(for: ref.callId) {
+    case .success(let success):
+      return success.metadata
+    case .error(let rpcError):
+      throw BebopRpcError(from: rpcError)
+    case .unknown:
+      throw BebopRpcError(code: .internal, detail: "batch call \(ref.callId): unknown outcome")
+    }
+  }
+
   private func outcome(for callId: Int32) throws -> BatchOutcome {
     guard let outcome = outcomes[callId] else {
       throw BebopRpcError(code: .internal, detail: "batch call \(callId): not found in response")

@@ -1,35 +1,17 @@
+import Synchronization
 import Testing
 
 @testable import SwiftBebop
 
-struct TestCallContext: CallContext, @unchecked Sendable {
-  let methodId: UInt32
-  let requestMetadata: [String: String]
-  let deadline: BebopTimestamp?
-  var isCancelled: Bool = false
-
-  init(
-    methodId: UInt32 = 0,
-    metadata: [String: String] = [:],
-    deadline: BebopTimestamp? = nil
-  ) {
-    self.methodId = methodId
-    self.requestMetadata = metadata
-    self.deadline = deadline
-  }
-
-  func setResponseMetadata(_ key: String, _ value: String) {}
-}
-
 struct WidgetHandler: WidgetServiceHandler {
   func getWidget(
-    _ request: EchoRequest, context: some CallContext
+    _ request: EchoRequest, context: RpcContext
   ) async throws -> EchoResponse {
     EchoResponse(value: request.value)
   }
 
   func listWidgets(
-    _ request: CountRequest, context: some CallContext
+    _ request: CountRequest, context: RpcContext
   ) async throws -> AsyncThrowingStream<CountResponse, Error> {
     AsyncThrowingStream { c in
       for i in 0..<request.n {
@@ -41,7 +23,7 @@ struct WidgetHandler: WidgetServiceHandler {
 
   func uploadWidgets(
     _ requests: AsyncThrowingStream<EchoRequest, Error>,
-    context: some CallContext
+    context: RpcContext
   ) async throws -> EchoResponse {
     var parts: [String] = []
     for try await req in requests {
@@ -52,7 +34,7 @@ struct WidgetHandler: WidgetServiceHandler {
 
   func syncWidgets(
     _ requests: AsyncThrowingStream<EchoRequest, Error>,
-    context: some CallContext
+    context: RpcContext
   ) async throws -> AsyncThrowingStream<EchoResponse, Error> {
     let (stream, continuation) = AsyncThrowingStream.makeStream(of: EchoResponse.self)
     let task = Task {
@@ -69,43 +51,39 @@ struct WidgetHandler: WidgetServiceHandler {
 struct LoopbackChannel: BebopChannel {
   typealias Metadata = Void
 
-  let router: BebopRouter<TestCallContext>
+  let router: BebopRouter
 
-  func unary(method: UInt32, request: [UInt8], options: CallOptions) async throws -> Reply<[UInt8], Void> {
-    let ctx = TestCallContext(
-      methodId: method, metadata: options.metadata, deadline: options.deadline)
-    let data = try await router.unary(methodId: method, payload: request, ctx: ctx)
-    return Reply(value: data, metadata: ())
+  func unary(method: UInt32, request: [UInt8], context: RpcContext) async throws -> Response<[UInt8], Void> {
+    let serverCtx = context.binding(to: method)
+    let data = try await router.unary(methodId: method, payload: request, ctx: serverCtx)
+    return Response(value: data, metadata: ())
   }
 
-  func serverStream(method: UInt32, request: [UInt8], options: CallOptions) async throws
-    -> StreamReply<[UInt8], Void>
+  func serverStream(method: UInt32, request: [UInt8], context: RpcContext) async throws
+    -> StreamResponse<[UInt8], Void>
   {
-    let ctx = TestCallContext(
-      methodId: method, metadata: options.metadata, deadline: options.deadline)
-    let stream = try await router.serverStream(methodId: method, payload: request, ctx: ctx)
-    return StreamReply(stream: stream, trailing: { () })
+    let serverCtx = context.binding(to: method)
+    let stream = try await router.serverStream(methodId: method, payload: request, ctx: serverCtx)
+    return StreamResponse(stream: stream, trailing: { () })
   }
 
-  func clientStream(method: UInt32, options: CallOptions) async throws -> (
+  func clientStream(method: UInt32, context: RpcContext) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
-    finish: @Sendable () async throws -> Reply<[UInt8], Void>
+    finish: @Sendable () async throws -> Response<[UInt8], Void>
   ) {
-    let ctx = TestCallContext(
-      methodId: method, metadata: options.metadata, deadline: options.deadline)
-    let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: ctx)
-    return (send: send, finish: { Reply(value: try await rawFinish(), metadata: ()) })
+    let serverCtx = context.binding(to: method)
+    let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: serverCtx)
+    return (send: send, finish: { Response(value: try await rawFinish(), metadata: ()) })
   }
 
-  func duplexStream(method: UInt32, options: CallOptions) async throws -> (
+  func duplexStream(method: UInt32, context: RpcContext) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> Void,
-    responses: StreamReply<[UInt8], Void>
+    responses: StreamResponse<[UInt8], Void>
   ) {
-    let ctx = TestCallContext(
-      methodId: method, metadata: options.metadata, deadline: options.deadline)
-    let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: ctx)
-    return (send: send, finish: finish, responses: StreamReply(stream: responses, trailing: { () }))
+    let serverCtx = context.binding(to: method)
+    let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: serverCtx)
+    return (send: send, finish: finish, responses: StreamResponse(stream: responses, trailing: { () }))
   }
 }
 
@@ -118,8 +96,8 @@ func buildRouter(
   handler: some WidgetServiceHandler = WidgetHandler(),
   interceptors: [any BebopInterceptor] = [],
   discoveryEnabled: Bool = true
-) -> BebopRouter<TestCallContext> {
-  let builder = BebopRouterBuilder<TestCallContext>()
+) -> BebopRouter {
+  let builder = BebopRouterBuilder()
   builder.discoveryEnabled = discoveryEnabled
   for i in interceptors { builder.addInterceptor(i) }
   builder.register(widgetService: handler)

@@ -910,11 +910,11 @@ struct SwiftGeneratorTests {
     #expect(code.contains("protocol ChatServiceHandler: BebopHandler"))
     #expect(
       code.contains(
-        "func getUser(\n        _ request: GetUserRequest,\n        context: some CallContext\n    ) async throws -> User"
+        "func getUser(\n        _ request: GetUserRequest,\n        context: RpcContext\n    ) async throws -> User"
       ))
     #expect(
       code.contains(
-        "func listFriends(\n        _ request: ListFriendsRequest,\n        context: some CallContext\n    ) async throws -> AsyncThrowingStream<User, Error>"
+        "func listFriends(\n        _ request: ListFriendsRequest,\n        context: RpcContext\n    ) async throws -> AsyncThrowingStream<User, Error>"
       ))
   }
 
@@ -932,12 +932,12 @@ struct SwiftGeneratorTests {
     // Unary full request method
     #expect(
       code.contains(
-        "func getUser(\n        _ request: GetUserRequest,\n        options: CallOptions = .default\n    ) async throws -> Reply<User, C.Metadata>"
+        "func getUser(\n        _ request: GetUserRequest,\n        context: RpcContext = RpcContext()\n    ) async throws -> Response<User, C.Metadata>"
       ))
     // Server stream full request method
     #expect(
       code.contains(
-        "func listFriends(\n        _ request: ListFriendsRequest,\n        options: CallOptions = .default\n    ) async throws -> StreamReply<User, C.Metadata>"
+        "func listFriends(\n        _ request: ListFriendsRequest,\n        context: RpcContext = RpcContext()\n    ) async throws -> StreamResponse<User, C.Metadata>"
       ))
   }
 
@@ -946,7 +946,7 @@ struct SwiftGeneratorTests {
     // GetUserRequest has 1 field (id: UInt32), so deconstructed overload should exist
     #expect(
       code.contains(
-        "func getUser(\n        id: UInt32,\n        options: CallOptions = .default\n    ) async throws -> Reply<User, C.Metadata>"
+        "func getUser(\n        id: UInt32,\n        context: RpcContext = RpcContext()\n    ) async throws -> Response<User, C.Metadata>"
       ))
   }
 
@@ -955,7 +955,7 @@ struct SwiftGeneratorTests {
     // ListFriendsRequest has 1 field (user_id: UInt32)
     #expect(
       code.contains(
-        "func listFriends(\n        userId: UInt32,\n        options: CallOptions = .default\n    ) async throws -> StreamReply<User, C.Metadata>"
+        "func listFriends(\n        userId: UInt32,\n        context: RpcContext = RpcContext()\n    ) async throws -> StreamResponse<User, C.Metadata>"
       ))
   }
 
@@ -1038,7 +1038,7 @@ struct SwiftGeneratorTests {
     // Message fields become optional params
     #expect(
       code.contains(
-        "func search(\n        query: String? = nil, limit: UInt32? = nil,\n        options: CallOptions = .default\n    ) async throws -> Reply<SearchResult, C.Metadata>"
+        "func search(\n        query: String? = nil, limit: UInt32? = nil,\n        context: RpcContext = RpcContext()\n    ) async throws -> Response<SearchResult, C.Metadata>"
       ))
   }
 
@@ -1202,12 +1202,12 @@ struct SwiftGeneratorTests {
     // Client stream handler: receives request stream, returns response
     #expect(
       code.contains(
-        "func clientStream(\n        _ requests: AsyncThrowingStream<Msg, Error>,\n        context: some CallContext\n    ) async throws -> Msg"
+        "func clientStream(\n        _ requests: AsyncThrowingStream<Msg, Error>,\n        context: RpcContext\n    ) async throws -> Msg"
       ))
     // Duplex stream handler: receives request stream, returns response stream
     #expect(
       code.contains(
-        "func duplexStream(\n        _ requests: AsyncThrowingStream<Msg, Error>,\n        context: some CallContext\n    ) async throws -> AsyncThrowingStream<Msg, Error>"
+        "func duplexStream(\n        _ requests: AsyncThrowingStream<Msg, Error>,\n        context: RpcContext\n    ) async throws -> AsyncThrowingStream<Msg, Error>"
       ))
   }
 }

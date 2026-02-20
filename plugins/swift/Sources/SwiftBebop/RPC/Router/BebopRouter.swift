@@ -4,17 +4,17 @@ public enum BebopReservedMethod {
   public static let batch: UInt32 = 1
 }
 
-public struct BebopRouter<C: CallContext>: Sendable {
+public struct BebopRouter: Sendable {
   public let discoveryEnabled: Bool
   public let maxBatchSize: UInt
   public let maxBatchStreamElements: UInt
 
-  let methods: [UInt32: MethodRegistration<C>]
+  let methods: [UInt32: MethodRegistration]
   let serviceInfos: [ServiceInfo]
   let interceptors: [any BebopInterceptor]
 
   init(
-    methods: [UInt32: MethodRegistration<C>],
+    methods: [UInt32: MethodRegistration],
     serviceInfos: [ServiceInfo],
     interceptors: [any BebopInterceptor],
     discoveryEnabled: Bool,
@@ -32,7 +32,7 @@ public struct BebopRouter<C: CallContext>: Sendable {
   // MARK: - Dispatch
 
   public func unary(
-    methodId: UInt32, payload: [UInt8], ctx: C
+    methodId: UInt32, payload: [UInt8], ctx: RpcContext
   ) async throws -> [UInt8] {
     if methodId == BebopReservedMethod.discovery { return try handleDiscovery() }
     if methodId == BebopReservedMethod.batch { return try await handleBatch(payload: payload, ctx: ctx) }
@@ -49,7 +49,7 @@ public struct BebopRouter<C: CallContext>: Sendable {
   }
 
   public func serverStream(
-    methodId: UInt32, payload: [UInt8], ctx: C
+    methodId: UInt32, payload: [UInt8], ctx: RpcContext
   ) async throws -> AsyncThrowingStream<[UInt8], Error> {
     guard let reg = methods[methodId] else {
       throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
@@ -63,7 +63,7 @@ public struct BebopRouter<C: CallContext>: Sendable {
   }
 
   public func clientStream(
-    methodId: UInt32, ctx: C
+    methodId: UInt32, ctx: RpcContext
   ) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> [UInt8]
@@ -80,7 +80,7 @@ public struct BebopRouter<C: CallContext>: Sendable {
   }
 
   public func duplexStream(
-    methodId: UInt32, ctx: C
+    methodId: UInt32, ctx: RpcContext
   ) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> Void,
