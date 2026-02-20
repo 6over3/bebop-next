@@ -27,7 +27,7 @@ private actor ReadCounter {
 
 @Suite struct FrameReaderTests {
   @Test func readsSingleFrame() async throws {
-    let stream = ByteStream(FrameWriter.endStream([1, 2, 3]))
+    let stream = ByteStream(Frame(payload: [1, 2, 3], flags: .endStream).encode())
     let reader = FrameReader { count in await stream.read(count) }
 
     let frame = try await reader.nextFrame()
@@ -52,7 +52,7 @@ private actor ReadCounter {
   }
 
   @Test func throwsOnIncompletePayload() async throws {
-    let frameBytes = FrameWriter.data([1, 2, 3, 4])
+    let frameBytes = Frame(payload: [1, 2, 3, 4], flags: []).encode()
     let counter = ReadCounter()
     let reader = FrameReader { _ in
       let n = await counter.next()
@@ -65,8 +65,8 @@ private actor ReadCounter {
   }
 
   @Test func readsMultipleFrames() async throws {
-    let frame1 = FrameWriter.data([10, 20])
-    let frame2 = FrameWriter.endStream([30, 40])
+    let frame1 = Frame(payload: [10, 20], flags: []).encode()
+    let frame2 = Frame(payload: [30, 40], flags: .endStream).encode()
     let stream = ByteStream(frame1 + frame2)
     let reader = FrameReader { count in await stream.read(count) }
 
@@ -82,7 +82,7 @@ private actor ReadCounter {
   }
 
   @Test func zeroLengthPayload() async throws {
-    let stream = ByteStream(FrameWriter.endStream([]))
+    let stream = ByteStream(Frame(payload: [], flags: .endStream).encode())
     let reader = FrameReader { count in await stream.read(count) }
     let frame = try await reader.nextFrame()
     #expect(frame != nil)
@@ -91,7 +91,7 @@ private actor ReadCounter {
 
   @Test func rejectsPayloadExceedingMaxSize() async throws {
     let payload: [UInt8] = [1, 2, 3, 4, 5]
-    let stream = ByteStream(FrameWriter.data(payload))
+    let stream = ByteStream(Frame(payload: payload, flags: []).encode())
     let reader = FrameReader(read: { count in await stream.read(count) }, maxPayloadSize: 3)
     await #expect(throws: BebopRpcError.self) {
       _ = try await reader.nextFrame()
@@ -100,7 +100,7 @@ private actor ReadCounter {
 
   @Test func allowsPayloadWithinMaxSize() async throws {
     let payload: [UInt8] = [1, 2, 3]
-    let stream = ByteStream(FrameWriter.data(payload))
+    let stream = ByteStream(Frame(payload: payload, flags: []).encode())
     let reader = FrameReader(read: { count in await stream.read(count) }, maxPayloadSize: 3)
     let frame = try await reader.nextFrame()
     #expect(frame != nil)

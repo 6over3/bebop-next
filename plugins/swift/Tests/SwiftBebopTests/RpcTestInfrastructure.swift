@@ -3,6 +3,11 @@ import Testing
 
 @testable import SwiftBebop
 
+struct LoopbackAuthInfo: AuthInfo {
+  let authType = "loopback"
+  let identity: String
+}
+
 struct WidgetHandler: WidgetServiceHandler {
   func getWidget(
     _ request: EchoRequest, context: RpcContext
@@ -52,9 +57,11 @@ struct LoopbackChannel: BebopChannel {
   typealias Metadata = Void
 
   let router: BebopRouter
+  let peerInfo: PeerInfo?
 
   func unary(method: UInt32, request: [UInt8], context: RpcContext) async throws -> Response<[UInt8], Void> {
     let serverCtx = context.binding(to: method)
+    if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let data = try await router.unary(methodId: method, payload: request, ctx: serverCtx)
     return Response(value: data, metadata: ())
   }
@@ -63,6 +70,7 @@ struct LoopbackChannel: BebopChannel {
     -> StreamResponse<[UInt8], Void>
   {
     let serverCtx = context.binding(to: method)
+    if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let stream = try await router.serverStream(methodId: method, payload: request, ctx: serverCtx)
     return StreamResponse(stream: stream, trailing: { () })
   }
@@ -72,6 +80,7 @@ struct LoopbackChannel: BebopChannel {
     finish: @Sendable () async throws -> Response<[UInt8], Void>
   ) {
     let serverCtx = context.binding(to: method)
+    if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: serverCtx)
     return (send: send, finish: { Response(value: try await rawFinish(), metadata: ()) })
   }
@@ -82,6 +91,7 @@ struct LoopbackChannel: BebopChannel {
     responses: StreamResponse<[UInt8], Void>
   ) {
     let serverCtx = context.binding(to: method)
+    if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: serverCtx)
     return (send: send, finish: finish, responses: StreamResponse(stream: responses, trailing: { () }))
   }
@@ -95,10 +105,12 @@ let syncWidgetsId = WidgetService.Method.syncWidgets.rawValue
 func buildRouter(
   handler: some WidgetServiceHandler = WidgetHandler(),
   interceptors: [any BebopInterceptor] = [],
-  discoveryEnabled: Bool = true
+  discoveryEnabled: Bool = true,
+  futuresEnabled: Bool = false
 ) -> BebopRouter {
   let builder = BebopRouterBuilder()
-  builder.discoveryEnabled = discoveryEnabled
+  builder.config.discoveryEnabled = discoveryEnabled
+  builder.config.futuresEnabled = futuresEnabled
   for i in interceptors { builder.addInterceptor(i) }
   builder.register(widgetService: handler)
   return builder.build()
@@ -107,11 +119,18 @@ func buildRouter(
 func buildChannel(
   handler: some WidgetServiceHandler = WidgetHandler(),
   interceptors: [any BebopInterceptor] = [],
-  discoveryEnabled: Bool = true
+  discoveryEnabled: Bool = true,
+  futuresEnabled: Bool = false,
+  identity: String = "test-client"
 ) -> LoopbackChannel {
-  LoopbackChannel(
+  let peerInfo = futuresEnabled
+    ? PeerInfo(remoteAddress: "loopback", authInfo: LoopbackAuthInfo(identity: identity))
+    : nil
+  return LoopbackChannel(
     router: buildRouter(
-      handler: handler, interceptors: interceptors, discoveryEnabled: discoveryEnabled))
+      handler: handler, interceptors: interceptors,
+      discoveryEnabled: discoveryEnabled, futuresEnabled: futuresEnabled),
+    peerInfo: peerInfo)
 }
 
 actor Counter {

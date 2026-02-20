@@ -24,9 +24,7 @@ public struct FrameReader: Sendable {
     }
     let payloadLength = Int(header.length)
     guard UInt(payloadLength) <= maxPayloadSize else {
-      throw BebopRpcError(
-        code: .resourceExhausted,
-        detail: "frame payload \(payloadLength) exceeds limit \(maxPayloadSize)")
+      throw BebopRpcError(code: .resourceExhausted, detail: "frame payload too large")
     }
     if payloadLength == 0 {
       return Frame(header: header, payload: [])

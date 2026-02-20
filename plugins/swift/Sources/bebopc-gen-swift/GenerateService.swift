@@ -46,6 +46,9 @@ enum GenerateService {
       result.append(
         try generateBatchAccessor(
           defName, methods: methodInfos, vis: vis))
+      result.append(
+        try generateDispatchAccessor(
+          defName, methods: methodInfos, vis: vis))
     }
 
     return result
@@ -727,6 +730,93 @@ enum GenerateService {
       @discardableResult
       \(vis)func \(m.swiftName)(\(paramList)) -> \(refType) {
           \(m.swiftName)(\(m.requestTypeName)(\(constructArgs)))
+      }
+      """
+  }
+
+  // MARK: - Dispatch accessor
+
+  private static func generateDispatchAccessor(
+    _ serviceName: String, methods: [MethodInfo], vis: String
+  ) throws -> String {
+    let name = NamingPolicy.typeName(serviceName)
+    let dispatchStructName = "\(name)_Dispatch"
+    let accessorName = NamingPolicy.fieldName(serviceName)
+
+    let unaryMethods = methods.filter { $0.methodType == .unary }
+
+    var body: [String] = []
+    body.append("\(vis)let dispatcher: FutureDispatcher<C>")
+
+    for m in unaryMethods {
+      body.append(
+        """
+        \(vis)func \(m.swiftName)(
+            _ request: \(m.requestTypeName),
+            idempotencyKey: BebopUUID? = nil,
+            context: RpcContext = RpcContext()
+        ) async throws -> BebopFuture<\(m.responseTypeName)> {
+            try await dispatcher.dispatch(
+                methodId: 0x\(hex(m.methodId)),
+                request: request,
+                idempotencyKey: idempotencyKey,
+                context: context)
+        }
+        """)
+      if let params = m.deconstructedParams {
+        body.append(
+          deconstructedDispatchMethod(m, params: params, vis: vis))
+      }
+    }
+
+    let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
+
+    return """
+      \(vis)struct \(dispatchStructName)<C: BebopChannel> {
+      \(bodyStr)
+      }
+
+      extension FutureDispatcher {
+          \(vis)var \(accessorName): \(dispatchStructName)<Channel> { \(dispatchStructName)(dispatcher: self) }
+      }
+      """
+  }
+
+  private static func deconstructedDispatchMethod(
+    _ m: MethodInfo,
+    params: [(swiftName: String, swiftType: String, isOptional: Bool)],
+    vis: String
+  ) -> String {
+    let returnType = "BebopFuture<\(m.responseTypeName)>"
+
+    if params.isEmpty {
+      return """
+        \(vis)func \(m.swiftName)(
+            idempotencyKey: BebopUUID? = nil,
+            context: RpcContext = RpcContext()
+        ) async throws -> \(returnType) {
+            try await \(m.swiftName)(\(m.requestTypeName)(), idempotencyKey: idempotencyKey, context: context)
+        }
+        """
+    }
+
+    let paramList = params.map { p in
+      if p.isOptional {
+        return "\(p.swiftName): \(p.swiftType)? = nil"
+      }
+      return "\(p.swiftName): \(p.swiftType)"
+    }.joined(separator: ", ")
+
+    let constructArgs = params.map { "\($0.swiftName): \($0.swiftName)" }
+      .joined(separator: ", ")
+
+    return """
+      \(vis)func \(m.swiftName)(
+          \(paramList),
+          idempotencyKey: BebopUUID? = nil,
+          context: RpcContext = RpcContext()
+      ) async throws -> \(returnType) {
+          try await \(m.swiftName)(\(m.requestTypeName)(\(constructArgs)), idempotencyKey: idempotencyKey, context: context)
       }
       """
   }

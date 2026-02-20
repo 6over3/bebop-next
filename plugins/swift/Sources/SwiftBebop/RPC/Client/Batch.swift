@@ -1,8 +1,16 @@
-public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
+import Synchronization
+
+public final class Batch<Channel: BebopChannel>: Sendable {
   @usableFromInline let channel: Channel
-  private var calls: [BatchCall] = []
-  private var nextId: Int32 = 0
   private let metadata: [String: String]
+
+  private struct State: Sendable {
+    var calls: [BatchCall] = []
+    var nextId: Int32 = 0
+    var executed = false
+  }
+
+  private let _state = Mutex(State())
 
   init(channel: Channel, metadata: [String: String] = [:]) {
     self.channel = channel
@@ -16,16 +24,19 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
     methodId: UInt32,
     request: Request
   ) -> CallRef<Response> {
-    let id = nextId
-    nextId += 1
-    calls.append(
-      BatchCall(
-        callId: id,
-        methodId: methodId,
-        payload: request.serializedData(),
-        inputFrom: -1
-      ))
-    return CallRef(callId: id)
+    _state.withLock { state in
+      precondition(!state.executed, "Batch already executed")
+      let id = state.nextId
+      state.nextId += 1
+      state.calls.append(
+        BatchCall(
+          callId: id,
+          methodId: methodId,
+          payload: request.serializedData(),
+          inputFrom: -1
+        ))
+      return CallRef(callId: id)
+    }
   }
 
   @discardableResult
@@ -33,16 +44,19 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
     methodId: UInt32,
     forwardingFrom callId: Int32
   ) -> CallRef<Response> {
-    let id = nextId
-    nextId += 1
-    calls.append(
-      BatchCall(
-        callId: id,
-        methodId: methodId,
-        payload: [],
-        inputFrom: callId
-      ))
-    return CallRef(callId: id)
+    _state.withLock { state in
+      precondition(!state.executed, "Batch already executed")
+      let id = state.nextId
+      state.nextId += 1
+      state.calls.append(
+        BatchCall(
+          callId: id,
+          methodId: methodId,
+          payload: [],
+          inputFrom: callId
+        ))
+      return CallRef(callId: id)
+    }
   }
 
   @discardableResult
@@ -50,16 +64,19 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
     methodId: UInt32,
     request: Request
   ) -> StreamRef<Response> {
-    let id = nextId
-    nextId += 1
-    calls.append(
-      BatchCall(
-        callId: id,
-        methodId: methodId,
-        payload: request.serializedData(),
-        inputFrom: -1
-      ))
-    return StreamRef(callId: id)
+    _state.withLock { state in
+      precondition(!state.executed, "Batch already executed")
+      let id = state.nextId
+      state.nextId += 1
+      state.calls.append(
+        BatchCall(
+          callId: id,
+          methodId: methodId,
+          payload: request.serializedData(),
+          inputFrom: -1
+        ))
+      return StreamRef(callId: id)
+    }
   }
 
   @discardableResult
@@ -67,30 +84,74 @@ public final class Batch<Channel: BebopChannel>: @unchecked Sendable {
     methodId: UInt32,
     forwardingFrom callId: Int32
   ) -> StreamRef<Response> {
-    let id = nextId
-    nextId += 1
-    calls.append(
-      BatchCall(
-        callId: id,
-        methodId: methodId,
-        payload: [],
-        inputFrom: callId
-      ))
-    return StreamRef(callId: id)
+    _state.withLock { state in
+      precondition(!state.executed, "Batch already executed")
+      let id = state.nextId
+      state.nextId += 1
+      state.calls.append(
+        BatchCall(
+          callId: id,
+          methodId: methodId,
+          payload: [],
+          inputFrom: callId
+        ))
+      return StreamRef(callId: id)
+    }
   }
 
   // MARK: - Execution
 
   public func execute(context: RpcContext = RpcContext()) async throws -> BatchResults {
-    let request = BatchRequest(calls: calls, metadata: metadata)
-    let requestBytes = request.serializedData()
+    let request = _state.withLock { state -> BatchRequest in
+      precondition(!state.executed, "Batch already executed")
+      state.executed = true
+      return BatchRequest(calls: state.calls, metadata: metadata)
+    }
     let result = try await channel.unary(
       method: BebopReservedMethod.batch,
-      request: requestBytes,
+      request: request.serializedData(),
       context: context
     )
     let response = try BatchResponse.decode(from: result.value)
     return BatchResults(response)
+  }
+
+  /// Dispatch the entire batch as a future. The server runs the batch
+  /// in the background; await the returned future for results.
+  public func dispatch(
+    using dispatcher: FutureDispatcher<Channel>,
+    context: RpcContext = RpcContext(),
+    idempotencyKey: BebopUUID? = nil
+  ) async throws -> BebopFuture<BatchResults> {
+    let request = _state.withLock { state -> BatchRequest in
+      precondition(!state.executed, "Batch already executed")
+      state.executed = true
+      return BatchRequest(calls: state.calls, metadata: metadata)
+    }
+
+    let dispatchReq = FutureDispatchRequest(
+      methodId: BebopReservedMethod.batch,
+      payload: request.serializedData(),
+      idempotencyKey: idempotencyKey,
+      metadata: context.metadata.isEmpty ? nil : context.metadata,
+      deadline: context.deadline)
+
+    let dispatchCtx = RpcContext(metadata: context.metadata)
+
+    let response = try await dispatcher.channel.unary(
+      method: BebopReservedMethod.dispatch,
+      request: dispatchReq.serializedData(),
+      context: dispatchCtx)
+
+    let handle = try FutureHandle.decode(from: response.value)
+
+    return BebopFuture(
+      id: handle.id,
+      resolver: dispatcher.resolver,
+      decode: { bytes in
+        let batchResponse = try BatchResponse.decode(from: bytes)
+        return BatchResults(batchResponse)
+      })
   }
 }
 

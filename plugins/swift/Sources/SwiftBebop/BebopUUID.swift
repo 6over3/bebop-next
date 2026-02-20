@@ -25,6 +25,21 @@ public struct BebopUUID: Sendable {
   }
 }
 
+// MARK: - Generation
+
+extension BebopUUID {
+  /// Generate a random version-4 UUID using the system CSPRNG.
+  public static func random() -> BebopUUID {
+    var raw = BebopUUID()
+    Swift.withUnsafeMutableBytes(of: &raw.uuid) { buf in
+      for i in buf.indices { buf[i] = .random(in: .min ... .max) }
+      buf[6] = (buf[6] & 0x0F) | 0x40  // version 4
+      buf[8] = (buf[8] & 0x3F) | 0x80  // variant 1
+    }
+    return raw
+  }
+}
+
 // MARK: - Equatable / Hashable
 
 extension BebopUUID: Equatable {

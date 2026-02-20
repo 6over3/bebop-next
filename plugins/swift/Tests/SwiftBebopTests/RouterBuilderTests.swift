@@ -6,15 +6,15 @@ import Testing
   @Test func buildEmptyRouter() {
     let builder = BebopRouterBuilder()
     let router = builder.build()
-    #expect(router.discoveryEnabled)
+    #expect(router.config.discoveryEnabled)
     #expect(router.methodType(for: getWidgetId) == nil)
   }
 
   @Test func disableDiscovery() {
     let builder = BebopRouterBuilder()
-    builder.discoveryEnabled = false
+    builder.config.discoveryEnabled = false
     let router = builder.build()
-    #expect(!router.discoveryEnabled)
+    #expect(!router.config.discoveryEnabled)
   }
 
   @Test func registeredMethodsAreAccessible() {

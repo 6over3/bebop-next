@@ -2,31 +2,45 @@
 public enum BebopReservedMethod {
   public static let discovery: UInt32 = 0
   public static let batch: UInt32 = 1
+  public static let dispatch: UInt32 = 2
+  public static let resolve: UInt32 = 3
+  public static let cancel: UInt32 = 4
+}
+
+public struct BebopRouterConfig: Sendable {
+  public var discoveryEnabled: Bool = true
+  public var futuresEnabled: Bool = false
+  public var maxBatchSize: UInt = .max
+  public var maxBatchStreamElements: UInt = .max
+  public var maxPendingFutures: UInt = .max
+  public var maxCompletedFutures: UInt = 10_000
+
+  public init() {}
 }
 
 public struct BebopRouter: Sendable {
-  public let discoveryEnabled: Bool
-  public let maxBatchSize: UInt
-  public let maxBatchStreamElements: UInt
+  public let config: BebopRouterConfig
 
   let methods: [UInt32: MethodRegistration]
   let serviceInfos: [ServiceInfo]
   let interceptors: [any BebopInterceptor]
+  let futureStore: FutureStore?
 
   init(
     methods: [UInt32: MethodRegistration],
     serviceInfos: [ServiceInfo],
     interceptors: [any BebopInterceptor],
-    discoveryEnabled: Bool,
-    maxBatchSize: UInt,
-    maxBatchStreamElements: UInt
+    config: BebopRouterConfig
   ) {
     self.methods = methods
     self.serviceInfos = serviceInfos
     self.interceptors = interceptors
-    self.discoveryEnabled = discoveryEnabled
-    self.maxBatchSize = maxBatchSize
-    self.maxBatchStreamElements = maxBatchStreamElements
+    self.config = config
+    self.futureStore = config.futuresEnabled
+      ? FutureStore(
+        maxPendingFutures: config.maxPendingFutures,
+        maxCompletedFutures: config.maxCompletedFutures)
+      : nil
   }
 
   // MARK: - Dispatch
@@ -34,8 +48,18 @@ public struct BebopRouter: Sendable {
   public func unary(
     methodId: UInt32, payload: [UInt8], ctx: RpcContext
   ) async throws -> [UInt8] {
-    if methodId == BebopReservedMethod.discovery { return try handleDiscovery() }
-    if methodId == BebopReservedMethod.batch { return try await handleBatch(payload: payload, ctx: ctx) }
+    switch methodId {
+    case BebopReservedMethod.discovery:
+      return try handleDiscovery()
+    case BebopReservedMethod.batch:
+      return try await handleBatch(payload: payload, ctx: ctx)
+    case BebopReservedMethod.dispatch:
+      return try await handleDispatch(payload: payload, ctx: ctx)
+    case BebopReservedMethod.cancel:
+      return try await handleCancel(payload: payload, ctx: ctx)
+    default:
+      break
+    }
 
     guard let reg = methods[methodId] else {
       throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
@@ -51,6 +75,13 @@ public struct BebopRouter: Sendable {
   public func serverStream(
     methodId: UInt32, payload: [UInt8], ctx: RpcContext
   ) async throws -> AsyncThrowingStream<[UInt8], Error> {
+    switch methodId {
+    case BebopReservedMethod.resolve:
+      return try await handleResolve(payload: payload, ctx: ctx)
+    default:
+      break
+    }
+
     guard let reg = methods[methodId] else {
       throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
     }
@@ -104,7 +135,7 @@ public struct BebopRouter: Sendable {
   // MARK: - Discovery
 
   private func handleDiscovery() throws -> [UInt8] {
-    guard discoveryEnabled else {
+    guard config.discoveryEnabled else {
       throw BebopRpcError(code: .unimplemented, detail: "discovery disabled")
     }
     return DiscoveryResponse(services: serviceInfos).serializedData()

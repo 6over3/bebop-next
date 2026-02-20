@@ -12,8 +12,16 @@
 //   └────────────────┴───────────────┴───────────────────┴─────────────────┘
 //
 // Reserved method IDs:
-//   0  Service discovery (request: bebop.Empty, response: DiscoveryResponse)
-//   1  Batch (request: BatchRequest, response: BatchResponse)
+//   0  Discovery
+//       unary Empty => DiscoveryResponse
+//   1  Batch
+//       unary BatchRequest => BatchResponse
+//   2  Dispatch
+//       unary FutureDispatchRequest => FutureHandle
+//   3  Resolve
+//       server_stream FutureResolveRequest => FutureResult
+//   4  Cancel
+//       unary FutureCancelRequest => bebop.Empty
 
 edition = "2026"
 package bebop
@@ -161,4 +169,68 @@ struct BatchResult {
 /// If a call fails, dependent calls (via input_from) also fail.
 struct BatchResponse {
     results: BatchResult[];
+}
+
+/// Method ID 2 request. Wraps any unary or batch call for async execution.
+/// The server runs the inner call in the background and returns a handle
+/// immediately. Use FutureResolveRequest (method 3) to receive results.
+message FutureDispatchRequest {
+    /// MurmurHash3 of /ServiceName/MethodName for the inner call.
+    method_id(1): uint32;
+    /// Wire-encoded request for the inner call.
+    payload(2): byte[];
+    /// Client-assigned dedup key. If a pending or completed future with the
+    /// same key exists, the server returns its handle instead of dispatching
+    /// again. Omit for no deduplication.
+    idempotency_key(3): uuid;
+    /// Metadata forwarded to the inner call's RpcContext.
+    metadata(4): map[string, string];
+    /// Absolute deadline for the inner call. Omit for no deadline.
+    deadline(5): timestamp;
+}
+
+/// Method ID 2 response. Returned immediately after dispatch.
+struct FutureHandle {
+    /// Server-generated, unguessable identifier for the dispatched future.
+    id: uuid;
+}
+
+/// Method ID 3 request. Opens a server-stream that pushes FutureResult
+/// as futures complete. On reconnection, pass IDs of still-pending futures;
+/// the server pushes any already-completed results first, then continues
+/// pushing as remaining futures finish.
+message FutureResolveRequest {
+    /// Future IDs to subscribe to. Omit to receive all futures for this session.
+    ids(1): uuid[];
+}
+
+/// Payload of a successfully completed future.
+struct FutureSuccess {
+    /// Wire-encoded response from the inner call.
+    payload: byte[];
+    /// Response metadata set by the inner call's handler.
+    metadata: map[string, string];
+}
+
+/// Terminal state of a dispatched future.
+union FutureOutcome {
+    Success(1): FutureSuccess;
+    Error(2): RpcError;
+}
+
+/// Pushed on the Resolve stream (method 3) as each future completes.
+struct FutureResult {
+    /// The future this result belongs to.
+    id: uuid;
+    /// Terminal outcome — success with payload or error.
+    outcome: FutureOutcome;
+}
+
+/// Method ID 4 request. Best-effort cancellation of a dispatched future.
+/// Cancellation is advisory: the inner call may have already completed.
+/// Returns bebop.Empty on success. Returns NOT_FOUND if the future ID
+/// is unknown.
+struct FutureCancelRequest {
+    /// The future to cancel.
+    id: uuid;
 }

@@ -537,4 +537,32 @@ extension Batch {
     public var widgetService: WidgetService_Batch<Channel> { WidgetService_Batch(batch: self) }
 }
 
+public struct WidgetService_Dispatch<C: BebopChannel> {
+    public let dispatcher: FutureDispatcher<C>
+
+    public func getWidget(
+        _ request: EchoRequest,
+        idempotencyKey: BebopUUID? = nil,
+        context: RpcContext = RpcContext()
+    ) async throws -> BebopFuture<EchoResponse> {
+        try await dispatcher.dispatch(
+            methodId: 0xA3F73AA7,
+            request: request,
+            idempotencyKey: idempotencyKey,
+            context: context)
+    }
+
+    public func getWidget(
+        value: String,
+        idempotencyKey: BebopUUID? = nil,
+        context: RpcContext = RpcContext()
+    ) async throws -> BebopFuture<EchoResponse> {
+        try await getWidget(EchoRequest(value: value), idempotencyKey: idempotencyKey, context: context)
+    }
+}
+
+extension FutureDispatcher {
+    public var widgetService: WidgetService_Dispatch<Channel> { WidgetService_Dispatch(dispatcher: self) }
+}
+
 // @@bebop_insertion_point(eof)

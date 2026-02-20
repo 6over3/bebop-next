@@ -12,10 +12,8 @@ extension BebopRouter {
       return BatchResponse(results: []).serializedData()
     }
 
-    guard UInt(calls.count) <= maxBatchSize else {
-      throw BebopRpcError(
-        code: .resourceExhausted,
-        detail: "batch contains \(calls.count) calls, max is \(maxBatchSize)")
+    guard UInt(calls.count) <= config.maxBatchSize else {
+      throw BebopRpcError(code: .resourceExhausted, detail: "batch too large")
     }
 
     try validateBatchCalls(calls)
@@ -158,10 +156,8 @@ extension BebopRouter {
         let stream = try await dispatch(resolvedPayload, callCtx)
         var payloads: [[UInt8]] = []
         for try await element in stream {
-          guard UInt(payloads.count) < maxBatchStreamElements else {
-            throw BebopRpcError(
-              code: .resourceExhausted,
-              detail: "batch stream exceeded \(maxBatchStreamElements) elements")
+          guard UInt(payloads.count) < config.maxBatchStreamElements else {
+            throw BebopRpcError(code: .resourceExhausted, detail: "batch stream too large")
           }
           payloads.append(element)
         }
@@ -177,7 +173,7 @@ extension BebopRouter {
     } catch let error as BebopRpcError {
       return .error(error.toWire())
     } catch {
-      return .error(RpcError(code: .internal, detail: String(describing: error)))
+      return .error(RpcError(code: .internal))
     }
   }
 }

@@ -1,8 +1,14 @@
 /// Mutable builder for `BebopRouter`.
 public final class BebopRouterBuilder {
-  public var discoveryEnabled: Bool = true
-  public var maxBatchSize: UInt = UInt.max
-  public var maxBatchStreamElements: UInt = UInt.max
+  public var config = BebopRouterConfig()
+
+  private static let reservedMethodIds: Set<UInt32> = [
+    BebopReservedMethod.discovery,
+    BebopReservedMethod.batch,
+    BebopReservedMethod.dispatch,
+    BebopReservedMethod.resolve,
+    BebopReservedMethod.cancel,
+  ]
 
   private var methods: [UInt32: MethodRegistration] = [:]
   private var serviceInfos: [ServiceInfo] = []
@@ -38,8 +44,7 @@ public final class BebopRouterBuilder {
     for method in S.Method.allCases {
       let m = method
       precondition(
-        m.rawValue != BebopReservedMethod.discovery
-          && m.rawValue != BebopReservedMethod.batch,
+        !Self.reservedMethodIds.contains(m.rawValue),
         "method '\(m.name)' uses reserved ID \(m.rawValue)")
       precondition(
         methods[m.rawValue] == nil,
@@ -66,9 +71,7 @@ public final class BebopRouterBuilder {
       methods: methods,
       serviceInfos: serviceInfos,
       interceptors: interceptors,
-      discoveryEnabled: discoveryEnabled,
-      maxBatchSize: maxBatchSize,
-      maxBatchStreamElements: maxBatchStreamElements
+      config: config
     )
   }
 }
