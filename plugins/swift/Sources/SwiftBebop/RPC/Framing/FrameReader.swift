@@ -26,13 +26,27 @@ public struct FrameReader: Sendable {
     guard UInt(payloadLength) <= maxPayloadSize else {
       throw BebopRpcError(code: .resourceExhausted, detail: "frame payload too large")
     }
+    let payload: [UInt8]
     if payloadLength == 0 {
-      return Frame(header: header, payload: [])
+      payload = []
+    } else {
+      payload = try await read(payloadLength)
+      guard payload.count == payloadLength else {
+        throw BebopRpcError(code: .invalidArgument, detail: "incomplete frame payload")
+      }
     }
-    let payload = try await read(payloadLength)
-    guard payload.count == payloadLength else {
-      throw BebopRpcError(code: .invalidArgument, detail: "incomplete frame payload")
+    var cursor: UInt64?
+    if header.flags.contains(.cursor) {
+      let cursorBytes = try await read(8)
+      guard cursorBytes.count == 8 else {
+        throw BebopRpcError(code: .invalidArgument, detail: "incomplete frame cursor")
+      }
+      cursor = cursorBytes.withUnsafeBufferPointer {
+        UInt64(
+          littleEndian: UnsafeRawBufferPointer($0).loadUnaligned(fromByteOffset: 0, as: UInt64.self)
+        )
+      }
     }
-    return Frame(header: header, payload: payload)
+    return Frame(header: header, payload: payload, cursor: cursor)
   }
 }

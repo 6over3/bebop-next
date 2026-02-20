@@ -10,8 +10,8 @@ import Testing
     let stream = try await router.serverStream(
       methodId: listWidgetsId, payload: req.serializedData(), ctx: ctx)
     var results: [UInt32] = []
-    for try await bytes in stream {
-      let resp = try CountResponse.decode(from: bytes)
+    for try await element in stream {
+      let resp = try CountResponse.decode(from: element.bytes)
       results.append(resp.i)
     }
     #expect(results == [0, 1, 2])

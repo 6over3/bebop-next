@@ -9,9 +9,9 @@ public struct FrameWriter: Sendable {
 
   // MARK: - Frame-level writes
 
-  public func data(_ payload: [UInt8], streamId: UInt32 = 0) async throws {
-    let flags: FrameFlags = []
-    try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
+  public func data(_ payload: [UInt8], streamId: UInt32 = 0, cursor: UInt64? = nil) async throws {
+    let frame = Frame(payload: payload, flags: [], streamId: streamId, cursor: cursor)
+    try await write(frame.encode(), frame.header.flags)
   }
 
   public func endStream(_ payload: [UInt8], streamId: UInt32 = 0) async throws {
@@ -48,13 +48,13 @@ extension FrameWriter {
 
   /// Send ERROR frame if the stream throws; otherwise send TRAILER or END_STREAM.
   public func drainServerStream(
-    _ stream: AsyncThrowingStream<[UInt8], Error>,
+    _ stream: AsyncThrowingStream<StreamElement, Error>,
     metadata: @Sendable () -> [String: String] = { [:] },
     streamId: UInt32 = 0
   ) async throws {
     do {
-      for try await bytes in stream {
-        try await data(bytes, streamId: streamId)
+      for try await element in stream {
+        try await data(element.bytes, streamId: streamId, cursor: element.cursor)
       }
     } catch {
       try await self.error(

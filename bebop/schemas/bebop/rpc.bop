@@ -60,6 +60,8 @@ enum FrameFlags : byte {
     COMPRESSED = 4;
     /// Payload is a TrailingMetadata.
     TRAILER = 8;
+    /// 8-byte LE uint64 cursor follows the payload.
+    CURSOR = 16;
 }
 
 enum MethodType : byte {

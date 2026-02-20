@@ -91,7 +91,7 @@ extension BebopRouter {
   // MARK: - Resolve (method ID 3)
 
   func handleResolve(payload: [UInt8], ctx: RpcContext) async throws -> AsyncThrowingStream<
-    [UInt8], Error
+    StreamElement, Error
   > {
     guard let store = futureStore else {
       throw BebopRpcError(code: .unimplemented, detail: "futures disabled")
@@ -107,7 +107,7 @@ extension BebopRouter {
     return AsyncThrowingStream { continuation in
       let task = Task {
         for result in immediate {
-          continuation.yield(result.serializedData())
+          continuation.yield(StreamElement(bytes: result.serializedData()))
         }
 
         if let requestedIds = requestedIds {
@@ -121,14 +121,14 @@ extension BebopRouter {
 
           for await result in stream {
             if Task.isCancelled { break }
-            continuation.yield(result.serializedData())
+            continuation.yield(StreamElement(bytes: result.serializedData()))
             resolved.insert(result.id)
             if target.isSubset(of: resolved) { break }
           }
         } else {
           for await result in stream {
             if Task.isCancelled { break }
-            continuation.yield(result.serializedData())
+            continuation.yield(StreamElement(bytes: result.serializedData()))
           }
         }
 

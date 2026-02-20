@@ -25,7 +25,7 @@ public final class BebopRouterBuilder {
     unary: @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> [UInt8],
     serverStream:
       @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> AsyncThrowingStream<
-        [UInt8], Error
+        StreamElement, Error
       >,
     clientStream:
       @escaping @Sendable (S.Method, RpcContext) async throws -> (
@@ -36,7 +36,7 @@ public final class BebopRouterBuilder {
       @escaping @Sendable (S.Method, RpcContext) async throws -> (
         send: @Sendable ([UInt8]) async throws -> Void,
         finish: @Sendable () async throws -> Void,
-        responses: AsyncThrowingStream<[UInt8], Error>
+        responses: AsyncThrowingStream<StreamElement, Error>
       )
   ) {
     serviceInfos.append(S.serviceInfo)

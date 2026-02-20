@@ -162,7 +162,7 @@ public final class FutureStore: Sendable {
     }
 
     continuation.onTermination = { [weak self] _ in
-      self?._state.withLock { state in
+      _ = self?._state.withLock { state in
         state.subscribers.removeValue(forKey: subId)
       }
     }

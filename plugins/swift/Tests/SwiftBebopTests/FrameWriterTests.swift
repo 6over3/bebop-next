@@ -102,9 +102,9 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
 
   @Test func drainServerStream() async throws {
     let (writer, log) = collectingWriter()
-    let stream = AsyncThrowingStream<[UInt8], Error> { c in
-      c.yield([10])
-      c.yield([20])
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [10]))
+      c.yield(StreamElement(bytes: [20]))
       c.finish()
     }
     try await writer.drainServerStream(stream, streamId: 7)
@@ -121,8 +121,8 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
 
   @Test func drainServerStreamWithMetadata() async throws {
     let (writer, log) = collectingWriter()
-    let stream = AsyncThrowingStream<[UInt8], Error> { c in
-      c.yield([10])
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [10]))
       c.finish()
     }
     try await writer.drainServerStream(stream, metadata: { ["trail": "yes"] }, streamId: 8)
@@ -139,8 +139,8 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
 
   @Test func drainServerStreamError() async throws {
     let (writer, log) = collectingWriter()
-    let stream = AsyncThrowingStream<[UInt8], Error> { c in
-      c.yield([10])
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [10]))
       c.finish(throwing: BebopRpcError(code: .cancelled, detail: "abort"))
     }
     try await writer.drainServerStream(stream, streamId: 9)
@@ -157,13 +157,50 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
 
   @Test func drainEmptyStream() async throws {
     let (writer, log) = collectingWriter()
-    let stream = AsyncThrowingStream<[UInt8], Error> { $0.finish() }
+    let stream = AsyncThrowingStream<StreamElement, Error> { $0.finish() }
     try await writer.drainServerStream(stream, streamId: 10)
 
     let frames = await log.all()
     #expect(frames.count == 1)
     #expect(frames[0].isEndStream)
     #expect(frames[0].payload.isEmpty)
+  }
+
+  @Test func drainServerStreamWithCursor() async throws {
+    let (writer, log) = collectingWriter()
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [10], cursor: 42))
+      c.yield(StreamElement(bytes: [20], cursor: 99))
+      c.finish()
+    }
+    try await writer.drainServerStream(stream, streamId: 11)
+
+    let frames = await log.all()
+    #expect(frames.count == 3)
+    #expect(frames[0].payload == [10])
+    #expect(frames[0].cursor == 42)
+    #expect(frames[0].isCursor)
+    #expect(frames[1].payload == [20])
+    #expect(frames[1].cursor == 99)
+    #expect(frames[1].isCursor)
+    #expect(frames[2].isEndStream)
+  }
+
+  @Test func drainServerStreamMixedCursors() async throws {
+    let (writer, log) = collectingWriter()
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [10]))
+      c.yield(StreamElement(bytes: [20], cursor: 7))
+      c.finish()
+    }
+    try await writer.drainServerStream(stream, streamId: 12)
+
+    let frames = await log.all()
+    #expect(frames.count == 3)
+    #expect(frames[0].cursor == nil)
+    #expect(!frames[0].isCursor)
+    #expect(frames[1].cursor == 7)
+    #expect(frames[1].isCursor)
   }
 
   @Test func backpressure() async throws {
@@ -176,9 +213,9 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
       await events.record("write-end")
     }
 
-    let stream = AsyncThrowingStream<[UInt8], Error> { c in
-      c.yield([1])
-      c.yield([2])
+    let stream = AsyncThrowingStream<StreamElement, Error> { c in
+      c.yield(StreamElement(bytes: [1]))
+      c.yield(StreamElement(bytes: [2]))
       c.finish()
     }
 

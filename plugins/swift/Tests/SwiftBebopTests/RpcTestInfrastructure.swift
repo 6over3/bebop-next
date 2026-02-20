@@ -74,7 +74,20 @@ struct LoopbackChannel: BebopChannel {
     let serverCtx = context.binding(to: method)
     if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let stream = try await router.serverStream(methodId: method, payload: request, ctx: serverCtx)
-    return StreamResponse(stream: stream, trailing: { () })
+    let tupleStream = AsyncThrowingStream<([UInt8], UInt64?), any Error> { continuation in
+      let task = Task {
+        do {
+          for try await element in stream {
+            continuation.yield((element.bytes, element.cursor))
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+    return StreamResponse<[UInt8], Void>(stream: tupleStream, trailing: { () })
   }
 
   func clientStream(method: UInt32, context: RpcContext) async throws -> (
@@ -95,8 +108,22 @@ struct LoopbackChannel: BebopChannel {
     let serverCtx = context.binding(to: method)
     if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: serverCtx)
+    let tupleStream = AsyncThrowingStream<([UInt8], UInt64?), any Error> { continuation in
+      let task = Task {
+        do {
+          for try await element in responses {
+            continuation.yield((element.bytes, element.cursor))
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
     return (
-      send: send, finish: finish, responses: StreamResponse(stream: responses, trailing: { () })
+      send: send, finish: finish,
+      responses: StreamResponse<[UInt8], Void>(stream: tupleStream, trailing: { () })
     )
   }
 }

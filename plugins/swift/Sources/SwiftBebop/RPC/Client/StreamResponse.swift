@@ -1,7 +1,7 @@
 public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequence, Sendable {
   public typealias Failure = any Error
 
-  private let _stream: AsyncThrowingStream<Element, any Error>
+  private let _stream: AsyncThrowingStream<(Element, UInt64?), any Error>
   private let _trailing: @Sendable () async -> Metadata
 
   public var metadata: Metadata {
@@ -9,7 +9,7 @@ public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequen
   }
 
   public init(
-    stream: AsyncThrowingStream<Element, any Error>,
+    stream: AsyncThrowingStream<(Element, UInt64?), any Error>,
     trailing: @escaping @Sendable () async -> Metadata
   ) {
     self._stream = stream
@@ -17,9 +17,15 @@ public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequen
   }
 
   public struct Iterator: AsyncIteratorProtocol {
-    var base: AsyncThrowingStream<Element, any Error>.AsyncIterator
+    var base: AsyncThrowingStream<(Element, UInt64?), any Error>.AsyncIterator
+    public private(set) var lastCursor: UInt64?
+
     public mutating func next() async throws -> Element? {
-      try await base.next()
+      guard let (element, cursor) = try await base.next() else {
+        return nil
+      }
+      lastCursor = cursor
+      return element
     }
   }
 
@@ -30,12 +36,13 @@ public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequen
   public func map<T: Sendable>(
     _ transform: @escaping @Sendable (Element) throws -> T
   ) -> StreamResponse<T, Metadata> {
-    let mapped = AsyncThrowingStream<T, any Error> { continuation in
+    let source = _stream
+    let mapped = AsyncThrowingStream<(T, UInt64?), any Error> { continuation in
       let task = Task {
         do {
-          for try await element in self._stream {
+          for try await (element, cursor) in source {
             try Task.checkCancellation()
-            continuation.yield(try transform(element))
+            continuation.yield((try transform(element), cursor))
           }
           continuation.finish()
         } catch {

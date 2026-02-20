@@ -13,8 +13,8 @@ import Testing
     try await finish()
 
     var results: [String] = []
-    for try await bytes in responses {
-      let res = try EchoResponse.decode(from: bytes)
+    for try await element in responses {
+      let res = try EchoResponse.decode(from: element.bytes)
       results.append(res.value)
     }
     #expect(results == ["x", "y"])

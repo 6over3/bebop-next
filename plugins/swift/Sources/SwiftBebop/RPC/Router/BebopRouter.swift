@@ -75,7 +75,7 @@ public struct BebopRouter: Sendable {
 
   public func serverStream(
     methodId: UInt32, payload: [UInt8], ctx: RpcContext
-  ) async throws -> AsyncThrowingStream<[UInt8], Error> {
+  ) async throws -> AsyncThrowingStream<StreamElement, Error> {
     switch methodId {
     case BebopReservedMethod.resolve:
       return try await handleResolve(payload: payload, ctx: ctx)
@@ -116,7 +116,7 @@ public struct BebopRouter: Sendable {
   ) async throws -> (
     send: @Sendable ([UInt8]) async throws -> Void,
     finish: @Sendable () async throws -> Void,
-    responses: AsyncThrowingStream<[UInt8], Error>
+    responses: AsyncThrowingStream<StreamElement, Error>
   ) {
     guard let reg = methods[methodId] else {
       throw BebopRpcError(code: .notFound, detail: "method \(methodId)")

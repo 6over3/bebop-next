@@ -101,6 +101,9 @@ public struct FrameFlags: OptionSet, Sendable, BebopRecord, BebopReflectable {
   /// Payload is a TrailingMetadata.
   public static let trailer = FrameFlags(rawValue: 8)
 
+  /// 8-byte LE uint64 cursor follows the payload.
+  public static let cursor = FrameFlags(rawValue: 16)
+
   public static func decode(from reader: inout BebopReader) throws -> FrameFlags {
     return FrameFlags(rawValue: try reader.readByte())
   }
@@ -133,6 +136,7 @@ public struct FrameFlags: OptionSet, Sendable, BebopRecord, BebopReflectable {
           (name: "ERROR", value: 2),
           (name: "COMPRESSED", value: 4),
           (name: "TRAILER", value: 8),
+          (name: "CURSOR", value: 16),
         ],
         isFlags: true
       )

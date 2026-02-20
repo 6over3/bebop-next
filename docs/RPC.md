@@ -37,6 +37,7 @@ enum FrameFlags : byte {
     ERROR = 2;
     COMPRESSED = 4;
     TRAILER = 8;
+    CURSOR = 16;
 }
 
 enum MethodType : byte {
@@ -204,10 +205,10 @@ A frame is a 9-byte `FrameHeader` followed by a payload. Binary transports use f
 HTTP unary calls skip framing entirely because HTTP already provides request/response boundaries and status codes.
 
 ```
-+------------------+---------------+-------------------+-----------------+
-| length (uint32)  | flags (byte)  | stream_id (uint32)| payload         |
-|                  |               |                   | (length bytes)  |
-+------------------+---------------+-------------------+-----------------+
++------------------+---------------+-------------------+-----------------+-----------------+
+| length (uint32)  | flags (byte)  | stream_id (uint32)| payload         | cursor (uint64) |
+|                  |               |                   | (length bytes)  | if CURSOR set   |
++------------------+---------------+-------------------+-----------------+-----------------+
 ```
 
 | Field | Offset | Size | Encoding |
@@ -226,8 +227,9 @@ HTTP unary calls skip framing entirely because HTTP already provides request/res
 | 0x02 | ERROR | Payload is an `RpcError`. MUST combine with END_STREAM. |
 | 0x04 | COMPRESSED | Payload is compressed. Algorithm negotiated via metadata. |
 | 0x08 | TRAILER | Payload is a `TrailingMetadata`. MUST combine with END_STREAM. |
+| 0x10 | CURSOR | 8 bytes of little-endian uint64 follow the payload. `length` counts payload bytes only. See section 11. |
 
-Remaining bits are reserved. Senders MUST set them to 0. Receivers MUST ignore them.
+Remaining bits (0x20 and above) are reserved. Senders MUST set them to 0. Receivers MUST ignore them.
 
 Invalid combinations:
 
@@ -466,42 +468,59 @@ Both cancellation and deadline expiry are surfaced through `RpcContext.isCancell
 
 Server-stream calls break when the connection drops. Without cursors, the client's only option is to re-request the entire stream from scratch and skip past data it already received. This wastes bandwidth and forces the client to track how far it got.
 
-Cursors fix this at the protocol level. The `CallHeader` carries a `cursor` field (uint64), and the handler reads it from `RpcContext.cursor` to know where to resume.
+Cursors fix this at the protocol level in both directions. The client sends a resume position in `CallHeader.cursor`. The server attaches position markers to individual response frames using the CURSOR flag. Both values are opaque uint64s. What a cursor means is handler-specific: a database offset, a sequence number, a timestamp, a log position. The protocol does not interpret the value.
 
-The protocol defines cursors as opaque uint64 values. The server assigns them; the client stores and replays them. What a cursor means is handler-specific: a database offset, a sequence number, a timestamp, a log position. The protocol does not interpret the value.
+### 11.1. Per-frame cursors
 
-### 11.1. Flow
+When the CURSOR flag (0x10) is set on a frame, 8 bytes of little-endian uint64 follow the payload. The `length` field still counts payload bytes only.
+
+```
+┌──────────┬───────┬───────────┬──────────────────┬──────────────┐
+│ length   │ flags │ stream_id │ payload          │ cursor (8B)  │
+│ (uint32) │ (byte)│ (uint32)  │ (length bytes)   │ LE uint64    │
+└──────────┴───────┴───────────┴──────────────────┴──────────────┘
+         9-byte header          └ length bytes ┘
+```
+
+Not every response frame needs a cursor. Frames without the CURSOR flag carry no position information. A stream may mix cursored and non-cursored frames.
+
+### 11.2. Flow
 
 First call (no cursor, or cursor = 0):
 
 ```
 Client -> CallHeader { method_id: 0x1234, cursor: 0 }
 Client -> Frame [END_STREAM] Request
-Server -> Frame [] Response 0    // handler sets response metadata: cursor=100
-Server -> Frame [] Response 1    // cursor=200
-Server -> Frame [] Response 2    // cursor=300
+Server -> Frame [CURSOR] Response 0    // cursor=100
+Server -> Frame [CURSOR] Response 1    // cursor=200
+Server -> Frame [CURSOR] Response 2    // cursor=300
          *** connection drops ***
 ```
 
-Reconnection (cursor = 200, the last value the client fully processed):
+The client reads the cursor from each frame as it arrives. The last cursor fully processed is 200.
+
+Reconnection:
 
 ```
 Client -> CallHeader { method_id: 0x1234, cursor: 200 }
 Client -> Frame [END_STREAM] Request
-Server -> Frame [] Response 2    // resumes from 200
-Server -> Frame [] Response 3
+Server -> Frame [CURSOR] Response 2    // resumes from 200, cursor=300
+Server -> Frame [CURSOR] Response 3    // cursor=400
 ...
+Server -> Frame [END_STREAM]
 ```
 
-### 11.2. Rules
+The handler reads `RpcContext.cursor` and skips past already-delivered data.
 
-The cursor lives in `CallHeader`, not in the request payload. This keeps resume logic out of application types.
+### 11.3. Rules
 
-Cursors only apply to server-stream calls. For unary calls, the field is ignored. Client-stream and duplex calls are interactive and inherently non-resumable.
+The resume cursor lives in `CallHeader`, not in the request payload. Per-frame cursors live on the wire frame, not in application types. Resume logic stays out of application message types entirely.
+
+Per-frame cursors apply to server-stream and duplex-stream response frames. For unary calls, the `CallHeader.cursor` field is ignored.
 
 Batches do not propagate cursors. Each call within a batch starts with cursor = 0 regardless of the parent call's cursor. Dispatched futures likewise start with cursor = 0.
 
-Handlers that don't support resumption simply ignore the cursor field.
+Handlers that don't support resumption ignore the cursor field and never set per-frame cursors.
 
 ## 12. Authentication
 

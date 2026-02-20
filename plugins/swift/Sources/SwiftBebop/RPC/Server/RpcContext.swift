@@ -14,6 +14,8 @@ public final class RpcContext: Sendable {
     var cancelled = false
     var responseMetadata: [String: String] = [:]
     var attachments: [ObjectIdentifier: any Sendable] = [:]
+    var cursorQueue: [UInt64] = []
+    var cursorIndex = 0
   }
 
   private let _state = Mutex(MutableState())
@@ -55,6 +57,20 @@ public final class RpcContext: Sendable {
 
   public var responseMetadata: [String: String] {
     _state.withLock { $0.responseMetadata }
+  }
+
+  // MARK: - Cursor queue
+
+  public func emitCursor(_ value: UInt64) {
+    _state.withLock { $0.cursorQueue.append(value) }
+  }
+
+  public func dequeueCursor() -> UInt64? {
+    _state.withLock { state in
+      guard state.cursorIndex < state.cursorQueue.count else { return nil }
+      defer { state.cursorIndex += 1 }
+      return state.cursorQueue[state.cursorIndex]
+    }
   }
 
   // MARK: - Attachments (transport-specific data)

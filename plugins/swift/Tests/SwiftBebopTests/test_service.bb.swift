@@ -329,7 +329,7 @@ extension BebopRouterBuilder {
         case .listWidgets:
           let req = try CountRequest.decode(from: payload)
           let typed = try await handler.listWidgets(req, context: context)
-          return AsyncThrowingStream<[UInt8], Error> { c in
+          return AsyncThrowingStream<StreamElement, Error> { c in
             let task = Task {
               do {
                 for try await item in typed {
@@ -337,7 +337,8 @@ extension BebopRouterBuilder {
                   if let d = context.deadline, d.isPast {
                     throw BebopRpcError(code: .deadlineExceeded)
                   }
-                  c.yield(item.serializedData())
+                  c.yield(
+                    StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))
                 }
                 c.finish()
               } catch {
@@ -381,7 +382,7 @@ extension BebopRouterBuilder {
         case .syncWidgets:
           let (stream, continuation) = AsyncThrowingStream.makeStream(of: EchoRequest.self)
           let typedResponses = try await handler.syncWidgets(stream, context: context)
-          let rawResponses = AsyncThrowingStream<[UInt8], Error> { c in
+          let rawResponses = AsyncThrowingStream<StreamElement, Error> { c in
             let task = Task {
               do {
                 for try await item in typedResponses {
@@ -389,7 +390,8 @@ extension BebopRouterBuilder {
                   if let d = context.deadline, d.isPast {
                     throw BebopRpcError(code: .deadlineExceeded)
                   }
-                  c.yield(item.serializedData())
+                  c.yield(
+                    StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))
                 }
                 c.finish()
               } catch {

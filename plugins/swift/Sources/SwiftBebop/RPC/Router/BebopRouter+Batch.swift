@@ -159,7 +159,7 @@ extension BebopRouter {
           guard UInt(payloads.count) < config.maxBatchStreamElements else {
             throw BebopRpcError(code: .resourceExhausted, detail: "batch stream too large")
           }
-          payloads.append(element)
+          payloads.append(element.bytes)
         }
         return .success(BatchSuccess(payloads: payloads, metadata: callCtx.responseMetadata))
 

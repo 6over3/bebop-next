@@ -328,7 +328,7 @@ enum GenerateService {
         serverStreamBody.append("    let req = try \(m.requestTypeName).decode(from: payload)")
         serverStreamBody.append(
           "    let typed = try await handler.\(m.swiftName)(req, context: context)")
-        serverStreamBody.append("    return AsyncThrowingStream<[UInt8], Error> { c in")
+        serverStreamBody.append("    return AsyncThrowingStream<StreamElement, Error> { c in")
         serverStreamBody.append("        let task = Task {")
         serverStreamBody.append("            do {")
         serverStreamBody.append("                for try await item in typed {")
@@ -339,7 +339,9 @@ enum GenerateService {
           "                        throw BebopRpcError(code: .deadlineExceeded)")
         serverStreamBody.append(
           "                    }")
-        serverStreamBody.append("                    c.yield(item.serializedData())")
+        serverStreamBody.append(
+          "                    c.yield(StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))"
+        )
         serverStreamBody.append("                }")
         serverStreamBody.append("                c.finish()")
         serverStreamBody.append("            } catch {")
@@ -392,7 +394,8 @@ enum GenerateService {
         )
         duplexStreamBody.append(
           "    let typedResponses = try await handler.\(m.swiftName)(stream, context: context)")
-        duplexStreamBody.append("    let rawResponses = AsyncThrowingStream<[UInt8], Error> { c in")
+        duplexStreamBody.append(
+          "    let rawResponses = AsyncThrowingStream<StreamElement, Error> { c in")
         duplexStreamBody.append("        let task = Task {")
         duplexStreamBody.append("            do {")
         duplexStreamBody.append("                for try await item in typedResponses {")
@@ -403,7 +406,9 @@ enum GenerateService {
           "                        throw BebopRpcError(code: .deadlineExceeded)")
         duplexStreamBody.append(
           "                    }")
-        duplexStreamBody.append("                    c.yield(item.serializedData())")
+        duplexStreamBody.append(
+          "                    c.yield(StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))"
+        )
         duplexStreamBody.append("                }")
         duplexStreamBody.append("                c.finish()")
         duplexStreamBody.append("            } catch {")

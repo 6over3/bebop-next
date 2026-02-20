@@ -1,7 +1,7 @@
 enum MethodRegistration: Sendable {
   case unary(@Sendable ([UInt8], RpcContext) async throws -> [UInt8])
   case serverStream(
-    @Sendable ([UInt8], RpcContext) async throws -> AsyncThrowingStream<[UInt8], Error>)
+    @Sendable ([UInt8], RpcContext) async throws -> AsyncThrowingStream<StreamElement, Error>)
   case clientStream(
     @Sendable (RpcContext) async throws -> (
       send: @Sendable ([UInt8]) async throws -> Void,
@@ -11,7 +11,7 @@ enum MethodRegistration: Sendable {
     @Sendable (RpcContext) async throws -> (
       send: @Sendable ([UInt8]) async throws -> Void,
       finish: @Sendable () async throws -> Void,
-      responses: AsyncThrowingStream<[UInt8], Error>
+      responses: AsyncThrowingStream<StreamElement, Error>
     ))
 
   var methodType: MethodType {
