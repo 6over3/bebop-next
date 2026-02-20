@@ -37,7 +37,8 @@ extension BebopRouter {
     switch methods[methodId] {
     case .unary?:
       break
-    case nil where methodId == BebopReservedMethod.discovery
+    case nil
+    where methodId == BebopReservedMethod.discovery
       || methodId == BebopReservedMethod.batch:
       break
     case .serverStream?, .clientStream?, .duplexStream?:

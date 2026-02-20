@@ -224,16 +224,19 @@ private let bob = "bob"
 
     _ = try store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) { _ in
       for await _ in gate.stream { break }
-      return FutureResult(id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
+      return FutureResult(
+        id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
     }
     _ = try store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) { _ in
       for await _ in gate.stream { break }
-      return FutureResult(id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
+      return FutureResult(
+        id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
     }
 
     #expect(throws: BebopRpcError.self) {
       _ = try store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) { _ in
-        FutureResult(id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
+        FutureResult(
+          id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:])))
       }
     }
 

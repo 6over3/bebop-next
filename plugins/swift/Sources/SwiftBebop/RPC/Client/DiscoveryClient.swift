@@ -9,7 +9,8 @@ public struct DiscoveryClient<C: BebopChannel>: Sendable {
   public func listServices(
     context: RpcContext = RpcContext()
   ) async throws -> DiscoveryResponse {
-    let result = try await channel.unary(method: BebopReservedMethod.discovery, request: [], context: context)
+    let result = try await channel.unary(
+      method: BebopReservedMethod.discovery, request: [], context: context)
     return try DiscoveryResponse.decode(from: result.value)
   }
 }

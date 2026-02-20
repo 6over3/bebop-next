@@ -14,7 +14,8 @@ private struct SlowHandler: WidgetServiceHandler {
     return EchoResponse(value: request.value)
   }
   func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-    -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+    -> AsyncThrowingStream<CountResponse, Error>
+  { fatalError() }
   func uploadWidgets(
     _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
   ) async throws -> EchoResponse { fatalError() }
@@ -29,7 +30,8 @@ private struct MetadataHandler: WidgetServiceHandler {
     return EchoResponse(value: request.value)
   }
   func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-    -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+    -> AsyncThrowingStream<CountResponse, Error>
+  { fatalError() }
   func uploadWidgets(
     _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
   ) async throws -> EchoResponse { fatalError() }
@@ -283,7 +285,8 @@ private struct MetadataHandler: WidgetServiceHandler {
   }
 
   @Test func concurrentAwaitsOnSameFuture() async throws {
-    let channel = buildChannel(handler: SlowHandler(delay: .milliseconds(100)), futuresEnabled: true)
+    let channel = buildChannel(
+      handler: SlowHandler(delay: .milliseconds(100)), futuresEnabled: true)
     let dispatcher = channel.makeFutureDispatcher()
 
     let future: BebopFuture<EchoResponse> = try await dispatcher.dispatch(

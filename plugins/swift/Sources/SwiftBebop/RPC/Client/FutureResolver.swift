@@ -26,9 +26,10 @@ public final class FutureResolver: Sendable {
   init(
     maxCompletedResults: Int = 10_000,
     sendCancel: @escaping @Sendable ([UInt8]) async throws -> Void,
-    openResolveStream: @escaping @Sendable ([UInt8]) async throws -> AsyncThrowingStream<
-      [UInt8], Error
-    >
+    openResolveStream:
+      @escaping @Sendable ([UInt8]) async throws -> AsyncThrowingStream<
+        [UInt8], Error
+      >
   ) {
     self.maxCompletedResults = maxCompletedResults
     self._sendCancel = sendCancel
@@ -134,7 +135,8 @@ public final class FutureResolver: Sendable {
           state.pending.removeAll()
           return all
         }
-        let failure: any Error = streamError
+        let failure: any Error =
+          streamError
           ?? BebopRpcError(code: .unavailable, detail: "resolve stream closed")
         for entry in orphaned {
           entry.continuation.resume(throwing: failure)

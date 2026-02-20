@@ -202,7 +202,8 @@ import Testing
         throw BebopRpcError(code: .internal, detail: "boom")
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
@@ -239,7 +240,8 @@ import Testing
         throw BebopRpcError(code: .permissionDenied, detail: "nope")
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
@@ -319,7 +321,8 @@ import Testing
         return EchoResponse(value: request.value)
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
@@ -356,7 +359,8 @@ import Testing
         return EchoResponse(value: request.value)
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
@@ -400,7 +404,8 @@ import Testing
         return EchoResponse(value: request.value)
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }
@@ -450,7 +455,8 @@ import Testing
         return EchoResponse(value: request.value)
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws
-        -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+        -> AsyncThrowingStream<CountResponse, Error>
+      { fatalError() }
       func uploadWidgets(
         _ requests: AsyncThrowingStream<EchoRequest, Error>, context: RpcContext
       ) async throws -> EchoResponse { fatalError() }

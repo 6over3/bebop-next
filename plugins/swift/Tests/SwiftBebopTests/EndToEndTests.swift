@@ -82,8 +82,7 @@ import Testing
 
   @Test func errorFromHandlerPropagates() async {
     struct FailHandler: WidgetServiceHandler {
-      func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse
-      {
+      func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
         throw BebopRpcError(code: .internal, detail: "boom")
       }
       func listWidgets(_ request: CountRequest, context: RpcContext) async throws

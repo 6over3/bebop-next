@@ -113,8 +113,9 @@ public final class FutureStore: Sendable {
   func cancel(id: BebopUUID, owner: String) -> Bool {
     _state.withLock { state in
       guard let entry = state.futures[id],
-            entry.owner == owner,
-            case .pending(let task, let ctx) = entry.state else { return false }
+        entry.owner == owner,
+        case .pending(let task, let ctx) = entry.state
+      else { return false }
       ctx.cancel()
       task?.cancel()
       if let key = state.reverseIdempotency.removeValue(forKey: id) {
@@ -138,8 +139,9 @@ public final class FutureStore: Sendable {
       if let ids {
         for id in ids {
           if let entry = state.futures[id],
-             entry.owner == owner,
-             case .completed(let result) = entry.state {
+            entry.owner == owner,
+            case .completed(let result) = entry.state
+          {
             immediate.append(result)
           }
         }
@@ -160,7 +162,7 @@ public final class FutureStore: Sendable {
     }
 
     continuation.onTermination = { [weak self] _ in
-      self?._state.withLock { state -> Void in
+      self?._state.withLock { state in
         state.subscribers.removeValue(forKey: subId)
       }
     }

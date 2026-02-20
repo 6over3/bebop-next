@@ -36,7 +36,8 @@ public struct BebopRouter: Sendable {
     self.serviceInfos = serviceInfos
     self.interceptors = interceptors
     self.config = config
-    self.futureStore = config.futuresEnabled
+    self.futureStore =
+      config.futuresEnabled
       ? FutureStore(
         maxPendingFutures: config.maxPendingFutures,
         maxCompletedFutures: config.maxCompletedFutures)

@@ -59,7 +59,9 @@ struct LoopbackChannel: BebopChannel {
   let router: BebopRouter
   let peerInfo: PeerInfo?
 
-  func unary(method: UInt32, request: [UInt8], context: RpcContext) async throws -> Response<[UInt8], Void> {
+  func unary(method: UInt32, request: [UInt8], context: RpcContext) async throws -> Response<
+    [UInt8], Void
+  > {
     let serverCtx = context.binding(to: method)
     if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let data = try await router.unary(methodId: method, payload: request, ctx: serverCtx)
@@ -93,7 +95,9 @@ struct LoopbackChannel: BebopChannel {
     let serverCtx = context.binding(to: method)
     if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
     let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: serverCtx)
-    return (send: send, finish: finish, responses: StreamResponse(stream: responses, trailing: { () }))
+    return (
+      send: send, finish: finish, responses: StreamResponse(stream: responses, trailing: { () })
+    )
   }
 }
 
@@ -123,7 +127,8 @@ func buildChannel(
   futuresEnabled: Bool = false,
   identity: String = "test-client"
 ) -> LoopbackChannel {
-  let peerInfo = futuresEnabled
+  let peerInfo =
+    futuresEnabled
     ? PeerInfo(remoteAddress: "loopback", authInfo: LoopbackAuthInfo(identity: identity))
     : nil
   return LoopbackChannel(

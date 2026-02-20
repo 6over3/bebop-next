@@ -18,7 +18,8 @@ public final class RpcContext: Sendable {
 
   private let _state = Mutex(MutableState())
 
-  public init(metadata: [String: String] = [:], deadline: BebopTimestamp? = nil, cursor: UInt64 = 0) {
+  public init(metadata: [String: String] = [:], deadline: BebopTimestamp? = nil, cursor: UInt64 = 0)
+  {
     self.methodId = 0
     self.metadata = metadata
     self.deadline = deadline
@@ -32,7 +33,9 @@ public final class RpcContext: Sendable {
     self.cursor = cursor
   }
 
-  public init(methodId: UInt32, metadata: [String: String], deadline: BebopTimestamp?, cursor: UInt64 = 0) {
+  public init(
+    methodId: UInt32, metadata: [String: String], deadline: BebopTimestamp?, cursor: UInt64 = 0
+  ) {
     self.methodId = methodId
     self.metadata = metadata
     self.deadline = deadline
