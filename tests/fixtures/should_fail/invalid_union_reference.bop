@@ -1,7 +1,7 @@
 
 union Whattheheck {
-  Sxxx(1): mut { xxxx: bool; }
-  Syyy(2): mut { yy: bool; }
+  Sxxx(1): mut { xxxx: bool; };
+  Syyy(2): mut { yy: bool; };
 }
 
 mut struct O {

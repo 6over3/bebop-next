@@ -1,5 +1,5 @@
 union A {
   B(1): union {
-    Cx(1): mut { x: int32; }
+    Cx(1): mut { x: int32; };
   }
 }

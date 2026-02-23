@@ -241,8 +241,8 @@ Empty message encodes as:
 
 ```bebop
 union Shape {
-    Circle(1): { radius: float32; }
-    Rectangle(2): { width: float32; height: float32; }
+    Circle(1): { radius: float32; };
+    Rectangle(2): { width: float32; height: float32; };
 }
 ```
 
@@ -272,8 +272,8 @@ union Event {
     Request(1): message {
         method(1): string;
         path(2): string;
-    }
-    Ack(2): { code: int32; }
+    };
+    Ack(2): { code: int32; };
 }
 ```
 

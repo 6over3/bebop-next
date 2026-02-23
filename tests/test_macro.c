@@ -2014,7 +2014,7 @@ void test_e2e_qualified_decorator_name(void)
 void test_e2e_ambiguous_decorator_reference(void)
 {
   bebop_parse_result_t* result = NULL;
-  const char* path = FIXTURE("dec_ambig_user.bop");
+  const char* path = BEBOP_TEST_FIXTURES_DIR "/should_fail/dec_ambig_user.bop";
   bebop_status_t status = bebop_parse(ctx, &path, 1, &result);
   (void)status;
 

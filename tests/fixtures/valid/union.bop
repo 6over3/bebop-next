@@ -4,13 +4,13 @@ message InnerM2 { x(1): int32; }
  * This union is so documented!
  */
 union U {
-    A(1): message { b(1): uint32; }
+    A(1): message { b(1): uint32; };
     /**
      * This branch is, too!
      */
-    B(2): mut { c: bool; }
-    C(3): mut { }
-    D(4): mut { msg: InnerM2; }
+    B(2): mut { c: bool; };
+    C(3): mut { };
+    D(4): mut { msg: InnerM2; };
     /* You can't do this, nested unions are not allowed.
     5 -> union W {
         1 -> mut struct D { string e; }
@@ -20,8 +20,8 @@ union U {
 }
 
 union WeirdOrder {
-    TwoComesFirst(2): mut { b: byte; }
-    ThreeIsSkipped(4): mut {}
-    OneComesLast(1): mut {}
+    TwoComesFirst(2): mut { b: byte; };
+    ThreeIsSkipped(4): mut {};
+    OneComesLast(1): mut {};
 }
 

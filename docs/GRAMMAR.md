@@ -378,24 +378,24 @@ Discriminated variant types. Exactly one branch is active at a time.
 union Shape {
     Circle(1): {
         radius: float32;
-    }
+    };
     Rectangle(2): {
         width: float32;
         height: float32;
-    }
+    };
 }
 ```
 
 ### Branch syntax
 
-Four forms:
+Each branch must end with a semicolon. Four forms:
 
 **Inline struct** (default):
 
 ```bebop
 BranchName(discriminator): {
     field_name: Type;
-}
+};
 ```
 
 **Inline mutable struct**:
@@ -403,7 +403,7 @@ BranchName(discriminator): {
 ```bebop
 BranchName(discriminator): mut {
     field_name: Type;
-}
+};
 ```
 
 **Inline message**:
@@ -411,13 +411,13 @@ BranchName(discriminator): mut {
 ```bebop
 BranchName(discriminator): message {
     field_name(1): Type;
-}
+};
 ```
 
 **Type reference**:
 
 ```bebop
-BranchName(discriminator): ExistingType
+BranchName(discriminator): ExistingType;
 ```
 
 ### Discriminator
@@ -429,16 +429,16 @@ BranchName(discriminator): ExistingType
 ```bebop
 // Valid but hard to read
 union WeirdOrder {
-    Two(2): mut {}
-    Four(4): mut {}
-    One(1): mut {}
+    Two(2): mut {};
+    Four(4): mut {};
+    One(1): mut {};
 }
 
 // Prefer this
 union BetterOrder {
-    One(1): mut {}
-    Two(2): mut {}
-    Four(4): mut {}
+    One(1): mut {};
+    Two(2): mut {};
+    Four(4): mut {};
 }
 ```
 
@@ -448,9 +448,9 @@ Valid. Useful for signaling states without data:
 
 ```bebop
 union Result {
-    Success(1): mut { value: string; }
-    Empty(2): mut {}
-    Error(3): mut { code: int32; }
+    Success(1): mut { value: string; };
+    Empty(2): mut {};
+    Error(3): mut { code: int32; };
 }
 ```
 
@@ -470,8 +470,8 @@ message Notification {
 }
 
 union Payload {
-    Position(1): Point
-    Alert(2): Notification
+    Position(1): Point;
+    Alert(2): Notification;
 }
 ```
 
@@ -483,8 +483,8 @@ Unions cannot be nested. This is invalid:
 // INVALID
 union Outer {
     Inner(1): union {
-        A(1): mut {}
-    }
+        A(1): mut {};
+    };
 }
 ```
 
@@ -966,11 +966,11 @@ struct Outer {
 
 ```bebop
 union Result {
-    Success(1): { value: string; }    // local by default
+    Success(1): { value: string; };    // local by default
 
-    export Error(2): {                // accessible as Result.Error
+    export Error(2): {                 // accessible as Result.Error
         code: int32;
-    }
+    };
 }
 ```
 
@@ -1077,11 +1077,11 @@ service UserService {
 union Result {
     Success(1): {
         data: string;
-    }
+    };
     Error(2): {
         code: int32;
         error_message: string;
-    }
+    };
 }
 ```
 
@@ -1190,19 +1190,19 @@ message SubscribeRequest {
 }
 
 union Event {
-    Message(1): ChatMessage
+    Message(1): ChatMessage;
     UserJoined(2): {
         user: User;
         room: string;
-    }
+    };
     UserLeft(3): {
         user_id: uuid;
         room: string;
-    }
+    };
     RoomCreated(4): message {
         room_id(1): string;
         creator(2): User;
-    }
+    };
 }
 
 service ChatService {

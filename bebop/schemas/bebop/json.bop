@@ -61,23 +61,23 @@ struct Null {}
 /// ```
 union Value {
     /// JSON null.
-    Null(1): Null
+    Null(1): Null;
 
     /// JSON boolean.
-    Bool(2): message { value(1): bool; }
+    Bool(2): message { value(1): bool; };
 
     /// JSON number. Stored as float64 (IEEE 754 double).
     /// Integers up to 2^53 are exact. Larger integers lose precision.
-    Number(3): message { value(1): float64; }
+    Number(3): message { value(1): float64; };
 
     /// JSON string. UTF-8 encoded.
-    String(4): message { value(1): string; }
+    String(4): message { value(1): string; };
 
     /// JSON array. Ordered list of values.
-    List(5): message { values(1): Value[]; }
+    List(5): message { values(1): Value[]; };
 
     /// JSON object. Unordered string-keyed map.
-    Map(6): message { fields(1): map[string, Value]; }
+    Map(6): message { fields(1): map[string, Value]; };
 }
 
 /// JSON object. Unordered map of string keys to dynamic values.

@@ -17,13 +17,13 @@ union Event {
     Created(1): {
         id: string;
         time: int64;
-    }
+    };
 
-    Meta(2): Metadata
+    Meta(2): Metadata;
 
-    Data(3): Payload
+    Data(3): Payload;
 
     Deleted(4): message {
         id(1): string;
-    }
+    };
 }

@@ -15,6 +15,7 @@ typedef enum {
   DIAG_FMT_TERMINAL,
   DIAG_FMT_JSON,
   DIAG_FMT_MSBUILD,
+  DIAG_FMT_XCODE,
 } diag_format_t;
 
 typedef struct {

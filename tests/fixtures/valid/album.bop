@@ -3,10 +3,10 @@ import "jazz.bop"
 union Album {
     StudioAlbum(1): mut {
         tracks: Song[];
-    }
+    };
     LiveAlbum(2): message {
         tracks(1): Song[];
         venueName(2): string;
         concertDate(3): timestamp;
-    }
+    };
 }

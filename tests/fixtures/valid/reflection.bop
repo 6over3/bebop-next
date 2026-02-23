@@ -89,17 +89,17 @@ union Shape {
   Circle(1): {
     radius: float32;
     center: Point;
-  }
+  };
   Rectangle(2): {
     width: float32;
     height: float32;
     origin: Point;
-  }
+  };
   Triangle(3): {
     a: Point;
     b: Point;
     c: Point;
-  }
+  };
 }
 
 /// Event envelope using Any for polymorphic payload

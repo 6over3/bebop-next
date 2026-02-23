@@ -751,10 +751,11 @@ static void bebop__emit_union_branches(
       }
       buf->indent--;
       bebop__emit_indent(buf);
-      bebop__emit_char(buf, '}');
+      bebop__emit_str(buf, "};");
       bebop__emit_newline(buf);
     } else if (b->type_ref) {
       bebop__emit_type(buf, b->type_ref);
+      bebop__emit_char(buf, ';');
       bebop__emit_newline(buf);
     }
   }

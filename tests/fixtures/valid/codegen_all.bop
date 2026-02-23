@@ -378,17 +378,17 @@ union InlineStructUnion {
     Circle(1): {
         radius: float32;
         center: base.Point;
-    }
+    };
     Rectangle(2): {
         width: float32;
         height: float32;
         top_left: base.Point;
-    }
+    };
     Triangle(3): {
         a: base.Point;
         b: base.Point;
         c: base.Point;
-    }
+    };
 }
 
 /// Union with inline message definitions.
@@ -397,54 +397,54 @@ union InlineMessageUnion {
         method(1): string;
         path(2): string;
         headers(3): map[string, string];
-    }
+    };
     Response(2): message {
         status_code(1): int32;
         body(2): string;
-    }
+    };
     Error(3): message {
         code(1): int32;
         details(2): string;
-    }
+    };
 }
 
 /// Union with type references.
 union TypeRefUnion {
-    Point(1): base.Point
-    Color(2): base.Color
-    Scalars(3): AllScalars
-    Empty(4): EmptyStruct
+    Point(1): base.Point;
+    Color(2): base.Color;
+    Scalars(3): AllScalars;
+    Empty(4): EmptyStruct;
 }
 
 /// Union mixing inline and external.
 union MixedUnion {
-    Point(1): base.Point
+    Point(1): base.Point;
     Custom(2): {
         name: string;
         value: int32;
-    }
-    Color(3): base.Color
+    };
+    Color(3): base.Color;
     MutableBranch(4): mut {
         flag: bool;
         amount: float64;
-    }
+    };
 }
 
 /// Union with export/local branches.
 union VisibilityUnion {
     LocalBranch(1): {
         value: string;
-    }
+    };
     export ExportedBranch(2): {
         code: int32;
         details: string;
-    }
+    };
     MutBranch(3): mut {
         flag: bool;
-    }
+    };
     export MutExportBranch(4): mut {
         data: int32;
-    }
+    };
 }
 
 /// Union with complex content in branches.
@@ -453,15 +453,15 @@ union ComplexContentUnion {
         values: int32[];
         points: base.Point[];
         lookup: map[string, int32];
-    }
+    };
     WithMaps(2): {
         point_map: map[string, base.Point];
         indexed_strings: map[int32, string[]];
-    }
+    };
     WithFixed(3): {
         hash: byte[16];
         quad: int32[4];
-    }
+    };
 }
 
 // =============================================================================
@@ -524,11 +524,11 @@ message OuterMessage {
 union UnionWithNested {
     Success(1): {
         value: string;
-    }
+    };
     Failure(2): {
         code: int32;
         msg: string;
-    }
+    };
 
     enum ResultCode {
         Ok = 0;
