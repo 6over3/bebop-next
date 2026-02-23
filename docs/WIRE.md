@@ -22,7 +22,7 @@ Binary encoding specification for Bebop types. All multi-byte integers use littl
 | `float64` | 8 bytes | IEEE 754 binary64, little-endian |
 | `bfloat16` | 2 bytes | Brain floating point format, little-endian |
 | `uuid` | 16 bytes | Raw bytes, RFC 4122 byte order |
-| `timestamp` | 12 bytes | See below |
+| `timestamp` | 16 bytes | See below |
 | `duration` | 12 bytes | See below |
 
 ### 128-bit integers
@@ -36,14 +36,17 @@ offset 8: high 64 bits (uint64/int64, little-endian)
 
 ### timestamp
 
-12 bytes representing a point in time since the Unix epoch (1970-01-01 00:00:00 UTC):
+16 bytes representing a point in time since the Unix epoch (1970-01-01 00:00:00 UTC), with a timezone
+offset in signed milliseconds. 
 
 ```
 offset 0: seconds (int64, little-endian)
 offset 8: nanoseconds (int32, little-endian)
+offset 12: timezone offset in milliseconds (int32, little-endian)
 ```
 
 The nanoseconds field should be in the range [0, 999999999].
+The offset signed milliseconds should be in the range [-86400000, 86400000]. 
 
 ### duration
 

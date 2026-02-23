@@ -494,11 +494,21 @@ void test_timestamp(void)
   Bebop_WireCtx* ctx = _test_ctx_new();
 
   Bebop_Timestamp test_timestamps[] = {
-      {0, 0},
-      {1609459200, 0},
-      {1609459200, 500000000},
-      {-62135596800, 0},
-      {253402300799, 999999999},
+      {.seconds = 0, .nanos = 0, .offset_ms = 0},
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = 0},
+      {.seconds = 1609459200, .nanos = 500000000, .offset_ms = 0},
+      {.seconds = -62135596800, .nanos = 0, .offset_ms = 0},
+      {.seconds = 253402300799, .nanos = 999999999, .offset_ms = 0},
+
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = 3600000},    // +01:00 (3600000 ms)
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = -18000000},  // -05:00 (-18000000 ms)
+      {.seconds = 1609459200, .nanos = 123456789, .offset_ms = 19800000 },  // +05:30 (19800000 ms)
+
+      // Edge cases: maximum and minimum offsets (±24 hours)
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = 86400000},   // +24:00:00 (max positive offset)
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = -86400000},  // -24:00:00 (max negative offset)
+      {.seconds = 1609459200, .nanos = 999999999, .offset_ms = 86399999},  // +23:59:59.999 (max - 1ms)
+      {.seconds = 1609459200, .nanos = 999999999, .offset_ms = -86399999}, // -23:59:59.999 (min + 1ms)
   };
 
   for (size_t i = 0; i < sizeof(test_timestamps) / sizeof(test_timestamps[0]); i++) {
@@ -509,7 +519,7 @@ void test_timestamp(void)
     uint8_t* buffer;
     size_t length;
     TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Buf(writer, &buffer, &length));
-    TEST_ASSERT_EQUAL(12, length);
+    TEST_ASSERT_EQUAL(16, length);
 
     Bebop_Reader* reader;
     TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Reader(ctx, buffer, length, &reader));
@@ -518,6 +528,7 @@ void test_timestamp(void)
     TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Reader_GetTimestamp(reader, &ts_read));
     TEST_ASSERT_EQUAL(test_timestamps[i].seconds, ts_read.seconds);
     TEST_ASSERT_EQUAL(test_timestamps[i].nanos, ts_read.nanos);
+    TEST_ASSERT_EQUAL(test_timestamps[i].offset_ms, ts_read.offset_ms);
 
     Bebop_WireCtx_Reset(ctx);
   }

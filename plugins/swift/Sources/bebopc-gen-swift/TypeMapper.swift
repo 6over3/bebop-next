@@ -235,7 +235,7 @@ enum TypeMapper {
     case .bfloat16: return "2"
     case .string: return "(4 + \(value).utf8.count + 1)"
     case .uuid: return "16"
-    case .timestamp: return "12"
+    case .timestamp: return "16"
     case .duration: return "12"
     case .array:
       guard let elem = type.arrayElement else {
@@ -319,7 +319,8 @@ enum TypeMapper {
     case .int64, .uint64, .float64: return 8
     case .int128, .uint128: return 16
     case .uuid: return 16
-    case .timestamp, .duration: return 12
+    case .timestamp: return 16
+    case .duration: return 12
     default: return nil
     }
   }

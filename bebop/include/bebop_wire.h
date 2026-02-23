@@ -149,7 +149,7 @@ extern "C" {
 #define BEBOP_WIRE_SIZE_FLOAT64 8
 #define BEBOP_WIRE_SIZE_BFLOAT16 2
 #define BEBOP_WIRE_SIZE_UUID 16
-#define BEBOP_WIRE_SIZE_TIMESTAMP 12
+#define BEBOP_WIRE_SIZE_TIMESTAMP 16
 #define BEBOP_WIRE_SIZE_DURATION 12
 #define BEBOP_WIRE_SIZE_LEN 4
 #define BEBOP_WIRE_SIZE_NUL 1
@@ -235,20 +235,13 @@ typedef struct {
 } Bebop_UUID;
 
 // Timestamp - point in time as seconds + nanoseconds since Unix epoch
-#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-#pragma pack(push, 1)
-#endif
+// with ISO 8601-2 offset in milliseconds
 typedef struct {
   int64_t seconds;
   int32_t nanos;
+  int32_t offset_ms;
 }
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((packed))
-#endif
 Bebop_Timestamp;
-#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-#pragma pack(pop)
-#endif
 
 // Duration - signed time span
 #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
@@ -682,7 +675,8 @@ BEBOP_API bool Bebop_MapEq_UUID(const void* a, const void* b);
   ((a).length == (b).length && memcmp((a).data, (b).data, (a).length) == 0)
 #define BEBOP_WIRE_BYTES(ptr, len) ((Bebop_Bytes) {.data = (const uint8_t*)(ptr), .length = (len)})
 #define BEBOP_WIRE_UUID(s) Bebop_UUID_FromString(s)
-#define BEBOP_WIRE_TIMESTAMP(sec, ns) ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns)})
+#define BEBOP_WIRE_TIMESTAMP(sec, ns) ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = 0})
+#define BEBOP_WIRE_TIMESTAMP_OFFSET(sec, ns, off_ms) ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = (off_ms)})
 #define BEBOP_WIRE_DURATION(sec, ns) ((Bebop_Duration) {.seconds = (sec), .nanos = (ns)})
 
 #if !BEBOP_WIRE_HAS_I128
@@ -1256,7 +1250,7 @@ _Static_assert(sizeof(Bebop_BFloat16) == 2, "sizeof(Bebop_BFloat16) should be 2"
 _Static_assert(sizeof(Bebop_Int128) == 16, "sizeof(Bebop_Int128) should be 16");
 _Static_assert(sizeof(Bebop_UInt128) == 16, "sizeof(Bebop_UInt128) should be 16");
 _Static_assert(sizeof(Bebop_UUID) == 16, "sizeof(Bebop_UUID) should be 16");
-_Static_assert(sizeof(Bebop_Timestamp) == 12, "sizeof(Bebop_Timestamp) should be 12");
+_Static_assert(sizeof(Bebop_Timestamp) == 16, "sizeof(Bebop_Timestamp) should be 16");
 _Static_assert(sizeof(Bebop_Duration) == 12, "sizeof(Bebop_Duration) should be 12");
 
 // #endregion

@@ -231,14 +231,17 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
   @inlinable
   public mutating func writeTimestamp(_ value: BebopTimestamp) {
-    ensureCapacity(for: 12)
+    ensureCapacity(for: 16)
     storage.storeBytes(
       of: value.seconds.littleEndian, toByteOffset: _count, as: Int64.self
     )
     storage.storeBytes(
       of: value.nanoseconds.littleEndian, toByteOffset: _count &+ 8, as: Int32.self
     )
-    _count &+= 12
+    storage.storeBytes(
+      of: value.offsetMs.littleEndian, toByteOffset: _count &+ 12, as: Int32.self
+    )
+    _count &+= 16
   }
 
   @inlinable

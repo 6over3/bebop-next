@@ -1227,6 +1227,9 @@ void test_parse_const_timestamp_duration_bytes(void)
       "const timestamp Y2K = \"2000-01-01T00:00:00Z\";\n"
       "const timestamp WITH_NANOS = \"2024-01-15T10:30:00.123456789Z\";\n"
       "const timestamp WITH_OFFSET = \"2024-01-15T10:30:00+05:30\";\n"
+      "const timestamp WITH_SEC = \"2024-01-15T10:30:00+05:30:45\";\n"
+      "const timestamp WITH_MS = \"2024-01-15T10:30:00+05:30:45.500\";\n"
+      "const timestamp NEG_OFFSET = \"2024-01-15T10:30:00-08:00\";\n"
       "const duration ONE_HOUR = \"1h\";\n"
       "const duration NINETY_MIN = \"1h30m\";\n"
       "const duration COMPLEX = \"1h30m45s500ms\";\n"
@@ -1239,7 +1242,7 @@ void test_parse_const_timestamp_duration_bytes(void)
   TEST_ASSERT_EQUAL_UINT32(0, bebop_result_diagnostic_count(result));
 
   const bebop_schema_t* schema = bebop_result_schema_at(result, 0);
-  TEST_ASSERT_EQUAL_UINT32(11, bebop_schema_definition_count(schema));
+  TEST_ASSERT_EQUAL_UINT32(14, bebop_schema_definition_count(schema));
 
   // Test EPOCH timestamp (Unix epoch)
   const bebop_def_t* epoch_def = bebop_result_find(result, "EPOCH");
@@ -1250,17 +1253,18 @@ void test_parse_const_timestamp_duration_bytes(void)
   const bebop_literal_t* epoch_val = bebop_def_const_value(epoch_def);
   TEST_ASSERT_EQUAL(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(epoch_val));
   int64_t epoch_sec;
-  int32_t epoch_nano;
-  bebop_literal_as_timestamp(epoch_val, &epoch_sec, &epoch_nano);
+  int32_t epoch_nano, epoch_offset_ms;
+  bebop_literal_as_timestamp(epoch_val, &epoch_sec, &epoch_nano, &epoch_offset_ms);
   TEST_ASSERT_EQUAL_INT64(0, epoch_sec);
   TEST_ASSERT_EQUAL_INT32(0, epoch_nano);
+  TEST_ASSERT_EQUAL_INT32(0, epoch_offset_ms);
 
   // Test Y2K timestamp
   const bebop_def_t* y2k_def = bebop_result_find(result, "Y2K");
   TEST_ASSERT_NOT_NULL(y2k_def);
   const bebop_literal_t* y2k_val = bebop_def_const_value(y2k_def);
   int64_t y2k_sec;
-  bebop_literal_as_timestamp(y2k_val, &y2k_sec, NULL);
+  bebop_literal_as_timestamp(y2k_val, &y2k_sec, NULL, NULL);
   TEST_ASSERT_EQUAL_INT64(946684800, y2k_sec);
 
   // Test timestamp with nanoseconds
@@ -1268,14 +1272,44 @@ void test_parse_const_timestamp_duration_bytes(void)
   TEST_ASSERT_NOT_NULL(nanos_def);
   const bebop_literal_t* nanos_val = bebop_def_const_value(nanos_def);
   int32_t nanos;
-  bebop_literal_as_timestamp(nanos_val, NULL, &nanos);
+  bebop_literal_as_timestamp(nanos_val, NULL, &nanos, NULL);
   TEST_ASSERT_EQUAL_INT32(123456789, nanos);
 
-  // Test timestamp with offset
+  // Test timestamp with offset +05:30
   const bebop_def_t* offset_def = bebop_result_find(result, "WITH_OFFSET");
   TEST_ASSERT_NOT_NULL(offset_def);
   const bebop_literal_t* offset_val = bebop_def_const_value(offset_def);
   TEST_ASSERT_EQUAL(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(offset_val));
+  int32_t offset_ms;
+  bebop_literal_as_timestamp(offset_val, NULL, NULL, &offset_ms);
+  TEST_ASSERT_EQUAL_INT32(19800000, offset_ms);  // +05:30 = 5*3600000 + 30*60000
+
+  // Test timestamp with seconds offset +05:30:45
+  const bebop_def_t* sec_def = bebop_result_find(result, "WITH_SEC");
+  TEST_ASSERT_NOT_NULL(sec_def);
+  const bebop_literal_t* sec_val = bebop_def_const_value(sec_def);
+  TEST_ASSERT_EQUAL(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(sec_val));
+  int32_t sec_offset_ms;
+  bebop_literal_as_timestamp(sec_val, NULL, NULL, &sec_offset_ms);
+  TEST_ASSERT_EQUAL_INT32(19845000, sec_offset_ms);  // +05:30:45
+
+  // Test timestamp with milliseconds offset +05:30:45.500
+  const bebop_def_t* ms_def = bebop_result_find(result, "WITH_MS");
+  TEST_ASSERT_NOT_NULL(ms_def);
+  const bebop_literal_t* ms_val = bebop_def_const_value(ms_def);
+  TEST_ASSERT_EQUAL(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(ms_val));
+  int32_t ms_offset_ms;
+  bebop_literal_as_timestamp(ms_val, NULL, NULL, &ms_offset_ms);
+  TEST_ASSERT_EQUAL_INT32(19845500, ms_offset_ms);  // +05:30:45.500
+
+  // Test timestamp with negative offset -08:00
+  const bebop_def_t* neg_def = bebop_result_find(result, "NEG_OFFSET");
+  TEST_ASSERT_NOT_NULL(neg_def);
+  const bebop_literal_t* neg_val = bebop_def_const_value(neg_def);
+  TEST_ASSERT_EQUAL(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(neg_val));
+  int32_t neg_offset_ms;
+  bebop_literal_as_timestamp(neg_val, NULL, NULL, &neg_offset_ms);
+  TEST_ASSERT_EQUAL_INT32(-28800000, neg_offset_ms);  // -08:00 = -8*3600000
 
   // Test ONE_HOUR duration
   const bebop_def_t* hour_def = bebop_result_find(result, "ONE_HOUR");

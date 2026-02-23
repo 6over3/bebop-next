@@ -809,10 +809,10 @@ static int64_t bebop__util_days_from_civil(int y, int m, int d)
 }
 
 bool bebop_util_parse_timestamp(
-    const char* str, const size_t len, int64_t* out_seconds, int32_t* out_nanos
+    const char* str, const size_t len, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
 )
 {
-  if (!str || len < 20 || !out_seconds || !out_nanos) {
+  if (!str || len < 20 || !out_seconds || !out_nanos || !out_offset_ms) {
     return false;
   }
 
@@ -906,14 +906,18 @@ bool bebop_util_parse_timestamp(
   }
 
   int64_t tz_offset = 0;
+  int32_t offset_ms = 0;
   if (p < end) {
     if (*p == 'Z' || *p == 'z') {
       p++;
     } else if (*p == '+' || *p == '-') {
       const bool neg = (*p == '-');
       p++;
-      int tz_hour = 0, tz_min = 0;
+      int tz_hour = 0, tz_min = 0, tz_sec = 0, tz_ms = 0;
       if (!bebop__util_parse_2digit(&p, end, &tz_hour)) {
+        return false;
+      }
+      if (tz_hour > 23) {
         return false;
       }
       if (p < end && *p == ':') {
@@ -923,10 +927,51 @@ bool bebop_util_parse_timestamp(
         if (!bebop__util_parse_2digit(&p, end, &tz_min)) {
           return false;
         }
+        if (tz_min > 59) {
+          return false;
+        }
       }
-      tz_offset = (int64_t)tz_hour * 3600 + (int64_t)tz_min * 60;
+      if (p < end && *p == ':') {
+        p++;
+        if (p < end && bebop__digit_val[(unsigned char)*p] < 10) {
+          if (!bebop__util_parse_2digit(&p, end, &tz_sec)) {
+            return false;
+          }
+          if (tz_sec > 59) {
+            return false;
+          }
+        }
+      }
+      if (p < end && *p == '.') {
+        p++;
+        int frac = 0;
+        int digits = 0;
+        while (p < end && digits < 3) {
+          const uint8_t d = bebop__digit_val[(unsigned char)*p];
+          if (d >= 10) {
+            break;
+          }
+          frac = frac * 10 + d;
+          digits++;
+          p++;
+        }
+        while (digits < 3) {
+          frac *= 10;
+          digits++;
+        }
+        tz_ms = frac;
+        while (p < end && bebop__digit_val[(unsigned char)*p] < 10) {
+          p++;
+        }
+      }
+      tz_offset = (int64_t)tz_hour * 3600 + (int64_t)tz_min * 60 + (int64_t)tz_sec;
+      offset_ms = tz_hour * 3600000 + tz_min * 60000 + tz_sec * 1000 + tz_ms;
       if (neg) {
         tz_offset = -tz_offset;
+        offset_ms = -offset_ms;
+      }
+      if (offset_ms < -86400000 || offset_ms > 86400000) {
+        return false;
       }
     }
   }
@@ -941,6 +986,7 @@ bool bebop_util_parse_timestamp(
 
   *out_seconds = secs;
   *out_nanos = nanos;
+  *out_offset_ms = offset_ms;
   return true;
 }
 

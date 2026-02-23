@@ -448,7 +448,7 @@ Bebop includes types commonly used in ML workloads:
 
 \begin{minipage}[t]{0.50\textwidth}
 \raggedright
-Absolute point in time: seconds and nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC). Total size 12 bytes.
+Absolute point in time: seconds and nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC), with optional timezone offset in signed milliseconds. Total size 16 bytes.
 
 Use for event times, creation dates, expiration times, audit logs.
 \end{minipage}\hfill
@@ -457,10 +457,11 @@ Use for event times, creation dates, expiration times, audit logs.
 \begin{tabular}[t]{@{}r@{\,}l@{}}
 \texttt{e8 03 00 00 00 00 00 00} & sec=1000 \\
 \texttt{00 ca 9a 3b} & ns=999999488 \\
+\texttt{80 62 ee 01} & offset_ms=32400000 \\
 \end{tabular}
 
 \vspace{4pt}
-\textit{offset 0: int64, offset 8: int32}
+\textit{offset 0: int64, offset 8: int32, offset 12: int32}
 \end{minipage}
 
 \vspace{10pt}
@@ -1211,7 +1212,9 @@ String literals use double quotes (\texttt{"}) or single quotes (\texttt{'}). Li
 
 Numeric literals: decimal, hexadecimal (\texttt{0xFF}), scientific (\texttt{1.23e10}). Special floats: \texttt{inf}, \texttt{-inf}, \texttt{nan}. Byte arrays use a \texttt{b} prefix: \texttt{b"\textbackslash x89PNG"}.
 
-Timestamps use ISO 8601 (\texttt{"2024-01-15T10:30:00Z"}). Timezone offsets and nanosecond precision are supported. Durations use suffixes: \texttt{"1h30m"}, \texttt{"500ms"}, \texttt{"10us"}.
+Timestamps use ISO 8601 (\texttt{"2024-01-15T10:30:00Z"}). Timezone offsets and nanosecond precision are supported. The timezone offset can be expressed up to millisecond precision in ISO 8601-2:2019 format (\texttt{"2024-01-15T10:30:00+12:00:01.133"}).
+
+Durations use suffixes: \texttt{"1h30m"}, \texttt{"500ms"}, \texttt{"10us"}.
 
 String constants support environment variable substitution: \texttt{"\$(VAR)"} resolves at compile time.
 
