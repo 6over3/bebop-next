@@ -37,6 +37,12 @@ jobs:
       os: windows-latest
       arch: x64
 
+  windows-arm64:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: windows-11-arm
+      arch: arm64
+
   swift:
     uses: ./.github/workflows/swift.yml
 

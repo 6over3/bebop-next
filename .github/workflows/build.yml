@@ -29,10 +29,14 @@ jobs:
           submodules: recursive
 
       - name: Setup Swift
-        if: inputs.swift-version != ''
+        if: inputs.swift-version != '' && runner.os != 'Windows'
         uses: swift-actions/setup-swift@v2.4.0
         with:
           swift-version: ${{ inputs.swift-version }}
+
+      - name: Setup Swift (Windows)
+        if: inputs.swift-version != '' && runner.os == 'Windows'
+        run: winget install --id Swift.Toolchain -e --accept-source-agreements --accept-package-agreements
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'

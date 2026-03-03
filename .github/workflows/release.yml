@@ -34,6 +34,7 @@ jobs:
       arch: x64
       swift-version: "6.2"
 
+
   linux-arm64:
     needs: [validate]
     uses: ./.github/workflows/build.yml
@@ -41,6 +42,7 @@ jobs:
       os: ubuntu-24.04-arm
       arch: arm64
       swift-version: "6.2"
+
 
   macos-arm64:
     needs: [validate]
@@ -50,6 +52,7 @@ jobs:
       arch: arm64
       swift-version: "6.2"
 
+
   macos-x64:
     needs: [validate]
     uses: ./.github/workflows/build.yml
@@ -58,12 +61,21 @@ jobs:
       arch: x64
       swift-version: "6.2"
 
+
   windows-x64:
     needs: [validate]
     uses: ./.github/workflows/build.yml
     with:
       os: windows-latest
       arch: x64
+      swift-version: "6.2"
+
+  windows-arm64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: windows-11-arm
+      arch: arm64
       swift-version: "6.2"
 
   swift:
@@ -78,7 +90,7 @@ jobs:
       generator: c
 
   package:
-    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, swift, codegen-c]
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, codegen-c]
     runs-on: ubuntu-latest
     env:
       V: ${{ needs.validate.outputs.version }}
@@ -95,11 +107,12 @@ jobs:
             ["bebopc-macos-latest-arm64"]="darwin-arm64"
             ["bebopc-macos-15-intel-x64"]="darwin-x64"
             ["bebopc-windows-latest-x64"]="windows-x64"
+            ["bebopc-windows-11-arm-arm64"]="windows-arm64"
           )
           mkdir -p dist
           for artifact in "${!ARTIFACT_MAP[@]}"; do
             target="${ARTIFACT_MAP[$artifact]}"
-            archive="bebop-${V}-${target}.tar.gz"
+            archive="bebop@${V}+${target}.tar.gz"
             staging=$(mktemp -d)
 
             if [[ "$target" == windows-* ]]; then
@@ -123,13 +136,13 @@ jobs:
       - name: Generate manifest
         run: |
           jq -n --arg version "$V" --arg tag "$V" \
-            '{version: $version, tag: $tag, archives: []}' > dist/bebop-${V}-manifest.json
-          for f in dist/bebop-${V}-*.tar.gz; do
+            '{version: $version, tag: $tag, archives: []}' > dist/bebop@${V}+manifest.json
+          for f in dist/bebop@${V}+*.tar.gz; do
             sha=$(sha256sum "$f" | cut -d' ' -f1)
             size=$(stat --format=%s "$f")
             jq --arg file "$(basename "$f")" --arg sha256 "$sha" --argjson size "$size" \
               '.archives += [{file: $file, sha256: $sha256, size: $size}]' \
-              dist/bebop-${V}-manifest.json > dist/tmp.json && mv dist/tmp.json dist/bebop-${V}-manifest.json
+              dist/bebop@${V}+manifest.json > dist/tmp.json && mv dist/tmp.json dist/bebop@${V}+manifest.json
           done
 
       - name: Upload release assets
