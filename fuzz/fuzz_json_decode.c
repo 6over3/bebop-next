@@ -5,8 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../tests/generated/json.bb.c"
+// clang-format off
 #include "bebop_wire.c"
+#include "../tests/generated/json.bb.c"
+// clang-format on
 
 #ifndef __AFL_FUZZ_TESTCASE_LEN
 #define __AFL_FUZZ_INIT()

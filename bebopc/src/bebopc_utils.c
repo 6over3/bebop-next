@@ -28,8 +28,10 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <bcrypt.h>
+// clang-format off
 #include <windows.h>
+#include <bcrypt.h>
+// clang-format on
 #pragma comment(lib, "bcrypt.lib")
 #include <direct.h>
 #include <io.h>

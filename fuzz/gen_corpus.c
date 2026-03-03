@@ -3,8 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../tests/generated/json.bb.c"
+// clang-format off
 #include "bebop_wire.c"
+#include "../tests/generated/json.bb.c"
+// clang-format on
 
 static void* corpus_alloc(void* ptr, size_t old, size_t new, void* ctx)
 {
