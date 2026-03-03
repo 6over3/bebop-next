@@ -7,10 +7,6 @@ on:
         required: false
         type: string
         default: macos-26
-      swift-version:
-        required: false
-        type: string
-        default: "6.2"
 
 jobs:
   build:
@@ -18,10 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: swift-actions/setup-swift@v2.4.0
-        with:
-          swift-version: ${{ inputs.swift-version }}
 
       - name: Build
         run: swift build --package-path . --product bebopc-gen-swift

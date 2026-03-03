@@ -48,16 +48,15 @@ jobs:
     needs: [validate]
     uses: ./.github/workflows/build.yml
     with:
-      os: macos-latest
+      os: macos-26
       arch: arm64
       swift-version: "6.2"
-
 
   macos-x64:
     needs: [validate]
     uses: ./.github/workflows/build.yml
     with:
-      os: macos-15-intel
+      os: macos-26
       arch: x64
       swift-version: "6.2"
 
@@ -104,8 +103,8 @@ jobs:
           declare -A ARTIFACT_MAP=(
             ["bebopc-ubuntu-latest-x64"]="linux-x64"
             ["bebopc-ubuntu-24.04-arm-arm64"]="linux-arm64"
-            ["bebopc-macos-latest-arm64"]="darwin-arm64"
-            ["bebopc-macos-15-intel-x64"]="darwin-x64"
+            ["bebopc-macos-26-arm64"]="darwin-arm64"
+            ["bebopc-macos-26-x64"]="darwin-x64"
             ["bebopc-windows-latest-x64"]="windows-x64"
             ["bebopc-windows-11-arm-arm64"]="windows-arm64"
           )
