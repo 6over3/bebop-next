@@ -113,22 +113,25 @@ jobs:
             target="${ARTIFACT_MAP[$artifact]}"
             archive="bebop@${V}+${target}.tar.gz"
             staging=$(mktemp -d)
+            src="artifacts/${artifact}"
+
+            mkdir -p "${staging}/bin" "${staging}/lib" "${staging}/include" "${staging}/share/bebop"
 
             if [[ "$target" == windows-* ]]; then
-              cp artifacts/${artifact}/bin/bebopc.exe "${staging}/"
-              cp artifacts/${artifact}/lib/bebop.lib "${staging}/"
-              for gen in artifacts/${artifact}/bin/bebopc-gen-*.exe; do
-                [ -f "$gen" ] && cp "$gen" "${staging}/"
+              cp "${src}/bin/bebopc.exe" "${staging}/bin/"
+              cp "${src}/lib/bebop.lib" "${staging}/lib/"
+              for gen in ${src}/bin/bebopc-gen-*.exe; do
+                [ -f "$gen" ] && cp "$gen" "${staging}/bin/"
               done
             else
-              cp artifacts/${artifact}/bin/bebopc "${staging}/"
-              cp artifacts/${artifact}/lib/libbebop.a "${staging}/"
-              for gen in artifacts/${artifact}/bin/bebopc-gen-*; do
-                [ -f "$gen" ] && cp "$gen" "${staging}/"
+              cp "${src}/bin/bebopc" "${staging}/bin/"
+              cp "${src}/lib/libbebop.a" "${staging}/lib/"
+              for gen in ${src}/bin/bebopc-gen-*; do
+                [ -f "$gen" ] && cp "$gen" "${staging}/bin/"
               done
             fi
-            cp -r artifacts/${artifact}/include "${staging}/"
-            cp -r artifacts/${artifact}/share/bebop "${staging}/schemas"
+            cp -r "${src}/include/." "${staging}/include/"
+            cp -r "${src}/share/bebop/." "${staging}/share/bebop/"
 
             tar -czf "dist/${archive}" -C "${staging}" .
             rm -rf "${staging}"
