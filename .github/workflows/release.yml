@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate tag matches VERSION
+        id: check
+        run: |
+          version=$(cat VERSION)
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::VERSION file ($version) does not match tag ($GITHUB_REF_NAME)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux-x64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      arch: x64
+      swift-version: "6.2"
+
+  linux-arm64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-24.04-arm
+      arch: arm64
+      swift-version: "6.2"
+
+  macos-arm64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: macos-latest
+      arch: arm64
+      swift-version: "6.2"
+
+  macos-x64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: macos-15-intel
+      arch: x64
+      swift-version: "6.2"
+
+  windows-x64:
+    needs: [validate]
+    uses: ./.github/workflows/build.yml
+    with:
+      os: windows-latest
+      arch: x64
+      swift-version: "6.2"
+
+  swift:
+    needs: [validate]
+    uses: ./.github/workflows/swift.yml
+
+  codegen-c:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: c
+
+  package:
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, swift, codegen-c]
+    runs-on: ubuntu-latest
+    env:
+      V: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package archives
+        run: |
+          declare -A ARTIFACT_MAP=(
+            ["bebopc-ubuntu-latest-x64"]="linux-x64"
+            ["bebopc-ubuntu-24.04-arm-arm64"]="linux-arm64"
+            ["bebopc-macos-latest-arm64"]="darwin-arm64"
+            ["bebopc-macos-15-intel-x64"]="darwin-x64"
+            ["bebopc-windows-latest-x64"]="windows-x64"
+          )
+          mkdir -p dist
+          for artifact in "${!ARTIFACT_MAP[@]}"; do
+            target="${ARTIFACT_MAP[$artifact]}"
+            archive="bebop-${V}-${target}.tar.gz"
+            staging=$(mktemp -d)
+
+            if [[ "$target" == windows-* ]]; then
+              cp artifacts/${artifact}/bin/bebopc.exe "${staging}/"
+              cp artifacts/${artifact}/bin/bebopc-gen-c.exe "${staging}/"
+              cp artifacts/${artifact}/bin/bebopc-gen-swift.exe "${staging}/"
+              cp artifacts/${artifact}/lib/bebop.lib "${staging}/"
+            else
+              cp artifacts/${artifact}/bin/bebopc "${staging}/"
+              cp artifacts/${artifact}/bin/bebopc-gen-c "${staging}/"
+              cp artifacts/${artifact}/bin/bebopc-gen-swift "${staging}/"
+              cp artifacts/${artifact}/lib/libbebop.a "${staging}/"
+            fi
+            cp -r artifacts/${artifact}/include "${staging}/"
+            cp -r artifacts/${artifact}/share/bebop "${staging}/schemas"
+
+            tar -czf "dist/${archive}" -C "${staging}" .
+            rm -rf "${staging}"
+          done
+
+      - name: Generate manifest
+        run: |
+          jq -n --arg version "$V" --arg tag "$V" \
+            '{version: $version, tag: $tag, archives: []}' > dist/bebop-${V}-manifest.json
+          for f in dist/bebop-${V}-*.tar.gz; do
+            sha=$(sha256sum "$f" | cut -d' ' -f1)
+            size=$(stat --format=%s "$f")
+            jq --arg file "$(basename "$f")" --arg sha256 "$sha" --argjson size "$size" \
+              '.archives += [{file: $file, sha256: $sha256, size: $size}]' \
+              dist/bebop-${V}-manifest.json > dist/tmp.json && mv dist/tmp.json dist/bebop-${V}-manifest.json
+          done
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: [validate, package]
+    runs-on: ubuntu-latest
+    env:
+      V: ${{ needs.validate.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Create GitHub release
+        run: |
+          flags=(--generate-notes)
+          if [[ "$V" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$V" "${flags[@]}" dist/*
