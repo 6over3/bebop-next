@@ -49,9 +49,18 @@ jobs:
         shell: pwsh
         run: |
           winget install --id Swift.Toolchain -e --accept-source-agreements --accept-package-agreements
-          $swiftBin = (Get-ChildItem -Path "C:\Program Files\Swift*" -Recurse -Filter "swift.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).DirectoryName
-          if ($swiftBin) {
-            echo "$swiftBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $searchPaths = @(
+            "$env:LOCALAPPDATA\Programs\Swift",
+            "C:\Program Files\Swift*",
+            "C:\Library"
+          )
+          foreach ($searchPath in $searchPaths) {
+            $found = Get-ChildItem -Path $searchPath -Recurse -Filter "swift.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+              echo "$($found.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              Write-Host "Found Swift at: $($found.DirectoryName)"
+              break
+            }
           }
 
       - name: Configure (macOS)
