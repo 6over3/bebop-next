@@ -20,7 +20,9 @@ static int fuzz_done;
 
 static int fuzz_stdin_read(void)
 {
-  if (fuzz_done) return 0;
+  if (fuzz_done) {
+    return 0;
+  }
   fuzz_len = (int)fread(fuzz_buf, 1, sizeof(fuzz_buf), stdin);
   fuzz_done = 1;
   return fuzz_len > 0;
@@ -47,10 +49,7 @@ int main(void)
     }
 
     bebop_parse_result_t* result = NULL;
-    bebop_parse_source(
-        ctx,
-        &(bebop_source_t) {(const char*)buf, (size_t)len, "fuzz.bop"},
-        &result);
+    bebop_parse_source(ctx, &(bebop_source_t) {(const char*)buf, (size_t)len, "fuzz.bop"}, &result);
 
     bebop_context_destroy(ctx);
   }

@@ -479,7 +479,9 @@ static void BM_Bebop_Decode_TreeWide(benchmark::State& state)
   ensure_ctx();
   init_bebop_trees();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_tree_wide.data(), g_encoded_tree_wide.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_tree_wide.data(), g_encoded_tree_wide.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_tree_wide.data(), g_encoded_tree_wide.size());
@@ -495,7 +497,9 @@ static void BM_Bebop_Decode_TreeDeep(benchmark::State& state)
   ensure_ctx();
   init_bebop_trees();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_tree_deep.data(), g_encoded_tree_deep.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_tree_deep.data(), g_encoded_tree_deep.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_tree_deep.data(), g_encoded_tree_deep.size());
@@ -726,7 +730,9 @@ static void BM_Bebop_Decode_JsonSmall(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_json_small.data(), g_encoded_json_small.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_json_small.data(), g_encoded_json_small.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_json_small.data(), g_encoded_json_small.size());
@@ -742,7 +748,9 @@ static void BM_Bebop_Decode_JsonLarge(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_json_large.data(), g_encoded_json_large.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_json_large.data(), g_encoded_json_large.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_json_large.data(), g_encoded_json_large.size());
@@ -784,7 +792,9 @@ static void BM_Bebop_Decode_DocumentSmall(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_doc_small.data(), g_encoded_doc_small.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_doc_small.data(), g_encoded_doc_small.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_doc_small.data(), g_encoded_doc_small.size());
@@ -800,7 +810,9 @@ static void BM_Bebop_Decode_DocumentLarge(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_doc_large.data(), g_encoded_doc_large.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_doc_large.data(), g_encoded_doc_large.size(), &g_reader
+  );
 
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_doc_large.data(), g_encoded_doc_large.size());
@@ -884,11 +896,10 @@ static void BM_Bebop_Decode_ChunkedText(benchmark::State& state)
 static EmbeddingBF16 make_embedding_bf16(const TestEmbeddingBF16& e)
 {
   return EmbeddingBF16 {
-      .vector = {
-          .data = reinterpret_cast<Bebop_BFloat16*>(const_cast<uint16_t*>(e.vector.data())),
-          .length = e.vector.size(),
-          .capacity = 0
-      },
+      .vector =
+          {.data = reinterpret_cast<Bebop_BFloat16*>(const_cast<uint16_t*>(e.vector.data())),
+           .length = e.vector.size(),
+           .capacity = 0},
       .id = *reinterpret_cast<const Bebop_UUID*>(e.id.bytes)
   };
 }
@@ -896,9 +907,8 @@ static EmbeddingBF16 make_embedding_bf16(const TestEmbeddingBF16& e)
 static EmbeddingF32 make_embedding_f32(const TestEmbeddingF32& e)
 {
   return EmbeddingF32 {
-      .vector = {
-          .data = const_cast<float*>(e.vector.data()), .length = e.vector.size(), .capacity = 0
-      },
+      .vector =
+          {.data = const_cast<float*>(e.vector.data()), .length = e.vector.size(), .capacity = 0},
       .id = *reinterpret_cast<const Bebop_UUID*>(e.id.bytes)
   };
 }
@@ -1201,7 +1211,9 @@ static void BM_Bebop_Decode_Embedding1536(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_emb_1536.data(), g_encoded_emb_1536.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_emb_1536.data(), g_encoded_emb_1536.size(), &g_reader
+  );
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_emb_1536.data(), g_encoded_emb_1536.size());
     EmbeddingBF16 decoded {};
@@ -1216,7 +1228,9 @@ static void BM_Bebop_Decode_EmbeddingBatch(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_emb_batch.data(), g_encoded_emb_batch.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_emb_batch.data(), g_encoded_emb_batch.size(), &g_reader
+  );
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_emb_batch.data(), g_encoded_emb_batch.size());
     EmbeddingBatch decoded {};
@@ -1231,7 +1245,9 @@ static void BM_Bebop_Decode_LLMChunkLarge(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_llm_large.data(), g_encoded_llm_large.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_llm_large.data(), g_encoded_llm_large.size(), &g_reader
+  );
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_llm_large.data(), g_encoded_llm_large.size());
     LLMStreamChunk decoded {};
@@ -1246,7 +1262,9 @@ static void BM_Bebop_Decode_TensorShardLarge(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_tensor_large.data(), g_encoded_tensor_large.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_tensor_large.data(), g_encoded_tensor_large.size(), &g_reader
+  );
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_tensor_large.data(), g_encoded_tensor_large.size());
     TensorShard decoded {};
@@ -1261,7 +1279,9 @@ static void BM_Bebop_Decode_InferenceResponse(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_inference.data(), g_encoded_inference.size(), &g_reader);
+  Bebop_WireCtx_Reader(
+      g_decode_ctx, g_encoded_inference.data(), g_encoded_inference.size(), &g_reader
+  );
   for (auto _ : state) {
     Bebop_Reader_Reset(g_reader, g_encoded_inference.data(), g_encoded_inference.size());
     InferenceResponse decoded {};

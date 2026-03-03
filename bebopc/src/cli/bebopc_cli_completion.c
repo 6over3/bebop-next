@@ -93,12 +93,16 @@ static void _generate_zsh(FILE* out)
 #define X(N, s, l, v, vn, f, d) \
   if ((s) != 0) { \
     if (v) \
-      fprintf(out, "        '-%c[%s]::%s:' \\\n", (s), d, (const void*)(vn) != NULL ? (vn) : "value"); \
+      fprintf( \
+          out, "        '-%c[%s]::%s:' \\\n", (s), d, (const void*)(vn) != NULL ? (vn) : "value" \
+      ); \
     else \
       fprintf(out, "        '-%c[%s]' \\\n", (s), d); \
   } \
   if (v) \
-    fprintf(out, "        '--%s[%s]::%s:' \\\n", l, d, (const void*)(vn) != NULL ? (vn) : "value"); \
+    fprintf( \
+        out, "        '--%s[%s]::%s:' \\\n", l, d, (const void*)(vn) != NULL ? (vn) : "value" \
+    ); \
   else \
     fprintf(out, "        '--%s[%s]' \\\n", l, d);
   BEBOPC_OPTIONS(X)

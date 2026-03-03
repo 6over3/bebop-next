@@ -37,63 +37,68 @@ typedef struct Bebop_List Bebop_List;
 
 #ifndef BEBOP_BEBOP_VALUE_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_VALUE_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_Value* data; size_t length; size_t capacity; } Bebop_Value_Array;
+
+typedef struct {
+  Bebop_Value* data;
+  size_t length;
+  size_t capacity;
+} Bebop_Value_Array;
 #endif
 /** JSON null. Empty struct, zero bytes on wire. */
 struct Bebop_Null {
-    BEBOP_WIRE_EMPTY_STRUCT;
-    // @@bebop_insertion_point(struct_scope:Bebop_Null)
+  BEBOP_WIRE_EMPTY_STRUCT;
+  // @@bebop_insertion_point(struct_scope:Bebop_Null)
 };
 
 typedef enum {
-    BEBOP_VALUE_BOOL_VALUE_TAG = 1,
+  BEBOP_VALUE_BOOL_VALUE_TAG = 1,
 } Bebop_Value_Bool_Tag;
 
 /** JSON boolean. */
 struct Bebop_Value_Bool {
-    BEBOP_WIRE_OPT(bool) value;
-    // @@bebop_insertion_point(struct_scope:Bebop_Value_Bool)
+  BEBOP_WIRE_OPT(bool) value;
+  // @@bebop_insertion_point(struct_scope:Bebop_Value_Bool)
 };
 
 typedef enum {
-    BEBOP_VALUE_NUMBER_VALUE_TAG = 1,
+  BEBOP_VALUE_NUMBER_VALUE_TAG = 1,
 } Bebop_Value_Number_Tag;
 
 /** JSON number. Stored as float64 (IEEE 754 double).
 Integers up to 2^53 are exact. Larger integers lose precision. */
 struct Bebop_Value_Number {
-    BEBOP_WIRE_OPT(double) value;
-    // @@bebop_insertion_point(struct_scope:Bebop_Value_Number)
+  BEBOP_WIRE_OPT(double) value;
+  // @@bebop_insertion_point(struct_scope:Bebop_Value_Number)
 };
 
 typedef enum {
-    BEBOP_VALUE_STRING_VALUE_TAG = 1,
+  BEBOP_VALUE_STRING_VALUE_TAG = 1,
 } Bebop_Value_String_Tag;
 
 /** JSON string. UTF-8 encoded. */
 struct Bebop_Value_String {
-    BEBOP_WIRE_OPT(Bebop_Str) value;
-    // @@bebop_insertion_point(struct_scope:Bebop_Value_String)
+  BEBOP_WIRE_OPT(Bebop_Str) value;
+  // @@bebop_insertion_point(struct_scope:Bebop_Value_String)
 };
 
 typedef enum {
-    BEBOP_VALUE_LIST_VALUES_TAG = 1,
+  BEBOP_VALUE_LIST_VALUES_TAG = 1,
 } Bebop_Value_List_Tag;
 
 /** JSON array. Ordered list of values. */
 struct Bebop_Value_List {
-    BEBOP_WIRE_OPT(Bebop_Value_Array) values;
-    // @@bebop_insertion_point(struct_scope:Bebop_Value_List)
+  BEBOP_WIRE_OPT(Bebop_Value_Array) values;
+  // @@bebop_insertion_point(struct_scope:Bebop_Value_List)
 };
 
 typedef enum {
-    BEBOP_VALUE_MAP_FIELDS_TAG = 1,
+  BEBOP_VALUE_MAP_FIELDS_TAG = 1,
 } Bebop_Value_Map_Tag;
 
 /** JSON object. Unordered string-keyed map. */
 struct Bebop_Value_Map {
-    BEBOP_WIRE_OPT(Bebop_Map) fields;
-    // @@bebop_insertion_point(struct_scope:Bebop_Value_Map)
+  BEBOP_WIRE_OPT(Bebop_Map) fields;
+  // @@bebop_insertion_point(struct_scope:Bebop_Value_Map)
 };
 
 /** Dynamic JSON value.
@@ -106,30 +111,32 @@ message Event {
 }
 ``` */
 typedef enum {
-    BEBOP_VALUE_NONE = 0,
-    BEBOP_VALUE_NULL = 1,
-    BEBOP_VALUE_BOOL = 2,
-    BEBOP_VALUE_NUMBER = 3,
-    BEBOP_VALUE_STRING = 4,
-    BEBOP_VALUE_LIST = 5,
-    BEBOP_VALUE_MAP = 6,
+  BEBOP_VALUE_NONE = 0,
+  BEBOP_VALUE_NULL = 1,
+  BEBOP_VALUE_BOOL = 2,
+  BEBOP_VALUE_NUMBER = 3,
+  BEBOP_VALUE_STRING = 4,
+  BEBOP_VALUE_LIST = 5,
+  BEBOP_VALUE_MAP = 6,
 } Bebop_Value_Disc;
 
 struct Bebop_Value {
-    Bebop_Value_Disc discriminator;
-    union {
-        Bebop_Null null;
-        Bebop_Value_Bool bool_;
-        Bebop_Value_Number number;
-        Bebop_Value_String string;
-        Bebop_Value_List list;
-        Bebop_Value_Map map;
-    };
-    // @@bebop_insertion_point(struct_scope:Bebop_Value)
+  Bebop_Value_Disc discriminator;
+
+  union {
+    Bebop_Null null;
+    Bebop_Value_Bool bool_;
+    Bebop_Value_Number number;
+    Bebop_Value_String string;
+    Bebop_Value_List list;
+    Bebop_Value_Map map;
+  };
+
+  // @@bebop_insertion_point(struct_scope:Bebop_Value)
 };
 
 typedef enum {
-    BEBOP_OBJECT_FIELDS_TAG = 1,
+  BEBOP_OBJECT_FIELDS_TAG = 1,
 } Bebop_Object_Tag;
 
 /** JSON object. Unordered map of string keys to dynamic values.
@@ -141,76 +148,98 @@ message Request {
 }
 ``` */
 struct Bebop_Object {
-    BEBOP_WIRE_OPT(Bebop_Map) fields;
-    // @@bebop_insertion_point(struct_scope:Bebop_Object)
+  BEBOP_WIRE_OPT(Bebop_Map) fields;
+  // @@bebop_insertion_point(struct_scope:Bebop_Object)
 };
 
 typedef enum {
-    BEBOP_LIST_VALUES_TAG = 1,
+  BEBOP_LIST_VALUES_TAG = 1,
 } Bebop_List_Tag;
 
 /** JSON array. Ordered list of dynamic values.
 Equivalent to `Value.List` but as a standalone type. Use when you know
 the value is an array. */
 struct Bebop_List {
-    BEBOP_WIRE_OPT(Bebop_Value_Array) values;
-    // @@bebop_insertion_point(struct_scope:Bebop_List)
+  BEBOP_WIRE_OPT(Bebop_Value_Array) values;
+  // @@bebop_insertion_point(struct_scope:Bebop_List)
 };
 
 #define BEBOP_NULL_MIN_SIZE 0
 #define BEBOP_NULL_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Null_EncodedSize(const Bebop_Null *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Null_Encode(Bebop_Writer *w, const Bebop_Null *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Null_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Null *v);
+BEBOP_WIRE_PURE size_t Bebop_Null_EncodedSize(const Bebop_Null* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Null_Encode(Bebop_Writer* w, const Bebop_Null* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Null_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Null* v
+);
 #define BEBOP_VALUE_BOOL_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_BOOL_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_Bool_EncodedSize(const Bebop_Value_Bool *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Bool_Encode(Bebop_Writer *w, const Bebop_Value_Bool *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Bool_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value_Bool *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_Bool_EncodedSize(const Bebop_Value_Bool* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Bool_Encode(Bebop_Writer* w, const Bebop_Value_Bool* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Bool_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value_Bool* v
+);
 #define BEBOP_VALUE_NUMBER_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_NUMBER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_Number_EncodedSize(const Bebop_Value_Number *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Number_Encode(Bebop_Writer *w, const Bebop_Value_Number *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Number_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value_Number *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_Number_EncodedSize(const Bebop_Value_Number* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Number_Encode(
+    Bebop_Writer* w, const Bebop_Value_Number* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Number_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value_Number* v
+);
 #define BEBOP_VALUE_STRING_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_STRING_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_String_EncodedSize(const Bebop_Value_String *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_String_Encode(Bebop_Writer *w, const Bebop_Value_String *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_String_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value_String *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_String_EncodedSize(const Bebop_Value_String* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_String_Encode(
+    Bebop_Writer* w, const Bebop_Value_String* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_String_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value_String* v
+);
 #define BEBOP_VALUE_LIST_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_LIST_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_List_EncodedSize(const Bebop_Value_List *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_List_Encode(Bebop_Writer *w, const Bebop_Value_List *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_List_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value_List *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_List_EncodedSize(const Bebop_Value_List* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_List_Encode(Bebop_Writer* w, const Bebop_Value_List* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_List_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value_List* v
+);
 #define BEBOP_VALUE_MAP_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_MAP_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_Map_EncodedSize(const Bebop_Value_Map *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Map_Encode(Bebop_Writer *w, const Bebop_Value_Map *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Map_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value_Map *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_Map_EncodedSize(const Bebop_Value_Map* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Map_Encode(Bebop_Writer* w, const Bebop_Value_Map* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Map_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value_Map* v
+);
 #define BEBOP_VALUE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_VALUE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Value_EncodedSize(const Bebop_Value *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Encode(Bebop_Writer *w, const Bebop_Value *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Value *v);
+BEBOP_WIRE_PURE size_t Bebop_Value_EncodedSize(const Bebop_Value* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Encode(Bebop_Writer* w, const Bebop_Value* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Value_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Value* v
+);
 #define BEBOP_OBJECT_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_OBJECT_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Object_EncodedSize(const Bebop_Object *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Object_Encode(Bebop_Writer *w, const Bebop_Object *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Object_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Object *v);
+BEBOP_WIRE_PURE size_t Bebop_Object_EncodedSize(const Bebop_Object* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Object_Encode(Bebop_Writer* w, const Bebop_Object* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Object_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Object* v
+);
 #define BEBOP_LIST_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_LIST_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_List_EncodedSize(const Bebop_List *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_List_Encode(Bebop_Writer *w, const Bebop_List *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_List_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_List *v);
+BEBOP_WIRE_PURE size_t Bebop_List_EncodedSize(const Bebop_List* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_List_Encode(Bebop_Writer* w, const Bebop_List* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_List_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_List* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Bebop_Null__refl_descriptor;
 extern const Bebop_TypeInfo Bebop_Null__type_info;

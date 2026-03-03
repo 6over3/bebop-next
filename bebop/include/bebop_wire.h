@@ -9,6 +9,7 @@
 
 #if defined(_MSC_VER) && !defined(__cplusplus) && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
 #define BEBOP__MAX_ALIGN_T_DEFINED
+
 typedef struct {
   long long __max_align_ll;
   long double __max_align_ld;
@@ -84,14 +85,18 @@ extern "C" {
 #endif
 
 #ifndef BEBOP_WIRE_TRY
-#define BEBOP_WIRE_TRY(expr) do { \
+#define BEBOP_WIRE_TRY(expr) \
+  do { \
     Bebop_WireResult _r = (expr); \
-    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) return _r; \
-} while(0)
-#define BEBOP_WIRE_TRY_NEG(expr) do { \
+    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) \
+      return _r; \
+  } while (0)
+#define BEBOP_WIRE_TRY_NEG(expr) \
+  do { \
     Bebop_WireResult _r = (expr); \
-    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) return -(int)_r; \
-} while(0)
+    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) \
+      return -(int)_r; \
+  } while (0)
 #endif
 
 #ifndef BEBOP_WIRE_PREFETCH
@@ -240,8 +245,7 @@ typedef struct {
   int64_t seconds;
   int32_t nanos;
   int32_t offset_ms;
-}
-Bebop_Timestamp;
+} Bebop_Timestamp;
 
 // Duration - signed time span
 #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
@@ -675,8 +679,10 @@ BEBOP_API bool Bebop_MapEq_UUID(const void* a, const void* b);
   ((a).length == (b).length && memcmp((a).data, (b).data, (a).length) == 0)
 #define BEBOP_WIRE_BYTES(ptr, len) ((Bebop_Bytes) {.data = (const uint8_t*)(ptr), .length = (len)})
 #define BEBOP_WIRE_UUID(s) Bebop_UUID_FromString(s)
-#define BEBOP_WIRE_TIMESTAMP(sec, ns) ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = 0})
-#define BEBOP_WIRE_TIMESTAMP_OFFSET(sec, ns, off_ms) ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = (off_ms)})
+#define BEBOP_WIRE_TIMESTAMP(sec, ns) \
+  ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = 0})
+#define BEBOP_WIRE_TIMESTAMP_OFFSET(sec, ns, off_ms) \
+  ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = (off_ms)})
 #define BEBOP_WIRE_DURATION(sec, ns) ((Bebop_Duration) {.seconds = (sec), .nanos = (ns)})
 
 #if !BEBOP_WIRE_HAS_I128

@@ -17,6 +17,7 @@
 #define BEBOP_PLUGIN_BOP_H_
 
 #include <bebop_wire.h>
+
 #include "descriptor.bb.h"
 // @@bebop_insertion_point(includes)
 
@@ -34,42 +35,57 @@ typedef struct Bebop_CodeGeneratorResponse Bebop_CodeGeneratorResponse;
 
 /** Severity level for plugin diagnostics. */
 typedef enum {
-    BEBOP_DIAGNOSTIC_SEVERITY_ERROR = 0,
-    BEBOP_DIAGNOSTIC_SEVERITY_WARNING = 1,
-    BEBOP_DIAGNOSTIC_SEVERITY_INFO = 2,
-    BEBOP_DIAGNOSTIC_SEVERITY_HINT = 3,
+  BEBOP_DIAGNOSTIC_SEVERITY_ERROR = 0,
+  BEBOP_DIAGNOSTIC_SEVERITY_WARNING = 1,
+  BEBOP_DIAGNOSTIC_SEVERITY_INFO = 2,
+  BEBOP_DIAGNOSTIC_SEVERITY_HINT = 3,
 } Bebop_DiagnosticSeverity;
 
 #ifndef BEBOP_BEBOP_SCHEMADESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_SCHEMADESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_SchemaDescriptor* data; size_t length; size_t capacity; } Bebop_SchemaDescriptor_Array;
+
+typedef struct {
+  Bebop_SchemaDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_SchemaDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_GENERATEDFILE_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_GENERATEDFILE_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_GeneratedFile* data; size_t length; size_t capacity; } Bebop_GeneratedFile_Array;
+
+typedef struct {
+  Bebop_GeneratedFile* data;
+  size_t length;
+  size_t capacity;
+} Bebop_GeneratedFile_Array;
 #endif
 #ifndef BEBOP_BEBOP_DIAGNOSTIC_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_DIAGNOSTIC_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_Diagnostic* data; size_t length; size_t capacity; } Bebop_Diagnostic_Array;
+
+typedef struct {
+  Bebop_Diagnostic* data;
+  size_t length;
+  size_t capacity;
+} Bebop_Diagnostic_Array;
 #endif
 /** Compiler version.
 Follows semantic versioning. The `suffix` field distinguishes pre-release
 versions (`alpha.1`, `beta.2`, `rc.1`). Empty suffix is a stable release. */
 struct Bebop_Version {
-    /** Pre-release suffix (`alpha.1`, `rc.2`). Empty for stable releases. */
-    const Bebop_Str suffix;
-    const int32_t major;
-    const int32_t minor;
-    const int32_t patch;
-    // @@bebop_insertion_point(struct_scope:Bebop_Version)
+  /** Pre-release suffix (`alpha.1`, `rc.2`). Empty for stable releases. */
+  const Bebop_Str suffix;
+  const int32_t major;
+  const int32_t minor;
+  const int32_t patch;
+  // @@bebop_insertion_point(struct_scope:Bebop_Version)
 };
 
 typedef enum {
-    BEBOP_CODE_GENERATOR_REQUEST_FILES_TO_GENERATE_TAG = 1,
-    BEBOP_CODE_GENERATOR_REQUEST_PARAMETER_TAG = 2,
-    BEBOP_CODE_GENERATOR_REQUEST_COMPILER_VERSION_TAG = 3,
-    BEBOP_CODE_GENERATOR_REQUEST_SCHEMAS_TAG = 4,
-    BEBOP_CODE_GENERATOR_REQUEST_HOST_OPTIONS_TAG = 5,
+  BEBOP_CODE_GENERATOR_REQUEST_FILES_TO_GENERATE_TAG = 1,
+  BEBOP_CODE_GENERATOR_REQUEST_PARAMETER_TAG = 2,
+  BEBOP_CODE_GENERATOR_REQUEST_COMPILER_VERSION_TAG = 3,
+  BEBOP_CODE_GENERATOR_REQUEST_SCHEMAS_TAG = 4,
+  BEBOP_CODE_GENERATOR_REQUEST_HOST_OPTIONS_TAG = 5,
 } Bebop_CodeGeneratorRequest_Tag;
 
 /** Input to a code generator plugin.
@@ -77,71 +93,71 @@ The compiler writes an encoded CodeGeneratorRequest to the plugin's stdin.
 Generate code only for files in `files_to_generate`, using the full
 `schemas` array for type resolution. */
 struct Bebop_CodeGeneratorRequest {
-    /** The .bop files to generate code for (explicitly listed on command line).
+  /** The .bop files to generate code for (explicitly listed on command line).
 Each file's descriptor is included in `schemas`. */
-    BEBOP_WIRE_OPT(Bebop_Str_Array) files_to_generate;
-    /** Generator-specific parameter from `--${NAME}_opt=PARAM` or embedded
+  BEBOP_WIRE_OPT(Bebop_Str_Array) files_to_generate;
+  /** Generator-specific parameter from `--${NAME}_opt=PARAM` or embedded
 in the output path. Format is plugin-defined (commonly key=value pairs). */
-    BEBOP_WIRE_OPT(Bebop_Str) parameter;
-    /** Version of the compiler invoking the plugin. Use to detect
+  BEBOP_WIRE_OPT(Bebop_Str) parameter;
+  /** Version of the compiler invoking the plugin. Use to detect
 incompatibilities or enable version-specific behavior. */
-    BEBOP_WIRE_OPT(Bebop_Version) compiler_version;
-    /** SchemaDescriptors for all files in `files_to_generate` plus their
+  BEBOP_WIRE_OPT(Bebop_Version) compiler_version;
+  /** SchemaDescriptors for all files in `files_to_generate` plus their
 imports. Schemas appear in topological order: dependencies before
 dependents. Type FQNs are fully resolved.
 Iterate schemas, check if `schema.path` is in `files_to_generate`,
 and generate code only for those files. The rest are for type resolution. */
-    BEBOP_WIRE_OPT(Bebop_SchemaDescriptor_Array) schemas;
-    /** Host compiler options passed to bebopc. Use to adjust output based
+  BEBOP_WIRE_OPT(Bebop_SchemaDescriptor_Array) schemas;
+  /** Host compiler options passed to bebopc. Use to adjust output based
 on global settings. */
-    BEBOP_WIRE_OPT(Bebop_Map) host_options;
-    // @@bebop_insertion_point(struct_scope:Bebop_CodeGeneratorRequest)
+  BEBOP_WIRE_OPT(Bebop_Map) host_options;
+  // @@bebop_insertion_point(struct_scope:Bebop_CodeGeneratorRequest)
 };
 
 typedef enum {
-    BEBOP_DIAGNOSTIC_SEVERITY_TAG = 1,
-    BEBOP_DIAGNOSTIC_TEXT_TAG = 2,
-    BEBOP_DIAGNOSTIC_HINT_TAG = 3,
-    BEBOP_DIAGNOSTIC_FILE_TAG = 4,
-    BEBOP_DIAGNOSTIC_SPAN_TAG = 5,
+  BEBOP_DIAGNOSTIC_SEVERITY_TAG = 1,
+  BEBOP_DIAGNOSTIC_TEXT_TAG = 2,
+  BEBOP_DIAGNOSTIC_HINT_TAG = 3,
+  BEBOP_DIAGNOSTIC_FILE_TAG = 4,
+  BEBOP_DIAGNOSTIC_SPAN_TAG = 5,
 } Bebop_Diagnostic_Tag;
 
 /** Diagnostic message from a plugin.
 Report errors, warnings, and info about schemas being processed.
 Displayed to the user alongside the plugin's name. */
 struct Bebop_Diagnostic {
-    BEBOP_WIRE_OPT(Bebop_DiagnosticSeverity) severity;
-    /** Human-readable diagnostic text. */
-    BEBOP_WIRE_OPT(Bebop_Str) text;
-    /** Optional hint for fixing the issue. */
-    BEBOP_WIRE_OPT(Bebop_Str) hint;
-    /** Source file path this diagnostic relates to. */
-    BEBOP_WIRE_OPT(Bebop_Str) file;
-    /** Source location as `[start_line, start_col, end_line, end_col]`.
+  BEBOP_WIRE_OPT(Bebop_DiagnosticSeverity) severity;
+  /** Human-readable diagnostic text. */
+  BEBOP_WIRE_OPT(Bebop_Str) text;
+  /** Optional hint for fixing the issue. */
+  BEBOP_WIRE_OPT(Bebop_Str) hint;
+  /** Source file path this diagnostic relates to. */
+  BEBOP_WIRE_OPT(Bebop_Str) file;
+  /** Source location as `[start_line, start_col, end_line, end_col]`.
 1-based. Absent if not applicable. */
-    BEBOP_WIRE_OPT_FA(int32_t, [4]) span;
-    // @@bebop_insertion_point(struct_scope:Bebop_Diagnostic)
+  BEBOP_WIRE_OPT_FA(int32_t, [4]) span;
+  // @@bebop_insertion_point(struct_scope:Bebop_Diagnostic)
 };
 
 typedef enum {
-    BEBOP_GENERATED_FILE_NAME_TAG = 1,
-    BEBOP_GENERATED_FILE_INSERTION_POINT_TAG = 2,
-    BEBOP_GENERATED_FILE_CONTENT_TAG = 3,
-    BEBOP_GENERATED_FILE_GENERATED_CODE_INFO_TAG = 4,
+  BEBOP_GENERATED_FILE_NAME_TAG = 1,
+  BEBOP_GENERATED_FILE_INSERTION_POINT_TAG = 2,
+  BEBOP_GENERATED_FILE_CONTENT_TAG = 3,
+  BEBOP_GENERATED_FILE_GENERATED_CODE_INFO_TAG = 4,
 } Bebop_GeneratedFile_Tag;
 
 /** A generated file.
 Either a complete new file or an insertion into an existing file at a
 marked insertion point. */
 struct Bebop_GeneratedFile {
-    /** Output path relative to output directory. No `..` components or
+  /** Output path relative to output directory. No `..` components or
 leading `/`. Use `/` as separator on all platforms.
 When `insertion_point` is set, names the file to insert into (must
 be generated by a prior plugin in the same invocation).
 When omitted, content appends to the previous file. Allows generators
 to stream large files in chunks. */
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    /** Insertion point name for extending another plugin's output.
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  /** Insertion point name for extending another plugin's output.
 Target file must contain:
 ```
 // @@bebopc_insertion_point(NAME)
@@ -149,20 +165,20 @@ Target file must contain:
 Content inserts above this marker. Multiple insertions to the same
 point appear in plugin execution order.
 When set, `name` must also be set to identify the target file. */
-    BEBOP_WIRE_OPT(Bebop_Str) insertion_point;
-    /** File contents (complete file or insertion fragment).
+  BEBOP_WIRE_OPT(Bebop_Str) insertion_point;
+  /** File contents (complete file or insertion fragment).
 For insertions, typically includes a trailing newline. */
-    BEBOP_WIRE_OPT(Bebop_Str) content;
-    /** Source mapping connecting generated code to source schemas.
+  BEBOP_WIRE_OPT(Bebop_Str) content;
+  /** Source mapping connecting generated code to source schemas.
 Optional; enables IDE features like go-to-definition. */
-    BEBOP_WIRE_OPT(Bebop_SourceCodeInfo *) generated_code_info;
-    // @@bebop_insertion_point(struct_scope:Bebop_GeneratedFile)
+  BEBOP_WIRE_OPT(Bebop_SourceCodeInfo*) generated_code_info;
+  // @@bebop_insertion_point(struct_scope:Bebop_GeneratedFile)
 };
 
 typedef enum {
-    BEBOP_CODE_GENERATOR_RESPONSE_ERROR_TAG = 1,
-    BEBOP_CODE_GENERATOR_RESPONSE_FILES_TAG = 2,
-    BEBOP_CODE_GENERATOR_RESPONSE_DIAGNOSTICS_TAG = 3,
+  BEBOP_CODE_GENERATOR_RESPONSE_ERROR_TAG = 1,
+  BEBOP_CODE_GENERATOR_RESPONSE_FILES_TAG = 2,
+  BEBOP_CODE_GENERATOR_RESPONSE_DIAGNOSTICS_TAG = 3,
 } Bebop_CodeGeneratorResponse_Tag;
 
 /** Output from a code generator plugin.
@@ -176,51 +192,69 @@ The distinction matters: stderr + non-zero indicates a plugin bug or
 environment problem. The `error` field indicates problems in .bop files
 that prevent correct code generation. */
 struct Bebop_CodeGeneratorResponse {
-    /** Error message. If non-empty, code generation failed.
+  /** Error message. If non-empty, code generation failed.
 Set for schema problems that prevent generating correct code. Exit
 with status zero.
 For plugin bugs or environment problems (can't read input, out of
 memory), write to stderr and exit non-zero instead. */
-    BEBOP_WIRE_OPT(Bebop_Str) error;
-    /** Generated files to write to the output directory.
+  BEBOP_WIRE_OPT(Bebop_Str) error;
+  /** Generated files to write to the output directory.
 Written in array order. Later files with `insertion_point` can
 extend earlier files in the same response. */
-    BEBOP_WIRE_OPT(Bebop_GeneratedFile_Array) files;
-    /** Diagnostics to report. Displayed even on success (for warnings/info). */
-    BEBOP_WIRE_OPT(Bebop_Diagnostic_Array) diagnostics;
-    // @@bebop_insertion_point(struct_scope:Bebop_CodeGeneratorResponse)
+  BEBOP_WIRE_OPT(Bebop_GeneratedFile_Array) files;
+  /** Diagnostics to report. Displayed even on success (for warnings/info). */
+  BEBOP_WIRE_OPT(Bebop_Diagnostic_Array) diagnostics;
+  // @@bebop_insertion_point(struct_scope:Bebop_CodeGeneratorResponse)
 };
 
 #define BEBOP_VERSION_MIN_SIZE 0
 #define BEBOP_VERSION_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Version_EncodedSize(const Bebop_Version *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Version_Encode(Bebop_Writer *w, const Bebop_Version *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Version_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Version *v);
+BEBOP_WIRE_PURE size_t Bebop_Version_EncodedSize(const Bebop_Version* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Version_Encode(Bebop_Writer* w, const Bebop_Version* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Version_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Version* v
+);
 #define BEBOP_CODE_GENERATOR_REQUEST_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_CODE_GENERATOR_REQUEST_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_CodeGeneratorRequest_EncodedSize(const Bebop_CodeGeneratorRequest *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorRequest_Encode(Bebop_Writer *w, const Bebop_CodeGeneratorRequest *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorRequest_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_CodeGeneratorRequest *v);
+BEBOP_WIRE_PURE size_t Bebop_CodeGeneratorRequest_EncodedSize(const Bebop_CodeGeneratorRequest* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorRequest_Encode(
+    Bebop_Writer* w, const Bebop_CodeGeneratorRequest* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorRequest_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_CodeGeneratorRequest* v
+);
 #define BEBOP_DIAGNOSTIC_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DIAGNOSTIC_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Diagnostic_EncodedSize(const Bebop_Diagnostic *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Diagnostic_Encode(Bebop_Writer *w, const Bebop_Diagnostic *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Diagnostic_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Diagnostic *v);
+BEBOP_WIRE_PURE size_t Bebop_Diagnostic_EncodedSize(const Bebop_Diagnostic* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Diagnostic_Encode(Bebop_Writer* w, const Bebop_Diagnostic* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Diagnostic_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Diagnostic* v
+);
 #define BEBOP_GENERATED_FILE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_GENERATED_FILE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_GeneratedFile_EncodedSize(const Bebop_GeneratedFile *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_GeneratedFile_Encode(Bebop_Writer *w, const Bebop_GeneratedFile *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_GeneratedFile_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_GeneratedFile *v);
+BEBOP_WIRE_PURE size_t Bebop_GeneratedFile_EncodedSize(const Bebop_GeneratedFile* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_GeneratedFile_Encode(
+    Bebop_Writer* w, const Bebop_GeneratedFile* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_GeneratedFile_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_GeneratedFile* v
+);
 #define BEBOP_CODE_GENERATOR_RESPONSE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_CODE_GENERATOR_RESPONSE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_CodeGeneratorResponse_EncodedSize(const Bebop_CodeGeneratorResponse *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorResponse_Encode(Bebop_Writer *w, const Bebop_CodeGeneratorResponse *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorResponse_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_CodeGeneratorResponse *v);
+BEBOP_WIRE_PURE size_t Bebop_CodeGeneratorResponse_EncodedSize(
+    const Bebop_CodeGeneratorResponse* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorResponse_Encode(
+    Bebop_Writer* w, const Bebop_CodeGeneratorResponse* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_CodeGeneratorResponse_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_CodeGeneratorResponse* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Bebop_Version__refl_descriptor;
 extern const Bebop_TypeInfo Bebop_Version__type_info;

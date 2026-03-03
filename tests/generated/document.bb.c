@@ -15,107 +15,180 @@
 
 #include "document.bb.h"
 
-BEBOP_WIRE_PURE size_t Test_Document_EncodedSize(const Test_Document *v) {
-    size_t size = TEST_DOCUMENT_MIN_SIZE;
-    if (BEBOP_WIRE_IS_SOME(v->title)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_UNWRAP(v->title).length + BEBOP_WIRE_SIZE_NUL;
-    }
-    if (BEBOP_WIRE_IS_SOME(v->metadata)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += Bebop_Object_EncodedSize(BEBOP_WIRE_UNWRAP(v->metadata));
-    }
-    if (BEBOP_WIRE_IS_SOME(v->tags)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += Bebop_List_EncodedSize(BEBOP_WIRE_UNWRAP(v->tags));
-    }
-    if (BEBOP_WIRE_IS_SOME(v->content)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += Bebop_Value_EncodedSize(BEBOP_WIRE_UNWRAP(v->content));
-    }
-    return size;
+BEBOP_WIRE_PURE size_t Test_Document_EncodedSize(const Test_Document* v)
+{
+  size_t size = TEST_DOCUMENT_MIN_SIZE;
+  if (BEBOP_WIRE_IS_SOME(v->title)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_UNWRAP(v->title).length + BEBOP_WIRE_SIZE_NUL;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->metadata)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += Bebop_Object_EncodedSize(BEBOP_WIRE_UNWRAP(v->metadata));
+  }
+  if (BEBOP_WIRE_IS_SOME(v->tags)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += Bebop_List_EncodedSize(BEBOP_WIRE_UNWRAP(v->tags));
+  }
+  if (BEBOP_WIRE_IS_SOME(v->content)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += Bebop_Value_EncodedSize(BEBOP_WIRE_UNWRAP(v->content));
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Encode(Bebop_Writer *w, const Test_Document *v) {
-    // @@bebop_insertion_point(encode_start:Test_Document)
-    Bebop_WireResult r;
-    size_t len_pos;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) return r;
-    size_t start = Bebop_Writer_Len(w);
+BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Encode(Bebop_Writer* w, const Test_Document* v)
+{
+  // @@bebop_insertion_point(encode_start:Test_Document)
+  Bebop_WireResult r;
+  size_t len_pos;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  size_t start = Bebop_Writer_Len(w);
 
-    if (BEBOP_WIRE_IS_SOME(v->title)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_TITLE_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, BEBOP_WIRE_UNWRAP(v->title))) != BEBOP_WIRE_OK)) return r;
+  if (BEBOP_WIRE_IS_SOME(v->title)) {
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_TITLE_TAG)) != BEBOP_WIRE_OK))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_IS_SOME(v->metadata)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_METADATA_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Object_Encode(w, BEBOP_WIRE_UNWRAP(v->metadata))) != BEBOP_WIRE_OK)) return r;
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetStrView(w, BEBOP_WIRE_UNWRAP(v->title))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_IS_SOME(v->tags)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_TAGS_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_List_Encode(w, BEBOP_WIRE_UNWRAP(v->tags))) != BEBOP_WIRE_OK)) return r;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->metadata)) {
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_METADATA_TAG)) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_IS_SOME(v->content)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_CONTENT_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Value_Encode(w, BEBOP_WIRE_UNWRAP(v->content))) != BEBOP_WIRE_OK)) return r;
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Object_Encode(w, BEBOP_WIRE_UNWRAP(v->metadata))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, 0)) != BEBOP_WIRE_OK)) return r;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->tags)) {
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_TAGS_TAG)) != BEBOP_WIRE_OK))
+    {
+      return r;
+    }
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_List_Encode(w, BEBOP_WIRE_UNWRAP(v->tags))) != BEBOP_WIRE_OK))
+    {
+      return r;
+    }
+  }
+  if (BEBOP_WIRE_IS_SOME(v->content)) {
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetByte(w, TEST_DOCUMENT_CONTENT_TAG)) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
+    }
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Value_Encode(w, BEBOP_WIRE_UNWRAP(v->content))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
+    }
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, 0)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
 
-    // @@bebop_insertion_point(encode_end:Test_Document)
-    return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
+  // @@bebop_insertion_point(encode_end:Test_Document)
+  return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Test_Document *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Test_Document)
-    Bebop_WireResult r;
-    uint32_t msg_len;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) return r;
-    const uint8_t *end = Bebop_Reader_Ptr(rd) + msg_len;
+BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Test_Document* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Test_Document)
+  Bebop_WireResult r;
+  uint32_t msg_len;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
-    BEBOP_WIRE_SET_NONE(v->title);
-    BEBOP_WIRE_SET_NONE(v->metadata);
-    BEBOP_WIRE_SET_NONE(v->tags);
-    BEBOP_WIRE_SET_NONE(v->content);
+  BEBOP_WIRE_SET_NONE(v->title);
+  BEBOP_WIRE_SET_NONE(v->metadata);
+  BEBOP_WIRE_SET_NONE(v->tags);
+  BEBOP_WIRE_SET_NONE(v->content);
 
-    while (Bebop_Reader_Ptr(rd) < end) {
-        uint8_t tag;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &tag)) != BEBOP_WIRE_OK)) return r;
-        if (tag == 0) break;
+  while (Bebop_Reader_Ptr(rd) < end) {
+    uint8_t tag;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &tag)) != BEBOP_WIRE_OK)) {
+      return r;
+    }
+    if (tag == 0) {
+      break;
+    }
 
-        switch (tag) {
-        case TEST_DOCUMENT_TITLE_TAG:
-            v->title.has_value = true;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->title.value))) != BEBOP_WIRE_OK)) return r;
-            break;
-        case TEST_DOCUMENT_METADATA_TAG:
-            v->metadata.has_value = true;
-            v->metadata.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Object));
-            if (BEBOP_WIRE_UNLIKELY(!v->metadata.value)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Object_Decode(ctx, rd, v->metadata.value)) != BEBOP_WIRE_OK)) return r;
-            break;
-        case TEST_DOCUMENT_TAGS_TAG:
-            v->tags.has_value = true;
-            v->tags.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_List));
-            if (BEBOP_WIRE_UNLIKELY(!v->tags.value)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_List_Decode(ctx, rd, v->tags.value)) != BEBOP_WIRE_OK)) return r;
-            break;
-        case TEST_DOCUMENT_CONTENT_TAG:
-            v->content.has_value = true;
-            v->content.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Value));
-            if (BEBOP_WIRE_UNLIKELY(!v->content.value)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Value_Decode(ctx, rd, v->content.value)) != BEBOP_WIRE_OK)) return r;
-            break;
-        // @@bebop_insertion_point(decode_switch:Test_Document)
-        default:
-            Bebop_Reader_Seek(rd, end);
-            goto done;
+    switch (tag) {
+      case TEST_DOCUMENT_TITLE_TAG:
+        v->title.has_value = true;
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->title.value)))
+                != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
         }
+        break;
+      case TEST_DOCUMENT_METADATA_TAG:
+        v->metadata.has_value = true;
+        v->metadata.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Object));
+        if (BEBOP_WIRE_UNLIKELY(!v->metadata.value)) {
+          return BEBOP_WIRE_ERR_OOM;
+        }
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Object_Decode(ctx, rd, v->metadata.value)) != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
+        }
+        break;
+      case TEST_DOCUMENT_TAGS_TAG:
+        v->tags.has_value = true;
+        v->tags.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_List));
+        if (BEBOP_WIRE_UNLIKELY(!v->tags.value)) {
+          return BEBOP_WIRE_ERR_OOM;
+        }
+        if (BEBOP_WIRE_UNLIKELY((r = Bebop_List_Decode(ctx, rd, v->tags.value)) != BEBOP_WIRE_OK)) {
+          return r;
+        }
+        break;
+      case TEST_DOCUMENT_CONTENT_TAG:
+        v->content.has_value = true;
+        v->content.value = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Value));
+        if (BEBOP_WIRE_UNLIKELY(!v->content.value)) {
+          return BEBOP_WIRE_ERR_OOM;
+        }
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Value_Decode(ctx, rd, v->content.value)) != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
+        }
+        break;
+      // @@bebop_insertion_point(decode_switch:Test_Document)
+      default:
+        Bebop_Reader_Seek(rd, end);
+        goto done;
     }
+  }
 
-    done:
-    // @@bebop_insertion_point(decode_end:Test_Document)
-    return BEBOP_WIRE_OK;
+done:
+  // @@bebop_insertion_point(decode_end:Test_Document)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Test_Document__type_info = {
@@ -127,9 +200,15 @@ const Bebop_TypeInfo Test_Document__type_info = {
 };
 
 
-static const BebopReflection_TypeDescriptor Test_Document__type_bebop_Object = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Object"};
-static const BebopReflection_TypeDescriptor Test_Document__type_bebop_List = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.List"};
-static const BebopReflection_TypeDescriptor Test_Document__type_bebop_Value = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Value"};
+static const BebopReflection_TypeDescriptor Test_Document__type_bebop_Object = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Object"
+};
+static const BebopReflection_TypeDescriptor Test_Document__type_bebop_List = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.List"
+};
+static const BebopReflection_TypeDescriptor Test_Document__type_bebop_Value = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Value"
+};
 static const BebopReflection_FieldDescriptor Test_Document__refl_fields[4] = {
     {"title", &BebopReflection_Type_String, 1, offsetof(Test_Document, title)},
     {"metadata", &Test_Document__type_bebop_Object, 2, offsetof(Test_Document, metadata)},
@@ -148,4 +227,3 @@ const BebopReflection_DefinitionDescriptor Test_Document__refl_descriptor = {
         .sizeof_type = sizeof(Test_Document),
     },
 };
-

@@ -15,29 +15,48 @@
 
 #include "reflection.bb.h"
 
-BEBOP_WIRE_PURE size_t Reflection_Point_EncodedSize(const Reflection_Point *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_POINT_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_Point_EncodedSize(const Reflection_Point* v)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_POINT_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Encode(Bebop_Writer *w, const Reflection_Point *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Point)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->x)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->y)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Point)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Encode(Bebop_Writer* w, const Reflection_Point* v)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Point)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->x)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->y)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Point)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Point *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Point)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->x))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->y))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Point)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Point* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Point)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->x))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->y))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Point)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Point__type_info = {
@@ -48,33 +67,66 @@ const Bebop_TypeInfo Reflection_Point__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Point_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Color_EncodedSize(const Reflection_Color *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_COLOR_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_Color_EncodedSize(const Reflection_Color* v)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_COLOR_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Encode(Bebop_Writer *w, const Reflection_Color *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Color)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->r)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->g)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->b)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->a)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Color)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Encode(Bebop_Writer* w, const Reflection_Color* v)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Color)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->r)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->g)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->b)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->a)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Color)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Color *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Color)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->r))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->g))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->b))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->a))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Color)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Color* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Color)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->r))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->g))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->b))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->a))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Color)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Color__type_info = {
@@ -85,67 +137,172 @@ const Bebop_TypeInfo Reflection_Color__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Color_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_AllScalars_EncodedSize(const Reflection_AllScalars *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_BOOL;
-    size += BEBOP_WIRE_SIZE_BYTE;
-    size += BEBOP_WIRE_SIZE_INT8;
-    size += BEBOP_WIRE_SIZE_BYTE;
-    size += BEBOP_WIRE_SIZE_INT16;
-    size += BEBOP_WIRE_SIZE_UINT16;
-    size += BEBOP_WIRE_SIZE_INT32;
-    size += BEBOP_WIRE_SIZE_UINT32;
-    size += BEBOP_WIRE_SIZE_INT64;
-    size += BEBOP_WIRE_SIZE_UINT64;
-    size += BEBOP_WIRE_SIZE_FLOAT32;
-    size += BEBOP_WIRE_SIZE_FLOAT64;
-    size += BEBOP_WIRE_SIZE_LEN + v->f_string.length + BEBOP_WIRE_SIZE_NUL;
-    size += BEBOP_WIRE_SIZE_UUID;
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_AllScalars_EncodedSize(const Reflection_AllScalars* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_BOOL;
+  size += BEBOP_WIRE_SIZE_BYTE;
+  size += BEBOP_WIRE_SIZE_INT8;
+  size += BEBOP_WIRE_SIZE_BYTE;
+  size += BEBOP_WIRE_SIZE_INT16;
+  size += BEBOP_WIRE_SIZE_UINT16;
+  size += BEBOP_WIRE_SIZE_INT32;
+  size += BEBOP_WIRE_SIZE_UINT32;
+  size += BEBOP_WIRE_SIZE_INT64;
+  size += BEBOP_WIRE_SIZE_UINT64;
+  size += BEBOP_WIRE_SIZE_FLOAT32;
+  size += BEBOP_WIRE_SIZE_FLOAT64;
+  size += BEBOP_WIRE_SIZE_LEN + v->f_string.length + BEBOP_WIRE_SIZE_NUL;
+  size += BEBOP_WIRE_SIZE_UUID;
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Encode(Bebop_Writer *w, const Reflection_AllScalars *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_AllScalars)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetBool(w, v->f_bool)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->f_byte)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI8(w, v->f_int8)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->f_uint8)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI16(w, v->f_int16)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU16(w, v->f_uint16)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->f_int32)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, v->f_uint32)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI64(w, v->f_int64)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU64(w, v->f_uint64)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->f_float32)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF64(w, v->f_float64)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->f_string)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetUUID(w, v->f_uuid)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_AllScalars)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Encode(
+    Bebop_Writer* w, const Reflection_AllScalars* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_AllScalars)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetBool(w, v->f_bool)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->f_byte)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI8(w, v->f_int8)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, v->f_uint8)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI16(w, v->f_int16)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU16(w, v->f_uint16)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->f_int32)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, v->f_uint32)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI64(w, v->f_int64)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU64(w, v->f_uint64)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->f_float32)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF64(w, v->f_float64)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->f_string)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetUUID(w, v->f_uuid)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_AllScalars)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_AllScalars *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_AllScalars)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetBool(rd, BEBOP_WIRE_MUTPTR(bool, &v->f_bool))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->f_byte))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI8(rd, BEBOP_WIRE_MUTPTR(int8_t, &v->f_int8))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->f_uint8))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI16(rd, BEBOP_WIRE_MUTPTR(int16_t, &v->f_int16))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU16(rd, BEBOP_WIRE_MUTPTR(uint16_t, &v->f_uint16))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->f_int32))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, BEBOP_WIRE_MUTPTR(uint32_t, &v->f_uint32))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI64(rd, BEBOP_WIRE_MUTPTR(int64_t, &v->f_int64))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU64(rd, BEBOP_WIRE_MUTPTR(uint64_t, &v->f_uint64))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->f_float32))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF64(rd, BEBOP_WIRE_MUTPTR(double, &v->f_float64))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->f_string))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetUUID(rd, BEBOP_WIRE_MUTPTR(Bebop_UUID, &v->f_uuid))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_AllScalars)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_AllScalars* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_AllScalars)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetBool(rd, BEBOP_WIRE_MUTPTR(bool, &v->f_bool))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->f_byte))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI8(rd, BEBOP_WIRE_MUTPTR(int8_t, &v->f_int8))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetByte(rd, BEBOP_WIRE_MUTPTR(uint8_t, &v->f_uint8))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI16(rd, BEBOP_WIRE_MUTPTR(int16_t, &v->f_int16))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetU16(rd, BEBOP_WIRE_MUTPTR(uint16_t, &v->f_uint16))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->f_int32))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetU32(rd, BEBOP_WIRE_MUTPTR(uint32_t, &v->f_uint32))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI64(rd, BEBOP_WIRE_MUTPTR(int64_t, &v->f_int64))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetU64(rd, BEBOP_WIRE_MUTPTR(uint64_t, &v->f_uint64))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->f_float32))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF64(rd, BEBOP_WIRE_MUTPTR(double, &v->f_float64))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->f_string))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetUUID(rd, BEBOP_WIRE_MUTPTR(Bebop_UUID, &v->f_uuid))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_AllScalars)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_AllScalars__type_info = {
@@ -156,88 +313,153 @@ const Bebop_TypeInfo Reflection_AllScalars__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_AllScalars_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_OptionalFields_EncodedSize(const Reflection_OptionalFields *v) {
-    size_t size = REFLECTION_OPTIONAL_FIELDS_MIN_SIZE;
-    if (BEBOP_WIRE_IS_SOME(v->name)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_UNWRAP(v->name).length + BEBOP_WIRE_SIZE_NUL;
-    }
-    if (BEBOP_WIRE_IS_SOME(v->age)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += BEBOP_WIRE_SIZE_INT32;
-    }
-    if (BEBOP_WIRE_IS_SOME(v->active)) {
-        size += BEBOP_WIRE_SIZE_BYTE;
-        size += BEBOP_WIRE_SIZE_BOOL;
-    }
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_OptionalFields_EncodedSize(const Reflection_OptionalFields* v)
+{
+  size_t size = REFLECTION_OPTIONAL_FIELDS_MIN_SIZE;
+  if (BEBOP_WIRE_IS_SOME(v->name)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_UNWRAP(v->name).length + BEBOP_WIRE_SIZE_NUL;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->age)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += BEBOP_WIRE_SIZE_INT32;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->active)) {
+    size += BEBOP_WIRE_SIZE_BYTE;
+    size += BEBOP_WIRE_SIZE_BOOL;
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Encode(Bebop_Writer *w, const Reflection_OptionalFields *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_OptionalFields)
-    Bebop_WireResult r;
-    size_t len_pos;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) return r;
-    size_t start = Bebop_Writer_Len(w);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Encode(
+    Bebop_Writer* w, const Reflection_OptionalFields* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_OptionalFields)
+  Bebop_WireResult r;
+  size_t len_pos;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  size_t start = Bebop_Writer_Len(w);
 
-    if (BEBOP_WIRE_IS_SOME(v->name)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_NAME_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, BEBOP_WIRE_UNWRAP(v->name))) != BEBOP_WIRE_OK)) return r;
+  if (BEBOP_WIRE_IS_SOME(v->name)) {
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_NAME_TAG)) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_IS_SOME(v->age)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_AGE_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, BEBOP_WIRE_UNWRAP(v->age))) != BEBOP_WIRE_OK)) return r;
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetStrView(w, BEBOP_WIRE_UNWRAP(v->name))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_IS_SOME(v->active)) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG)) != BEBOP_WIRE_OK)) return r;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetBool(w, BEBOP_WIRE_UNWRAP(v->active))) != BEBOP_WIRE_OK)) return r;
+  }
+  if (BEBOP_WIRE_IS_SOME(v->age)) {
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_AGE_TAG)) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, 0)) != BEBOP_WIRE_OK)) return r;
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetI32(w, BEBOP_WIRE_UNWRAP(v->age))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
+    }
+  }
+  if (BEBOP_WIRE_IS_SOME(v->active)) {
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetByte(w, REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG)) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
+    }
+    if (BEBOP_WIRE_UNLIKELY(
+            (r = Bebop_Writer_SetBool(w, BEBOP_WIRE_UNWRAP(v->active))) != BEBOP_WIRE_OK
+        ))
+    {
+      return r;
+    }
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, 0)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
 
-    // @@bebop_insertion_point(encode_end:Reflection_OptionalFields)
-    return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
+  // @@bebop_insertion_point(encode_end:Reflection_OptionalFields)
+  return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_OptionalFields *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_OptionalFields)
-    Bebop_WireResult r;
-    uint32_t msg_len;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) return r;
-    const uint8_t *end = Bebop_Reader_Ptr(rd) + msg_len;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_OptionalFields* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_OptionalFields)
+  Bebop_WireResult r;
+  uint32_t msg_len;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
-    BEBOP_WIRE_SET_NONE(v->name);
-    BEBOP_WIRE_SET_NONE(v->age);
-    BEBOP_WIRE_SET_NONE(v->active);
+  BEBOP_WIRE_SET_NONE(v->name);
+  BEBOP_WIRE_SET_NONE(v->age);
+  BEBOP_WIRE_SET_NONE(v->active);
 
-    while (Bebop_Reader_Ptr(rd) < end) {
-        uint8_t tag;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &tag)) != BEBOP_WIRE_OK)) return r;
-        if (tag == 0) break;
+  while (Bebop_Reader_Ptr(rd) < end) {
+    uint8_t tag;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &tag)) != BEBOP_WIRE_OK)) {
+      return r;
+    }
+    if (tag == 0) {
+      break;
+    }
 
-        switch (tag) {
-        case REFLECTION_OPTIONAL_FIELDS_NAME_TAG:
-            v->name.has_value = true;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->name.value))) != BEBOP_WIRE_OK)) return r;
-            break;
-        case REFLECTION_OPTIONAL_FIELDS_AGE_TAG:
-            v->age.has_value = true;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->age.value))) != BEBOP_WIRE_OK)) return r;
-            break;
-        case REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG:
-            v->active.has_value = true;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetBool(rd, BEBOP_WIRE_MUTPTR(bool, &v->active.value))) != BEBOP_WIRE_OK)) return r;
-            break;
-        // @@bebop_insertion_point(decode_switch:Reflection_OptionalFields)
-        default:
-            Bebop_Reader_Seek(rd, end);
-            goto done;
+    switch (tag) {
+      case REFLECTION_OPTIONAL_FIELDS_NAME_TAG:
+        v->name.has_value = true;
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->name.value)))
+                != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
         }
+        break;
+      case REFLECTION_OPTIONAL_FIELDS_AGE_TAG:
+        v->age.has_value = true;
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->age.value)))
+                != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
+        }
+        break;
+      case REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG:
+        v->active.has_value = true;
+        if (BEBOP_WIRE_UNLIKELY(
+                (r = Bebop_Reader_GetBool(rd, BEBOP_WIRE_MUTPTR(bool, &v->active.value)))
+                != BEBOP_WIRE_OK
+            ))
+        {
+          return r;
+        }
+        break;
+      // @@bebop_insertion_point(decode_switch:Reflection_OptionalFields)
+      default:
+        Bebop_Reader_Seek(rd, end);
+        goto done;
     }
+  }
 
-    done:
-    // @@bebop_insertion_point(decode_end:Reflection_OptionalFields)
-    return BEBOP_WIRE_OK;
+done:
+  // @@bebop_insertion_point(decode_end:Reflection_OptionalFields)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_OptionalFields__type_info = {
@@ -248,77 +470,130 @@ const Bebop_TypeInfo Reflection_OptionalFields__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_OptionalFields_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_ArrayContainer_EncodedSize(const Reflection_ArrayContainer *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_LEN;
-    size += v->integers.length * BEBOP_WIRE_SIZE_INT32;
-    size += BEBOP_WIRE_SIZE_LEN;
-    for (size_t _i0 = 0; _i0 < v->strings.length; _i0++) {
-        size += BEBOP_WIRE_SIZE_LEN + v->strings.data[_i0].length + BEBOP_WIRE_SIZE_NUL;
-    }
-    size += BEBOP_WIRE_SIZE_LEN;
-    for (size_t _i0 = 0; _i0 < v->points.length; _i0++) {
-        size += Reflection_Point_EncodedSize(&v->points.data[_i0]);
-    }
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_ArrayContainer_EncodedSize(const Reflection_ArrayContainer* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_LEN;
+  size += v->integers.length * BEBOP_WIRE_SIZE_INT32;
+  size += BEBOP_WIRE_SIZE_LEN;
+  for (size_t _i0 = 0; _i0 < v->strings.length; _i0++) {
+    size += BEBOP_WIRE_SIZE_LEN + v->strings.data[_i0].length + BEBOP_WIRE_SIZE_NUL;
+  }
+  size += BEBOP_WIRE_SIZE_LEN;
+  for (size_t _i0 = 0; _i0 < v->points.length; _i0++) {
+    size += Reflection_Point_EncodedSize(&v->points.data[_i0]);
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Encode(Bebop_Writer *w, const Reflection_ArrayContainer *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_ArrayContainer)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32Array(w, v->integers.data, v->integers.length)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->strings.length)) != BEBOP_WIRE_OK)) return r;
-    for (size_t _i0 = 0; _i0 < v->strings.length; _i0++) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->strings.data[_i0])) != BEBOP_WIRE_OK)) return r;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Encode(
+    Bebop_Writer* w, const Reflection_ArrayContainer* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_ArrayContainer)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetI32Array(w, v->integers.data, v->integers.length)) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetU32(w, (uint32_t)v->strings.length)) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  for (size_t _i0 = 0; _i0 < v->strings.length; _i0++) {
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->strings.data[_i0])) != BEBOP_WIRE_OK))
+    {
+      return r;
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->points.length)) != BEBOP_WIRE_OK)) return r;
-    for (size_t _i0 = 0; _i0 < v->points.length; _i0++) {
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->points.data[_i0])) != BEBOP_WIRE_OK)) return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->points.length)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
+  for (size_t _i0 = 0; _i0 < v->points.length; _i0++) {
+    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->points.data[_i0])) != BEBOP_WIRE_OK))
+    {
+      return r;
     }
-    // @@bebop_insertion_point(encode_end:Reflection_ArrayContainer)
-    return BEBOP_WIRE_OK;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_ArrayContainer)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_ArrayContainer *v) {
-    // @@bebop_insertion_point(decode_start:Reflection_ArrayContainer)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->length = _len;
-        BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->data = BEBOP_WIRE_CASTPTR(int32_t *, Bebop_Reader_Ptr(rd));
-        BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->capacity = 0;
-        Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_INT32);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_ArrayContainer* v
+)
+{
+  // @@bebop_insertion_point(decode_start:Reflection_ArrayContainer)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->length = _len;
-        Bebop_Str *_d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
-        if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) return BEBOP_WIRE_ERR_OOM;
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            if (_i0 + 8 < _len) BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 8]);
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &_d0[_i0]))) != BEBOP_WIRE_OK)) return r;
-        }
-        BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->data = _d0;
-        BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->capacity = 0;
+    BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->length = _len;
+    BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->data =
+        BEBOP_WIRE_CASTPTR(int32_t*, Bebop_Reader_Ptr(rd));
+    BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->capacity = 0;
+    Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_INT32);
+  }
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->length = _len;
-        Reflection_Point *_d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
-        if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) return BEBOP_WIRE_ERR_OOM;
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            if (_i0 + 4 < _len) BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 4]);
-            if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &_d0[_i0]))) != BEBOP_WIRE_OK)) return r;
-        }
-        BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->data = _d0;
-        BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->capacity = 0;
+    BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->length = _len;
+    Bebop_Str* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
+      return BEBOP_WIRE_ERR_OOM;
     }
-    // @@bebop_insertion_point(decode_end:Reflection_ArrayContainer)
-    return BEBOP_WIRE_OK;
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      if (_i0 + 8 < _len) {
+        BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 8]);
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &_d0[_i0])))
+              != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+    }
+    BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->data = _d0;
+    BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->capacity = 0;
+  }
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
+    }
+    BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->length = _len;
+    Reflection_Point* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
+      return BEBOP_WIRE_ERR_OOM;
+    }
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      if (_i0 + 4 < _len) {
+        BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 4]);
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &_d0[_i0])))
+              != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+    }
+    BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->data = _d0;
+    BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->capacity = 0;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_ArrayContainer)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_ArrayContainer__type_info = {
@@ -329,29 +604,66 @@ const Bebop_TypeInfo Reflection_ArrayContainer__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_ArrayContainer_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_FixedArrayContainer_EncodedSize(const Reflection_FixedArrayContainer *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_FIXED_ARRAY_CONTAINER_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_FixedArrayContainer_EncodedSize(
+    const Reflection_FixedArrayContainer* v
+)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_FIXED_ARRAY_CONTAINER_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Encode(Bebop_Writer *w, const Reflection_FixedArrayContainer *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_FixedArrayContainer)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetFixedF32Array(w, v->coords, BEBOP_ARRAY_COUNT(v->coords))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetFixedU8Array(w, v->bytes, BEBOP_ARRAY_COUNT(v->bytes))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_FixedArrayContainer)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Encode(
+    Bebop_Writer* w, const Reflection_FixedArrayContainer* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_FixedArrayContainer)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetFixedF32Array(w, v->coords, BEBOP_ARRAY_COUNT(v->coords)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetFixedU8Array(w, v->bytes, BEBOP_ARRAY_COUNT(v->bytes)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_FixedArrayContainer)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_FixedArrayContainer *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_FixedArrayContainer)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetFixedF32Array(rd, BEBOP_WIRE_MUTPTR(float, v->coords), BEBOP_ARRAY_COUNT(v->coords))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetFixedU8Array(rd, BEBOP_WIRE_MUTPTR(uint8_t, v->bytes), BEBOP_ARRAY_COUNT(v->bytes))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_FixedArrayContainer)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_FixedArrayContainer* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_FixedArrayContainer)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetFixedF32Array(
+               rd, BEBOP_WIRE_MUTPTR(float, v->coords), BEBOP_ARRAY_COUNT(v->coords)
+           ))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetFixedU8Array(
+               rd, BEBOP_WIRE_MUTPTR(uint8_t, v->bytes), BEBOP_ARRAY_COUNT(v->bytes)
+           ))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_FixedArrayContainer)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_FixedArrayContainer__type_info = {
@@ -362,90 +674,154 @@ const Bebop_TypeInfo Reflection_FixedArrayContainer__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_FixedArrayContainer_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_MapContainer_EncodedSize(const Reflection_MapContainer *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_LEN;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->string_to_int);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            size += BEBOP_WIRE_SIZE_LEN + (*(Bebop_Str*)_mk0).length + BEBOP_WIRE_SIZE_NUL;
-            size += BEBOP_WIRE_SIZE_INT32;
-        }
+BEBOP_WIRE_PURE size_t Reflection_MapContainer_EncodedSize(const Reflection_MapContainer* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_LEN;
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->string_to_int);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      size += BEBOP_WIRE_SIZE_LEN + (*(Bebop_Str*)_mk0).length + BEBOP_WIRE_SIZE_NUL;
+      size += BEBOP_WIRE_SIZE_INT32;
     }
-    size += BEBOP_WIRE_SIZE_LEN;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->int_to_point);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            size += BEBOP_WIRE_SIZE_INT32;
-            size += Reflection_Point_EncodedSize(&(*(Reflection_Point*)_mv0));
-        }
+  }
+  size += BEBOP_WIRE_SIZE_LEN;
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->int_to_point);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      size += BEBOP_WIRE_SIZE_INT32;
+      size += Reflection_Point_EncodedSize(&(*(Reflection_Point*)_mv0));
     }
-    return size;
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Encode(Bebop_Writer *w, const Reflection_MapContainer *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_MapContainer)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->string_to_int.length)) != BEBOP_WIRE_OK)) return r;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->string_to_int);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, (*(Bebop_Str*)_mk0))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, (*(int32_t*)_mv0))) != BEBOP_WIRE_OK)) return r;
-        }
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Encode(
+    Bebop_Writer* w, const Reflection_MapContainer* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_MapContainer)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetU32(w, (uint32_t)v->string_to_int.length)) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->string_to_int);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Writer_SetStrView(w, (*(Bebop_Str*)_mk0))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, (*(int32_t*)_mv0))) != BEBOP_WIRE_OK)) {
+        return r;
+      }
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->int_to_point.length)) != BEBOP_WIRE_OK)) return r;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->int_to_point);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, (*(int32_t*)_mk0))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &(*(Reflection_Point*)_mv0))) != BEBOP_WIRE_OK)) return r;
-        }
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetU32(w, (uint32_t)v->int_to_point.length)) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->int_to_point);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, (*(int32_t*)_mk0))) != BEBOP_WIRE_OK)) {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Point_Encode(w, &(*(Reflection_Point*)_mv0))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
     }
-    // @@bebop_insertion_point(encode_end:Reflection_MapContainer)
-    return BEBOP_WIRE_OK;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_MapContainer)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_MapContainer *v) {
-    // @@bebop_insertion_point(decode_start:Reflection_MapContainer)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        Bebop_Map_Init(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->string_to_int), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str);
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            Bebop_Str* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Str));
-            int32_t* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(int32_t));
-            if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &(*_k0)))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &(*_v0)))) != BEBOP_WIRE_OK)) return r;
-            Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->string_to_int), _k0, _v0);
-        }
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_MapContainer* v
+)
+{
+  // @@bebop_insertion_point(decode_start:Reflection_MapContainer)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        Bebop_Map_Init(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->int_to_point), ctx, Bebop_MapHash_I32, Bebop_MapEq_I32);
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            int32_t* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(int32_t));
-            Reflection_Point* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(Reflection_Point));
-            if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &(*_k0)))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &(*_v0)))) != BEBOP_WIRE_OK)) return r;
-            Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->int_to_point), _k0, _v0);
-        }
+    Bebop_Map_Init(
+        BEBOP_WIRE_MUTPTR(Bebop_Map, &v->string_to_int), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str
+    );
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      Bebop_Str* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Str));
+      int32_t* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(int32_t));
+      if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) {
+        return BEBOP_WIRE_ERR_OOM;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &(*_k0)))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &(*_v0)))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->string_to_int), _k0, _v0);
     }
-    // @@bebop_insertion_point(decode_end:Reflection_MapContainer)
-    return BEBOP_WIRE_OK;
+  }
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
+    }
+    Bebop_Map_Init(
+        BEBOP_WIRE_MUTPTR(Bebop_Map, &v->int_to_point), ctx, Bebop_MapHash_I32, Bebop_MapEq_I32
+    );
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      int32_t* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(int32_t));
+      Reflection_Point* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(Reflection_Point));
+      if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) {
+        return BEBOP_WIRE_ERR_OOM;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &(*_k0)))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &(*_v0))))
+              != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->int_to_point), _k0, _v0);
+    }
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_MapContainer)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_MapContainer__type_info = {
@@ -456,31 +832,52 @@ const Bebop_TypeInfo Reflection_MapContainer__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_MapContainer_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Outer_Inner_EncodedSize(const Reflection_Outer_Inner *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_LEN + v->value.length + BEBOP_WIRE_SIZE_NUL;
-    size += BEBOP_WIRE_SIZE_INT32;
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_Outer_Inner_EncodedSize(const Reflection_Outer_Inner* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_LEN + v->value.length + BEBOP_WIRE_SIZE_NUL;
+  size += BEBOP_WIRE_SIZE_INT32;
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Encode(Bebop_Writer *w, const Reflection_Outer_Inner *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Outer_Inner)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->value)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->count)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Outer_Inner)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Encode(
+    Bebop_Writer* w, const Reflection_Outer_Inner* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Outer_Inner)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->value)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->count)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Outer_Inner)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Outer_Inner *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Outer_Inner)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->value))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->count))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Outer_Inner)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Outer_Inner* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Outer_Inner)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->value))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->count))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Outer_Inner)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Outer_Inner__type_info = {
@@ -491,31 +888,53 @@ const Bebop_TypeInfo Reflection_Outer_Inner__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Outer_Inner_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Outer_EncodedSize(const Reflection_Outer *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_INT32;
-    size += Reflection_Outer_Inner_EncodedSize(&v->inner);
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_Outer_EncodedSize(const Reflection_Outer* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_INT32;
+  size += Reflection_Outer_Inner_EncodedSize(&v->inner);
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Encode(Bebop_Writer *w, const Reflection_Outer *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Outer)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->id)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Outer_Inner_Encode(w, &v->inner)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Outer)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Encode(Bebop_Writer* w, const Reflection_Outer* v)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Outer)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetI32(w, v->id)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Outer_Inner_Encode(w, &v->inner)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Outer)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Outer *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Outer)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->id))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Outer_Inner_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Outer_Inner, &v->inner))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Outer)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Outer* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Outer)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetI32(rd, BEBOP_WIRE_MUTPTR(int32_t, &v->id))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Outer_Inner_Decode(
+               ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Outer_Inner, &v->inner)
+           ))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Outer)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Outer__type_info = {
@@ -526,35 +945,53 @@ const Bebop_TypeInfo Reflection_Outer__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Outer_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_WithEnum_EncodedSize(const Reflection_WithEnum *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_BYTE;
-    size += BEBOP_WIRE_SIZE_LEN + v->name.length + BEBOP_WIRE_SIZE_NUL;
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_WithEnum_EncodedSize(const Reflection_WithEnum* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_BYTE;
+  size += BEBOP_WIRE_SIZE_LEN + v->name.length + BEBOP_WIRE_SIZE_NUL;
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Encode(Bebop_Writer *w, const Reflection_WithEnum *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_WithEnum)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, (uint8_t)v->status)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->name)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_WithEnum)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Encode(
+    Bebop_Writer* w, const Reflection_WithEnum* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_WithEnum)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, (uint8_t)v->status)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->name)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_WithEnum)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_WithEnum *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_WithEnum)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    {
-        uint8_t _tmp;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &_tmp)) != BEBOP_WIRE_OK)) return r;
-        *BEBOP_WIRE_MUTPTR(Reflection_Status, &v->status) = (Reflection_Status)_tmp;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_WithEnum* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_WithEnum)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  {
+    uint8_t _tmp;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &_tmp)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->name))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_WithEnum)
-    return BEBOP_WIRE_OK;
+    *BEBOP_WIRE_MUTPTR(Reflection_Status, &v->status) = (Reflection_Status)_tmp;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->name))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_WithEnum)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_WithEnum__type_info = {
@@ -565,29 +1002,51 @@ const Bebop_TypeInfo Reflection_WithEnum__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_WithEnum_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Circle_EncodedSize(const Reflection_Shape_Circle *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_SHAPE_CIRCLE_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_Shape_Circle_EncodedSize(const Reflection_Shape_Circle* v)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_SHAPE_CIRCLE_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Encode(Bebop_Writer *w, const Reflection_Shape_Circle *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Shape_Circle)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->radius)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->center)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Shape_Circle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Circle* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Shape_Circle)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->radius)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->center)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Shape_Circle)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Circle *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Shape_Circle)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->radius))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->center))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Shape_Circle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Circle* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Shape_Circle)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->radius))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->center)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Shape_Circle)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Shape_Circle__type_info = {
@@ -598,31 +1057,60 @@ const Bebop_TypeInfo Reflection_Shape_Circle__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Shape_Circle_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Rectangle_EncodedSize(const Reflection_Shape_Rectangle *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_SHAPE_RECTANGLE_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_Shape_Rectangle_EncodedSize(const Reflection_Shape_Rectangle* v)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_SHAPE_RECTANGLE_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Encode(Bebop_Writer *w, const Reflection_Shape_Rectangle *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Shape_Rectangle)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->width)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->height)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->origin)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Shape_Rectangle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Rectangle* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Shape_Rectangle)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->width)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetF32(w, v->height)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->origin)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Shape_Rectangle)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Rectangle *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Shape_Rectangle)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->width))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->height))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->origin))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Shape_Rectangle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Rectangle* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Shape_Rectangle)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->width))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetF32(rd, BEBOP_WIRE_MUTPTR(float, &v->height))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->origin)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Shape_Rectangle)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Shape_Rectangle__type_info = {
@@ -633,31 +1121,62 @@ const Bebop_TypeInfo Reflection_Shape_Rectangle__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Shape_Rectangle_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Triangle_EncodedSize(const Reflection_Shape_Triangle *v) {
-    BEBOP_WIRE_UNUSED(v);
-    return REFLECTION_SHAPE_TRIANGLE_FIXED_SIZE;
+BEBOP_WIRE_PURE size_t Reflection_Shape_Triangle_EncodedSize(const Reflection_Shape_Triangle* v)
+{
+  BEBOP_WIRE_UNUSED(v);
+  return REFLECTION_SHAPE_TRIANGLE_FIXED_SIZE;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Encode(Bebop_Writer *w, const Reflection_Shape_Triangle *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Shape_Triangle)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->a)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->b)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->c)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Shape_Triangle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Triangle* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Shape_Triangle)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->a)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->b)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Encode(w, &v->c)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Shape_Triangle)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Triangle *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Shape_Triangle)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->a))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->b))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->c))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Shape_Triangle)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Triangle* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Shape_Triangle)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->a)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->b)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Reflection_Point_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Reflection_Point, &v->c)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Shape_Triangle)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Shape_Triangle__type_info = {
@@ -668,79 +1187,123 @@ const Bebop_TypeInfo Reflection_Shape_Triangle__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Shape_Triangle_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_EncodedSize(const Reflection_Shape *v) {
-    size_t size = REFLECTION_SHAPE_MIN_SIZE;
-    switch (v->discriminator) {
+BEBOP_WIRE_PURE size_t Reflection_Shape_EncodedSize(const Reflection_Shape* v)
+{
+  size_t size = REFLECTION_SHAPE_MIN_SIZE;
+  switch (v->discriminator) {
     case REFLECTION_SHAPE_CIRCLE:
-        size += Reflection_Shape_Circle_EncodedSize(&v->circle);
-        break;
+      size += Reflection_Shape_Circle_EncodedSize(&v->circle);
+      break;
     case REFLECTION_SHAPE_RECTANGLE:
-        size += Reflection_Shape_Rectangle_EncodedSize(&v->rectangle);
-        break;
+      size += Reflection_Shape_Rectangle_EncodedSize(&v->rectangle);
+      break;
     case REFLECTION_SHAPE_TRIANGLE:
-        size += Reflection_Shape_Triangle_EncodedSize(&v->triangle);
-        break;
-    default: break;
-    }
-    return size;
+      size += Reflection_Shape_Triangle_EncodedSize(&v->triangle);
+      break;
+    default:
+      break;
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Encode(Bebop_Writer *w, const Reflection_Shape *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Shape)
-    Bebop_WireResult r;
-    size_t len_pos;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) return r;
-    size_t start = Bebop_Writer_Len(w);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Encode(Bebop_Writer* w, const Reflection_Shape* v)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Shape)
+  Bebop_WireResult r;
+  size_t len_pos;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  size_t start = Bebop_Writer_Len(w);
 
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, (uint8_t)v->discriminator)) != BEBOP_WIRE_OK)) return r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, (uint8_t)v->discriminator)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
 
-    switch (v->discriminator) {
+  switch (v->discriminator) {
     case REFLECTION_SHAPE_CIRCLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Circle_Encode(w, &v->circle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Circle_Encode(w, &v->circle)) != BEBOP_WIRE_OK))
+      {
+        return r;
+      }
+      break;
     case REFLECTION_SHAPE_RECTANGLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Rectangle_Encode(w, &v->rectangle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Shape_Rectangle_Encode(w, &v->rectangle)) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      break;
     case REFLECTION_SHAPE_TRIANGLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Triangle_Encode(w, &v->triangle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Shape_Triangle_Encode(w, &v->triangle)) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      break;
     // @@bebop_insertion_point(encode_switch:Reflection_Shape)
-    default: return BEBOP_WIRE_ERR_INVALID;
-    }
+    default:
+      return BEBOP_WIRE_ERR_INVALID;
+  }
 
-    // @@bebop_insertion_point(encode_end:Reflection_Shape)
-    return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
+  // @@bebop_insertion_point(encode_end:Reflection_Shape)
+  return Bebop_Writer_FillLen(w, len_pos, (uint32_t)(Bebop_Writer_Len(w) - start));
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape *v) {
-    // @@bebop_insertion_point(decode_start:Reflection_Shape)
-    Bebop_WireResult r;
-    uint32_t union_len;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) return r;
-    const uint8_t *end = Bebop_Reader_Ptr(rd) + union_len;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape* v
+)
+{
+  // @@bebop_insertion_point(decode_start:Reflection_Shape)
+  Bebop_WireResult r;
+  uint32_t union_len;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  const uint8_t* end = Bebop_Reader_Ptr(rd) + union_len;
 
-    uint8_t disc;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &disc)) != BEBOP_WIRE_OK)) return r;
-    v->discriminator = (Reflection_Shape_Disc)disc;
+  uint8_t disc;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &disc)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  v->discriminator = (Reflection_Shape_Disc)disc;
 
-    switch (v->discriminator) {
+  switch (v->discriminator) {
     case REFLECTION_SHAPE_CIRCLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Circle_Decode(ctx, rd, &v->circle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Shape_Circle_Decode(ctx, rd, &v->circle)) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      break;
     case REFLECTION_SHAPE_RECTANGLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Rectangle_Decode(ctx, rd, &v->rectangle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Shape_Rectangle_Decode(ctx, rd, &v->rectangle)) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      break;
     case REFLECTION_SHAPE_TRIANGLE:
-        if (BEBOP_WIRE_UNLIKELY((r = Reflection_Shape_Triangle_Decode(ctx, rd, &v->triangle)) != BEBOP_WIRE_OK)) return r;
-        break;
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Reflection_Shape_Triangle_Decode(ctx, rd, &v->triangle)) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      break;
     // @@bebop_insertion_point(decode_switch:Reflection_Shape)
     default:
-        Bebop_Reader_Seek(rd, end);
-        break;
-    }
+      Bebop_Reader_Seek(rd, end);
+      break;
+  }
 
-    // @@bebop_insertion_point(decode_end:Reflection_Shape)
-    return BEBOP_WIRE_OK;
+  // @@bebop_insertion_point(decode_end:Reflection_Shape)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Shape__type_info = {
@@ -751,34 +1314,61 @@ const Bebop_TypeInfo Reflection_Shape__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Shape_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_Event_EncodedSize(const Reflection_Event *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_UUID;
-    size += BEBOP_WIRE_SIZE_UINT64;
-    size += Bebop_Any_EncodedSize(&v->payload);
-    return size;
+BEBOP_WIRE_PURE size_t Reflection_Event_EncodedSize(const Reflection_Event* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_UUID;
+  size += BEBOP_WIRE_SIZE_UINT64;
+  size += Bebop_Any_EncodedSize(&v->payload);
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Encode(Bebop_Writer *w, const Reflection_Event *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_Event)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetUUID(w, v->id)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU64(w, v->timestamp)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &v->payload)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Reflection_Event)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Encode(Bebop_Writer* w, const Reflection_Event* v)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_Event)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetUUID(w, v->id)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU64(w, v->timestamp)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &v->payload)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_Event)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Event *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Reflection_Event)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetUUID(rd, BEBOP_WIRE_MUTPTR(Bebop_UUID, &v->id))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU64(rd, BEBOP_WIRE_MUTPTR(uint64_t, &v->timestamp))) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &v->payload))) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(decode_end:Reflection_Event)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Event* v
+)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Reflection_Event)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetUUID(rd, BEBOP_WIRE_MUTPTR(Bebop_UUID, &v->id))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetU64(rd, BEBOP_WIRE_MUTPTR(uint64_t, &v->timestamp))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &v->payload)))
+          != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_Event)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_Event__type_info = {
@@ -789,78 +1379,129 @@ const Bebop_TypeInfo Reflection_Event__type_info = {
     .decode_fn = (Bebop_DecodeFn)Reflection_Event_Decode,
 };
 
-BEBOP_WIRE_PURE size_t Reflection_AnyContainer_EncodedSize(const Reflection_AnyContainer *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_LEN;
-    for (size_t _i0 = 0; _i0 < v->items.length; _i0++) {
-        size += Bebop_Any_EncodedSize(&v->items.data[_i0]);
+BEBOP_WIRE_PURE size_t Reflection_AnyContainer_EncodedSize(const Reflection_AnyContainer* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_LEN;
+  for (size_t _i0 = 0; _i0 < v->items.length; _i0++) {
+    size += Bebop_Any_EncodedSize(&v->items.data[_i0]);
+  }
+  size += BEBOP_WIRE_SIZE_LEN;
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->named);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      size += BEBOP_WIRE_SIZE_LEN + (*(Bebop_Str*)_mk0).length + BEBOP_WIRE_SIZE_NUL;
+      size += Bebop_Any_EncodedSize(&(*(Bebop_Any*)_mv0));
     }
-    size += BEBOP_WIRE_SIZE_LEN;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->named);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            size += BEBOP_WIRE_SIZE_LEN + (*(Bebop_Str*)_mk0).length + BEBOP_WIRE_SIZE_NUL;
-            size += Bebop_Any_EncodedSize(&(*(Bebop_Any*)_mv0));
-        }
-    }
-    return size;
+  }
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Encode(Bebop_Writer *w, const Reflection_AnyContainer *v) {
-    // @@bebop_insertion_point(encode_start:Reflection_AnyContainer)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->items.length)) != BEBOP_WIRE_OK)) return r;
-    for (size_t _i0 = 0; _i0 < v->items.length; _i0++) {
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &v->items.data[_i0])) != BEBOP_WIRE_OK)) return r;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Encode(
+    Bebop_Writer* w, const Reflection_AnyContainer* v
+)
+{
+  // @@bebop_insertion_point(encode_start:Reflection_AnyContainer)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->items.length)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
+  for (size_t _i0 = 0; _i0 < v->items.length; _i0++) {
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &v->items.data[_i0])) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->named.length)) != BEBOP_WIRE_OK)) return r;
-    {
-        Bebop_MapIter _mit0;
-        Bebop_MapIter_Init(&_mit0, &v->named);
-        void *_mk0, *_mv0;
-        while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, (*(Bebop_Str*)_mk0))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &(*(Bebop_Any*)_mv0))) != BEBOP_WIRE_OK)) return r;
-        }
+  }
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)v->named.length)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
+  {
+    Bebop_MapIter _mit0;
+    Bebop_MapIter_Init(&_mit0, &v->named);
+    void *_mk0, *_mv0;
+    while (Bebop_MapIter_Next(&_mit0, &_mk0, &_mv0)) {
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Writer_SetStrView(w, (*(Bebop_Str*)_mk0))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Encode(w, &(*(Bebop_Any*)_mv0))) != BEBOP_WIRE_OK)) {
+        return r;
+      }
     }
-    // @@bebop_insertion_point(encode_end:Reflection_AnyContainer)
-    return BEBOP_WIRE_OK;
+  }
+  // @@bebop_insertion_point(encode_end:Reflection_AnyContainer)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_AnyContainer *v) {
-    // @@bebop_insertion_point(decode_start:Reflection_AnyContainer)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->length = _len;
-        Bebop_Any *_d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
-        if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) return BEBOP_WIRE_ERR_OOM;
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            if (_i0 + 4 < _len) BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 4]);
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &_d0[_i0]))) != BEBOP_WIRE_OK)) return r;
-        }
-        BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->data = _d0;
-        BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->capacity = 0;
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_AnyContainer* v
+)
+{
+  // @@bebop_insertion_point(decode_start:Reflection_AnyContainer)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        Bebop_Map_Init(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->named), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str);
-        for (size_t _i0 = 0; _i0 < _len; _i0++) {
-            Bebop_Str* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Str));
-            Bebop_Any* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Any));
-            if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) return BEBOP_WIRE_ERR_OOM;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &(*_k0)))) != BEBOP_WIRE_OK)) return r;
-            if (BEBOP_WIRE_UNLIKELY((r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &(*_v0)))) != BEBOP_WIRE_OK)) return r;
-            Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->named), _k0, _v0);
-        }
+    BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->length = _len;
+    Bebop_Any* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
+      return BEBOP_WIRE_ERR_OOM;
     }
-    // @@bebop_insertion_point(decode_end:Reflection_AnyContainer)
-    return BEBOP_WIRE_OK;
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      if (_i0 + 4 < _len) {
+        BEBOP_WIRE_PREFETCH_W(&_d0[_i0 + 4]);
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &_d0[_i0])))
+              != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+    }
+    BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->data = _d0;
+    BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->capacity = 0;
+  }
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
+    }
+    Bebop_Map_Init(
+        BEBOP_WIRE_MUTPTR(Bebop_Map, &v->named), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str
+    );
+    for (size_t _i0 = 0; _i0 < _len; _i0++) {
+      Bebop_Str* _k0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Str));
+      Bebop_Any* _v0 = Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Any));
+      if (BEBOP_WIRE_UNLIKELY(!_k0 || !_v0)) {
+        return BEBOP_WIRE_ERR_OOM;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &(*_k0)))) != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      if (BEBOP_WIRE_UNLIKELY(
+              (r = Bebop_Any_Decode(ctx, rd, BEBOP_WIRE_MUTPTR(Bebop_Any, &(*_v0))))
+              != BEBOP_WIRE_OK
+          ))
+      {
+        return r;
+      }
+      Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &v->named), _k0, _v0);
+    }
+  }
+  // @@bebop_insertion_point(decode_end:Reflection_AnyContainer)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Reflection_AnyContainer__type_info = {
@@ -961,14 +1602,36 @@ const BebopReflection_DefinitionDescriptor Reflection_OptionalFields__refl_descr
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_int32_t = {BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_Int32, NULL, NULL, 0, NULL};
-static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_Bebop_Str = {BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_String, NULL, NULL, 0, NULL};
-static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_reflection_Point = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"};
-static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_reflection_Point = {BEBOP_REFLECTION_TYPE_ARRAY, &Reflection_ArrayContainer__type_reflection_Point, NULL, NULL, 0, NULL};
+static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_int32_t = {
+    BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_Int32, NULL, NULL, 0, NULL
+};
+static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_Bebop_Str = {
+    BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_String, NULL, NULL, 0, NULL
+};
+static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"
+};
+static const BebopReflection_TypeDescriptor Reflection_ArrayContainer__type_arr_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_ARRAY,
+    &Reflection_ArrayContainer__type_reflection_Point,
+    NULL,
+    NULL,
+    0,
+    NULL
+};
 static const BebopReflection_FieldDescriptor Reflection_ArrayContainer__refl_fields[3] = {
-    {"integers", &Reflection_ArrayContainer__type_arr_int32_t, 0, offsetof(Reflection_ArrayContainer, integers)},
-    {"strings", &Reflection_ArrayContainer__type_arr_Bebop_Str, 0, offsetof(Reflection_ArrayContainer, strings)},
-    {"points", &Reflection_ArrayContainer__type_arr_reflection_Point, 0, offsetof(Reflection_ArrayContainer, points)},
+    {"integers",
+     &Reflection_ArrayContainer__type_arr_int32_t,
+     0,
+     offsetof(Reflection_ArrayContainer, integers)},
+    {"strings",
+     &Reflection_ArrayContainer__type_arr_Bebop_Str,
+     0,
+     offsetof(Reflection_ArrayContainer, strings)},
+    {"points",
+     &Reflection_ArrayContainer__type_arr_reflection_Point,
+     0,
+     offsetof(Reflection_ArrayContainer, points)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_ArrayContainer__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -985,11 +1648,21 @@ const BebopReflection_DefinitionDescriptor Reflection_ArrayContainer__refl_descr
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_FixedArrayContainer__type_arr_3_float = {BEBOP_REFLECTION_TYPE_FIXED_ARRAY, &BebopReflection_Type_Float32, NULL, NULL, 3, NULL};
-static const BebopReflection_TypeDescriptor Reflection_FixedArrayContainer__type_arr_16_uint8_t = {BEBOP_REFLECTION_TYPE_FIXED_ARRAY, &BebopReflection_Type_Byte, NULL, NULL, 16, NULL};
+static const BebopReflection_TypeDescriptor Reflection_FixedArrayContainer__type_arr_3_float = {
+    BEBOP_REFLECTION_TYPE_FIXED_ARRAY, &BebopReflection_Type_Float32, NULL, NULL, 3, NULL
+};
+static const BebopReflection_TypeDescriptor Reflection_FixedArrayContainer__type_arr_16_uint8_t = {
+    BEBOP_REFLECTION_TYPE_FIXED_ARRAY, &BebopReflection_Type_Byte, NULL, NULL, 16, NULL
+};
 static const BebopReflection_FieldDescriptor Reflection_FixedArrayContainer__refl_fields[2] = {
-    {"coords", &Reflection_FixedArrayContainer__type_arr_3_float, 0, offsetof(Reflection_FixedArrayContainer, coords)},
-    {"bytes", &Reflection_FixedArrayContainer__type_arr_16_uint8_t, 0, offsetof(Reflection_FixedArrayContainer, bytes)},
+    {"coords",
+     &Reflection_FixedArrayContainer__type_arr_3_float,
+     0,
+     offsetof(Reflection_FixedArrayContainer, coords)},
+    {"bytes",
+     &Reflection_FixedArrayContainer__type_arr_16_uint8_t,
+     0,
+     offsetof(Reflection_FixedArrayContainer, bytes)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_FixedArrayContainer__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1006,12 +1679,35 @@ const BebopReflection_DefinitionDescriptor Reflection_FixedArrayContainer__refl_
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_MapContainer__type_map_Bebop_Str_int32_t = {BEBOP_REFLECTION_TYPE_MAP, NULL, &BebopReflection_Type_String, &BebopReflection_Type_Int32, 0, NULL};
-static const BebopReflection_TypeDescriptor Reflection_MapContainer__type_reflection_Point = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"};
-static const BebopReflection_TypeDescriptor Reflection_MapContainer__type_map_int32_t_reflection_Point = {BEBOP_REFLECTION_TYPE_MAP, NULL, &BebopReflection_Type_Int32, &Reflection_MapContainer__type_reflection_Point, 0, NULL};
+static const BebopReflection_TypeDescriptor Reflection_MapContainer__type_map_Bebop_Str_int32_t = {
+    BEBOP_REFLECTION_TYPE_MAP,
+    NULL,
+    &BebopReflection_Type_String,
+    &BebopReflection_Type_Int32,
+    0,
+    NULL
+};
+static const BebopReflection_TypeDescriptor Reflection_MapContainer__type_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"
+};
+static const BebopReflection_TypeDescriptor
+    Reflection_MapContainer__type_map_int32_t_reflection_Point = {
+        BEBOP_REFLECTION_TYPE_MAP,
+        NULL,
+        &BebopReflection_Type_Int32,
+        &Reflection_MapContainer__type_reflection_Point,
+        0,
+        NULL
+};
 static const BebopReflection_FieldDescriptor Reflection_MapContainer__refl_fields[2] = {
-    {"string_to_int", &Reflection_MapContainer__type_map_Bebop_Str_int32_t, 0, offsetof(Reflection_MapContainer, string_to_int)},
-    {"int_to_point", &Reflection_MapContainer__type_map_int32_t_reflection_Point, 0, offsetof(Reflection_MapContainer, int_to_point)},
+    {"string_to_int",
+     &Reflection_MapContainer__type_map_Bebop_Str_int32_t,
+     0,
+     offsetof(Reflection_MapContainer, string_to_int)},
+    {"int_to_point",
+     &Reflection_MapContainer__type_map_int32_t_reflection_Point,
+     0,
+     offsetof(Reflection_MapContainer, int_to_point)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_MapContainer__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1047,7 +1743,9 @@ const BebopReflection_DefinitionDescriptor Reflection_Outer_Inner__refl_descript
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_Outer__type_reflection_Outer_Inner = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Outer.Inner"};
+static const BebopReflection_TypeDescriptor Reflection_Outer__type_reflection_Outer_Inner = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Outer.Inner"
+};
 static const BebopReflection_FieldDescriptor Reflection_Outer__refl_fields[2] = {
     {"id", &BebopReflection_Type_Int32, 0, offsetof(Reflection_Outer, id)},
     {"inner", &Reflection_Outer__type_reflection_Outer_Inner, 0, offsetof(Reflection_Outer, inner)},
@@ -1087,9 +1785,14 @@ const BebopReflection_DefinitionDescriptor Reflection_Status__refl_descriptor = 
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_WithEnum__type_reflection_Status = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Status"};
+static const BebopReflection_TypeDescriptor Reflection_WithEnum__type_reflection_Status = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Status"
+};
 static const BebopReflection_FieldDescriptor Reflection_WithEnum__refl_fields[2] = {
-    {"status", &Reflection_WithEnum__type_reflection_Status, 0, offsetof(Reflection_WithEnum, status)},
+    {"status",
+     &Reflection_WithEnum__type_reflection_Status,
+     0,
+     offsetof(Reflection_WithEnum, status)},
     {"name", &BebopReflection_Type_String, 0, offsetof(Reflection_WithEnum, name)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_WithEnum__refl_descriptor = {
@@ -1107,10 +1810,15 @@ const BebopReflection_DefinitionDescriptor Reflection_WithEnum__refl_descriptor 
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_Shape_Circle__type_reflection_Point = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"};
+static const BebopReflection_TypeDescriptor Reflection_Shape_Circle__type_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"
+};
 static const BebopReflection_FieldDescriptor Reflection_Shape_Circle__refl_fields[2] = {
     {"radius", &BebopReflection_Type_Float32, 0, offsetof(Reflection_Shape_Circle, radius)},
-    {"center", &Reflection_Shape_Circle__type_reflection_Point, 0, offsetof(Reflection_Shape_Circle, center)},
+    {"center",
+     &Reflection_Shape_Circle__type_reflection_Point,
+     0,
+     offsetof(Reflection_Shape_Circle, center)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_Shape_Circle__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1127,11 +1835,16 @@ const BebopReflection_DefinitionDescriptor Reflection_Shape_Circle__refl_descrip
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_Shape_Rectangle__type_reflection_Point = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"};
+static const BebopReflection_TypeDescriptor Reflection_Shape_Rectangle__type_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"
+};
 static const BebopReflection_FieldDescriptor Reflection_Shape_Rectangle__refl_fields[3] = {
     {"width", &BebopReflection_Type_Float32, 0, offsetof(Reflection_Shape_Rectangle, width)},
     {"height", &BebopReflection_Type_Float32, 0, offsetof(Reflection_Shape_Rectangle, height)},
-    {"origin", &Reflection_Shape_Rectangle__type_reflection_Point, 0, offsetof(Reflection_Shape_Rectangle, origin)},
+    {"origin",
+     &Reflection_Shape_Rectangle__type_reflection_Point,
+     0,
+     offsetof(Reflection_Shape_Rectangle, origin)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_Shape_Rectangle__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1148,11 +1861,22 @@ const BebopReflection_DefinitionDescriptor Reflection_Shape_Rectangle__refl_desc
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_Shape_Triangle__type_reflection_Point = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"};
+static const BebopReflection_TypeDescriptor Reflection_Shape_Triangle__type_reflection_Point = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "reflection.Point"
+};
 static const BebopReflection_FieldDescriptor Reflection_Shape_Triangle__refl_fields[3] = {
-    {"a", &Reflection_Shape_Triangle__type_reflection_Point, 0, offsetof(Reflection_Shape_Triangle, a)},
-    {"b", &Reflection_Shape_Triangle__type_reflection_Point, 0, offsetof(Reflection_Shape_Triangle, b)},
-    {"c", &Reflection_Shape_Triangle__type_reflection_Point, 0, offsetof(Reflection_Shape_Triangle, c)},
+    {"a",
+     &Reflection_Shape_Triangle__type_reflection_Point,
+     0,
+     offsetof(Reflection_Shape_Triangle, a)},
+    {"b",
+     &Reflection_Shape_Triangle__type_reflection_Point,
+     0,
+     offsetof(Reflection_Shape_Triangle, b)},
+    {"c",
+     &Reflection_Shape_Triangle__type_reflection_Point,
+     0,
+     offsetof(Reflection_Shape_Triangle, c)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_Shape_Triangle__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1187,7 +1911,9 @@ const BebopReflection_DefinitionDescriptor Reflection_Shape__refl_descriptor = {
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_Event__type_bebop_Any = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Any"};
+static const BebopReflection_TypeDescriptor Reflection_Event__type_bebop_Any = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Any"
+};
 static const BebopReflection_FieldDescriptor Reflection_Event__refl_fields[3] = {
     {"id", &BebopReflection_Type_UUID, 0, offsetof(Reflection_Event, id)},
     {"timestamp", &BebopReflection_Type_UInt64, 0, offsetof(Reflection_Event, timestamp)},
@@ -1208,12 +1934,28 @@ const BebopReflection_DefinitionDescriptor Reflection_Event__refl_descriptor = {
     },
 };
 
-static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_bebop_Any = {BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Any"};
-static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_arr_bebop_Any = {BEBOP_REFLECTION_TYPE_ARRAY, &Reflection_AnyContainer__type_bebop_Any, NULL, NULL, 0, NULL};
-static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_map_Bebop_Str_bebop_Any = {BEBOP_REFLECTION_TYPE_MAP, NULL, &BebopReflection_Type_String, &Reflection_AnyContainer__type_bebop_Any, 0, NULL};
+static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_bebop_Any = {
+    BEBOP_REFLECTION_TYPE_DEFINED, NULL, NULL, NULL, 0, "bebop.Any"
+};
+static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_arr_bebop_Any = {
+    BEBOP_REFLECTION_TYPE_ARRAY, &Reflection_AnyContainer__type_bebop_Any, NULL, NULL, 0, NULL
+};
+static const BebopReflection_TypeDescriptor Reflection_AnyContainer__type_map_Bebop_Str_bebop_Any =
+    {BEBOP_REFLECTION_TYPE_MAP,
+     NULL,
+     &BebopReflection_Type_String,
+     &Reflection_AnyContainer__type_bebop_Any,
+     0,
+     NULL};
 static const BebopReflection_FieldDescriptor Reflection_AnyContainer__refl_fields[2] = {
-    {"items", &Reflection_AnyContainer__type_arr_bebop_Any, 0, offsetof(Reflection_AnyContainer, items)},
-    {"named", &Reflection_AnyContainer__type_map_Bebop_Str_bebop_Any, 0, offsetof(Reflection_AnyContainer, named)},
+    {"items",
+     &Reflection_AnyContainer__type_arr_bebop_Any,
+     0,
+     offsetof(Reflection_AnyContainer, items)},
+    {"named",
+     &Reflection_AnyContainer__type_map_Bebop_Str_bebop_Any,
+     0,
+     offsetof(Reflection_AnyContainer, named)},
 };
 const BebopReflection_DefinitionDescriptor Reflection_AnyContainer__refl_descriptor = {
     .magic = BEBOP_REFLECTION_MAGIC,
@@ -1229,4 +1971,3 @@ const BebopReflection_DefinitionDescriptor Reflection_AnyContainer__refl_descrip
         .is_mutable = false,
     },
 };
-

@@ -180,10 +180,12 @@ void test_load_no_config(void)
 
 #ifdef _WIN32
   const char* tmpdir = getenv("TEMP");
-  if (!tmpdir)
+  if (!tmpdir) {
     tmpdir = getenv("TMP");
-  if (!tmpdir)
+  }
+  if (!tmpdir) {
     tmpdir = "C:\\Windows\\Temp";
+  }
 #else
   const char* tmpdir = "/tmp";
 #endif

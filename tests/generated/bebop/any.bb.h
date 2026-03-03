@@ -46,20 +46,22 @@ message Event {
 Pack a record into Any, then unpack on the other side using `type_url`
 to select the right decoder. */
 struct Bebop_Any {
-    /** Wire-encoded record. Decode using the type indicated by `type_url`. */
-    const Bebop_U8_Array value;
-    /** Format: `{prefix}/{fqn}` (e.g., `type.bebop.sh/myapp.ChatMessage`).
+  /** Wire-encoded record. Decode using the type indicated by `type_url`. */
+  const Bebop_U8_Array value;
+  /** Format: `{prefix}/{fqn}` (e.g., `type.bebop.sh/myapp.ChatMessage`).
 Unpack matches the part after the last `/` against the target type. */
-    const Bebop_Str type_url;
-    // @@bebop_insertion_point(struct_scope:Bebop_Any)
+  const Bebop_Str type_url;
+  // @@bebop_insertion_point(struct_scope:Bebop_Any)
 };
 
 #define BEBOP_ANY_MIN_SIZE 0
 #define BEBOP_ANY_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Any_EncodedSize(const Bebop_Any *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Encode(Bebop_Writer *w, const Bebop_Any *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Any *v);
+BEBOP_WIRE_PURE size_t Bebop_Any_EncodedSize(const Bebop_Any* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Encode(Bebop_Writer* w, const Bebop_Any* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Any* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Bebop_Any__refl_descriptor;
 extern const Bebop_TypeInfo Bebop_Any__type_info;

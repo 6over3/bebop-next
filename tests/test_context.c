@@ -99,7 +99,7 @@ typedef struct {
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable : 4702) // unreachable code
+#pragma warning(disable : 4702)  // unreachable code
 #endif
 static void* tracking_alloc(void* ptr, size_t old_size, size_t new_size, void* user_ctx)
 {

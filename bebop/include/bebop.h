@@ -1288,7 +1288,10 @@ BEBOP_API const uint8_t* bebop_descriptor_literal_as_bytes(
 );
 
 BEBOP_API void bebop_descriptor_literal_as_timestamp(
-    const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
+    const bebop_descriptor_literal_t* l,
+    int64_t* out_seconds,
+    int32_t* out_nanos,
+    int32_t* out_offset_ms
 );
 
 BEBOP_API void bebop_descriptor_literal_as_duration(

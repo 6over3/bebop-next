@@ -13,10 +13,7 @@ static void* fuzz_alloc_fn(size_t size, void* ctx)
   return malloc(size);
 }
 
-static void* fuzz_realloc_fn(void* ptr,
-                             size_t old_size,
-                             size_t new_size,
-                             void* ctx)
+static void* fuzz_realloc_fn(void* ptr, size_t old_size, size_t new_size, void* ctx)
 {
   (void)old_size;
   (void)ctx;
@@ -35,8 +32,7 @@ static bebop_file_result_t fuzz_file_reader_fn(const char* path, void* ctx)
   (void)ctx;
   FILE* f = fopen(path, "rb");
   if (!f) {
-    return (bebop_file_result_t) {
-        .content = NULL, .content_len = 0, .error = "File not found"};
+    return (bebop_file_result_t) {.content = NULL, .content_len = 0, .error = "File not found"};
   }
   fseek(f, 0, SEEK_END);
   long len = ftell(f);
@@ -44,14 +40,12 @@ static bebop_file_result_t fuzz_file_reader_fn(const char* path, void* ctx)
   char* content = (char*)malloc((size_t)len + 1);
   if (!content) {
     fclose(f);
-    return (bebop_file_result_t) {
-        .content = NULL, .content_len = 0, .error = "Out of memory"};
+    return (bebop_file_result_t) {.content = NULL, .content_len = 0, .error = "Out of memory"};
   }
   size_t read = fread(content, 1, (size_t)len, f);
   fclose(f);
   content[read] = '\0';
-  return (bebop_file_result_t) {
-      .content = content, .content_len = read, .error = NULL};
+  return (bebop_file_result_t) {.content = content, .content_len = read, .error = NULL};
 }
 
 static bool fuzz_file_exists_fn(const char* path, void* ctx)

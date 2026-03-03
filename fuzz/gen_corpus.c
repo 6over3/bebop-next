@@ -3,14 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bebop_wire.c"
 #include "../tests/generated/json.bb.c"
+#include "bebop_wire.c"
 
 static void* corpus_alloc(void* ptr, size_t old, size_t new, void* ctx)
 {
   (void)ctx;
   (void)old;
-  if (new == 0) { free(ptr); return NULL; }
+  if (new == 0) {
+    free(ptr);
+    return NULL;
+  }
   return realloc(ptr, new);
 }
 
@@ -38,14 +41,17 @@ static void write_corpus(const char* name, bebop_wire_ctx_t* ctx, bebop_wire_wri
   }
 }
 
-#define STR(s) ((bebop_wire_str_t){.data = (s), .length = sizeof(s) - 1})
-#define JSON_NULL_VAL() ((json_JsonValue){.discriminator = JSON_JSONVALUE_NULL_DISC})
-#define JSON_BOOL_VAL(v) ((json_JsonValue){.discriminator = JSON_JSONVALUE_BOOL_DISC, \
-    .bool_ = {.value = {.has_value = true, .value = (v)}}})
-#define JSON_NUM_VAL(v) ((json_JsonValue){.discriminator = JSON_JSONVALUE_NUMBER_DISC, \
-    .number = {.value = {.has_value = true, .value = (v)}}})
-#define JSON_STR_VAL(s) ((json_JsonValue){.discriminator = JSON_JSONVALUE_STRING_DISC, \
-    .string = {.value = {.has_value = true, .value = STR(s)}}})
+#define STR(s) ((bebop_wire_str_t) {.data = (s), .length = sizeof(s) - 1})
+#define JSON_NULL_VAL() ((json_JsonValue) {.discriminator = JSON_JSONVALUE_NULL_DISC})
+#define JSON_BOOL_VAL(v) \
+  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_BOOL_DISC, \
+                     .bool_ = {.value = {.has_value = true, .value = (v)}}})
+#define JSON_NUM_VAL(v) \
+  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_NUMBER_DISC, \
+                     .number = {.value = {.has_value = true, .value = (v)}}})
+#define JSON_STR_VAL(s) \
+  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_STRING_DISC, \
+                     .string = {.value = {.has_value = true, .value = STR(s)}}})
 
 int main(void)
 {
@@ -143,8 +149,8 @@ int main(void)
     };
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = entries, .length = 3}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = entries, .length = 3}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("obj_package", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -167,16 +173,14 @@ int main(void)
     };
     json_JsonValue items[] = {
         {.discriminator = JSON_JSONVALUE_OBJECT_DISC,
-         .object = {.entries = {.has_value = true,
-                                .value = {.entries = pt1_entries, .length = 2}}}},
+         .object = {.entries = {.has_value = true, .value = {.entries = pt1_entries, .length = 2}}}},
         {.discriminator = JSON_JSONVALUE_OBJECT_DISC,
-         .object = {.entries = {.has_value = true,
-                                .value = {.entries = pt2_entries, .length = 2}}}},
+         .object = {.entries = {.has_value = true, .value = {.entries = pt2_entries, .length = 2}}}},
     };
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true,
-                            .value = {.data = items, .length = 2}}}};
+        .array = {.items = {.has_value = true, .value = {.data = items, .length = 2}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("arr_coords", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -195,27 +199,27 @@ int main(void)
     };
     json_JsonValue user = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = user_entries, .length = 2}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = user_entries, .length = 2}}}
+    };
     json_JsonValue users_arr = {
         .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true,
-                            .value = {.data = &user, .length = 1}}}};
+        .array = {.items = {.has_value = true, .value = {.data = &user, .length = 1}}}
+    };
     bebop_str_json_jsonvalue_map_entry_t data_entries[] = {
         {.key = STR("users"), .value = users_arr},
     };
     json_JsonValue data = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = data_entries, .length = 1}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = data_entries, .length = 1}}}
+    };
     bebop_str_json_jsonvalue_map_entry_t root_entries[] = {
         {.key = STR("status"), .value = JSON_STR_VAL("ok")},
         {.key = STR("data"), .value = data},
     };
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = root_entries, .length = 2}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = root_entries, .length = 2}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("obj_api_response", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -230,8 +234,8 @@ int main(void)
     json_JsonValue nested[] = {JSON_NUM_VAL(3), JSON_NUM_VAL(4)};
     json_JsonValue nested_arr = {
         .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true,
-                            .value = {.data = nested, .length = 2}}}};
+        .array = {.items = {.has_value = true, .value = {.data = nested, .length = 2}}}
+    };
     json_JsonValue items[] = {
         JSON_NUM_VAL(1),
         JSON_STR_VAL("two"),
@@ -241,8 +245,8 @@ int main(void)
     };
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true,
-                            .value = {.data = items, .length = 5}}}};
+        .array = {.items = {.has_value = true, .value = {.data = items, .length = 5}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("arr_mixed", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -255,8 +259,8 @@ int main(void)
     bebop_wire_ctx_writer(ctx, &w);
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true,
-                            .value = {.data = NULL, .length = 0}}}};
+        .array = {.items = {.has_value = true, .value = {.data = NULL, .length = 0}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("arr_empty", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -268,8 +272,8 @@ int main(void)
     bebop_wire_ctx_writer(ctx, &w);
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = NULL, .length = 0}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = NULL, .length = 0}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("obj_empty", ctx, w);
     bebop_wire_ctx_free(ctx);
@@ -286,29 +290,29 @@ int main(void)
     };
     json_JsonValue d = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = d_entries, .length = 1}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = d_entries, .length = 1}}}
+    };
     bebop_str_json_jsonvalue_map_entry_t c_entries[] = {
         {.key = STR("c"), .value = d},
     };
     json_JsonValue c = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = c_entries, .length = 1}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = c_entries, .length = 1}}}
+    };
     bebop_str_json_jsonvalue_map_entry_t b_entries[] = {
         {.key = STR("b"), .value = c},
     };
     json_JsonValue b = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = b_entries, .length = 1}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = b_entries, .length = 1}}}
+    };
     bebop_str_json_jsonvalue_map_entry_t a_entries[] = {
         {.key = STR("a"), .value = b},
     };
     json_JsonValue val = {
         .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true,
-                               .value = {.entries = a_entries, .length = 1}}}};
+        .object = {.entries = {.has_value = true, .value = {.entries = a_entries, .length = 1}}}
+    };
     json_JsonValue_encode(w, &val);
     write_corpus("obj_deep_nested", ctx, w);
     bebop_wire_ctx_free(ctx);

@@ -702,7 +702,8 @@ static bebop_type_t* bebop__parse_type(bebop_parser_t* p)
               while (BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_DOT)) {
                 if (!BEBOP_PARSE_CONSUME_AFTER(
                         p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'"
-                    )) {
+                    ))
+                {
                   return NULL;
                 }
                 bebop_token_t* part = BEBOP_PARSE_PREVIOUS(p);
@@ -1046,7 +1047,11 @@ static bool bebop__parse_literal(
         const char* str = BEBOP_STR(p->ctx, out->string_val);
         const size_t len = BEBOP_STR_LEN(p->ctx, out->string_val);
         if (bebop_util_parse_timestamp(
-                str, len, &out->timestamp_val.seconds, &out->timestamp_val.nanos, &out->timestamp_val.offset_ms
+                str,
+                len,
+                &out->timestamp_val.seconds,
+                &out->timestamp_val.nanos,
+                &out->timestamp_val.offset_ms
             ))
         {
           out->kind = BEBOP_LITERAL_TIMESTAMP;
@@ -1204,8 +1209,8 @@ static bebop_decorator_arg_t* bebop__parse_decorator_args(bebop_parser_t* p, uin
     bebop_span_t name_span = BEBOP_SPAN_INVALID;
 
     const bebop_token_t* peek_tok = bebop__parse_peek(p, 1);
-    if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_IDENTIFIER)
-        && peek_tok && peek_tok->kind == BEBOP_TOKEN_COLON)
+    if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_IDENTIFIER) && peek_tok
+        && peek_tok->kind == BEBOP_TOKEN_COLON)
     {
       const bebop_token_t* name_tok = BEBOP_PARSE_ADVANCE(p);
       arg_name = name_tok->lexeme;
@@ -1262,8 +1267,7 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
 
     while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
       BEBOP_PARSE_ADVANCE(p);
-      if (!BEBOP_PARSE_CONSUME_AFTER(
-              p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'")) {
+      if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'")) {
         break;
       }
       bebop_token_t* next = BEBOP_PARSE_PREVIOUS(p);
@@ -1472,8 +1476,8 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         op = bebop__OP_AND;
       } else {
         const bebop_token_t* peek_tok = bebop__parse_peek(p, 1);
-        if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_LANGLE)
-            && peek_tok && peek_tok->kind == BEBOP_TOKEN_LANGLE)
+        if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_LANGLE) && peek_tok
+            && peek_tok->kind == BEBOP_TOKEN_LANGLE)
         {
           op = bebop__OP_SHIFT;
         }
@@ -2058,10 +2062,13 @@ static bebop_decorator_target_t bebop__parse_target_expr(bebop_parser_t* p)
 {
   bebop_decorator_target_t result = BEBOP_TARGET_NONE;
 
-  if (!BEBOP_PARSE_CONSUME(p,
-                           BEBOP_TOKEN_IDENTIFIER,
-                           "Expected target constant (STRUCT, MESSAGE, ENUM, "
-                           "UNION, FIELD, SERVICE, METHOD, BRANCH, or ALL)")) {
+  if (!BEBOP_PARSE_CONSUME(
+          p,
+          BEBOP_TOKEN_IDENTIFIER,
+          "Expected target constant (STRUCT, MESSAGE, ENUM, " "UNION, FIELD, SERVICE, METHOD, "
+                                                              "BRANCH, or ALL)"
+      ))
+  {
     return BEBOP_TARGET_NONE;
   }
   bebop_token_t* tok = BEBOP_PARSE_PREVIOUS(p);
@@ -2288,7 +2295,9 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
   }
 
   if (!BEBOP_PARSE_CONSUME(
-          p, BEBOP_TOKEN_IDENTIFIER, "Expected decorator name inside '#decorator(...)'")) {
+          p, BEBOP_TOKEN_IDENTIFIER, "Expected decorator name inside '#decorator(...)'"
+      ))
+  {
     bebop__parse_synchronize(p);
     return;
   }
@@ -2795,7 +2804,9 @@ static void bebop__parse_file(bebop_parser_t* p)
 
         if (BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_COLON)) {
           if (BEBOP_PARSE_CONSUME_AFTER(
-                  p, BEBOP_TOKEN_IDENTIFIER, "Expected integer type after ':'")) {
+                  p, BEBOP_TOKEN_IDENTIFIER, "Expected integer type after ':'"
+              ))
+          {
             bebop_token_t* base_tok = BEBOP_PARSE_PREVIOUS(p);
             const char* base_str = BEBOP_STR(p->ctx, base_tok->lexeme);
             size_t base_len = BEBOP_STR_LEN(p->ctx, base_tok->lexeme);
@@ -3402,9 +3413,7 @@ static void bebop__parse_file(bebop_parser_t* p)
           break;
         }
 
-        if (!BEBOP_PARSE_CONSUME_AFTER(
-                p, BEBOP_TOKEN_SEMICOLON, "Expected ';' after union branch"
-            ))
+        if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_SEMICOLON, "Expected ';' after union branch"))
         {
           frame->state = PARSE_STATE_UNION_BODY;
           break;

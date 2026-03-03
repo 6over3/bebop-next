@@ -17,6 +17,7 @@
 #define TEST_DOCUMENT_BOP_H_
 
 #include <bebop_wire.h>
+
 #include "bebop/json.bb.h"
 // @@bebop_insertion_point(includes)
 
@@ -29,26 +30,28 @@ extern "C" {
 typedef struct Test_Document Test_Document;
 
 typedef enum {
-    TEST_DOCUMENT_TITLE_TAG = 1,
-    TEST_DOCUMENT_METADATA_TAG = 2,
-    TEST_DOCUMENT_TAGS_TAG = 3,
-    TEST_DOCUMENT_CONTENT_TAG = 4,
+  TEST_DOCUMENT_TITLE_TAG = 1,
+  TEST_DOCUMENT_METADATA_TAG = 2,
+  TEST_DOCUMENT_TAGS_TAG = 3,
+  TEST_DOCUMENT_CONTENT_TAG = 4,
 } Test_Document_Tag;
 
 struct Test_Document {
-    BEBOP_WIRE_OPT(Bebop_Str) title;
-    BEBOP_WIRE_OPT(Bebop_Object *) metadata;
-    BEBOP_WIRE_OPT(Bebop_List *) tags;
-    BEBOP_WIRE_OPT(Bebop_Value *) content;
-    // @@bebop_insertion_point(struct_scope:Test_Document)
+  BEBOP_WIRE_OPT(Bebop_Str) title;
+  BEBOP_WIRE_OPT(Bebop_Object*) metadata;
+  BEBOP_WIRE_OPT(Bebop_List*) tags;
+  BEBOP_WIRE_OPT(Bebop_Value*) content;
+  // @@bebop_insertion_point(struct_scope:Test_Document)
 };
 
 #define TEST_DOCUMENT_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define TEST_DOCUMENT_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Test_Document_EncodedSize(const Test_Document *v);
-BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Encode(Bebop_Writer *w, const Test_Document *v);
-BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Test_Document *v);
+BEBOP_WIRE_PURE size_t Test_Document_EncodedSize(const Test_Document* v);
+BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Encode(Bebop_Writer* w, const Test_Document* v);
+BEBOP_WIRE_HOT Bebop_WireResult Test_Document_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Test_Document* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Test_Document__refl_descriptor;
 extern const Bebop_TypeInfo Test_Document__type_info;

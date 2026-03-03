@@ -57,30 +57,30 @@ Compound types (19-23) use additional TypeDescriptor fields:
 - `DEFINED`: referenced type FQN in `defined_fqn`
 Value 0 is a sentinel. A valid TypeDescriptor never has `kind == UNKNOWN`. */
 typedef enum {
-    BEBOP_TYPE_KIND_UNKNOWN = 0,
-    BEBOP_TYPE_KIND_BOOL = 1,
-    BEBOP_TYPE_KIND_BYTE = 2,
-    BEBOP_TYPE_KIND_INT_8 = 3,
-    BEBOP_TYPE_KIND_INT_16 = 4,
-    BEBOP_TYPE_KIND_UINT_16 = 5,
-    BEBOP_TYPE_KIND_INT_32 = 6,
-    BEBOP_TYPE_KIND_UINT_32 = 7,
-    BEBOP_TYPE_KIND_INT_64 = 8,
-    BEBOP_TYPE_KIND_UINT_64 = 9,
-    BEBOP_TYPE_KIND_INT_128 = 10,
-    BEBOP_TYPE_KIND_UINT_128 = 11,
-    BEBOP_TYPE_KIND_FLOAT_16 = 12,
-    BEBOP_TYPE_KIND_FLOAT_32 = 13,
-    BEBOP_TYPE_KIND_FLOAT_64 = 14,
-    BEBOP_TYPE_KIND_BFLOAT_16 = 15,
-    BEBOP_TYPE_KIND_STRING = 16,
-    BEBOP_TYPE_KIND_UUID = 17,
-    BEBOP_TYPE_KIND_TIMESTAMP = 18,
-    BEBOP_TYPE_KIND_DURATION = 19,
-    BEBOP_TYPE_KIND_ARRAY = 20,
-    BEBOP_TYPE_KIND_FIXED_ARRAY = 21,
-    BEBOP_TYPE_KIND_MAP = 22,
-    BEBOP_TYPE_KIND_DEFINED = 23,
+  BEBOP_TYPE_KIND_UNKNOWN = 0,
+  BEBOP_TYPE_KIND_BOOL = 1,
+  BEBOP_TYPE_KIND_BYTE = 2,
+  BEBOP_TYPE_KIND_INT_8 = 3,
+  BEBOP_TYPE_KIND_INT_16 = 4,
+  BEBOP_TYPE_KIND_UINT_16 = 5,
+  BEBOP_TYPE_KIND_INT_32 = 6,
+  BEBOP_TYPE_KIND_UINT_32 = 7,
+  BEBOP_TYPE_KIND_INT_64 = 8,
+  BEBOP_TYPE_KIND_UINT_64 = 9,
+  BEBOP_TYPE_KIND_INT_128 = 10,
+  BEBOP_TYPE_KIND_UINT_128 = 11,
+  BEBOP_TYPE_KIND_FLOAT_16 = 12,
+  BEBOP_TYPE_KIND_FLOAT_32 = 13,
+  BEBOP_TYPE_KIND_FLOAT_64 = 14,
+  BEBOP_TYPE_KIND_BFLOAT_16 = 15,
+  BEBOP_TYPE_KIND_STRING = 16,
+  BEBOP_TYPE_KIND_UUID = 17,
+  BEBOP_TYPE_KIND_TIMESTAMP = 18,
+  BEBOP_TYPE_KIND_DURATION = 19,
+  BEBOP_TYPE_KIND_ARRAY = 20,
+  BEBOP_TYPE_KIND_FIXED_ARRAY = 21,
+  BEBOP_TYPE_KIND_MAP = 22,
+  BEBOP_TYPE_KIND_DEFINED = 23,
 } Bebop_TypeKind;
 
 /** Named definition kinds.
@@ -88,14 +88,14 @@ Each DefinitionDescriptor has one kind, which determines which body field
 is populated. A definition with `kind == STRUCT` has `struct_def` set;
 other body fields are absent. */
 typedef enum {
-    BEBOP_DEFINITION_KIND_UNKNOWN = 0,
-    BEBOP_DEFINITION_KIND_ENUM = 1,
-    BEBOP_DEFINITION_KIND_STRUCT = 2,
-    BEBOP_DEFINITION_KIND_MESSAGE = 3,
-    BEBOP_DEFINITION_KIND_UNION = 4,
-    BEBOP_DEFINITION_KIND_SERVICE = 5,
-    BEBOP_DEFINITION_KIND_CONST = 6,
-    BEBOP_DEFINITION_KIND_DECORATOR = 7,
+  BEBOP_DEFINITION_KIND_UNKNOWN = 0,
+  BEBOP_DEFINITION_KIND_ENUM = 1,
+  BEBOP_DEFINITION_KIND_STRUCT = 2,
+  BEBOP_DEFINITION_KIND_MESSAGE = 3,
+  BEBOP_DEFINITION_KIND_UNION = 4,
+  BEBOP_DEFINITION_KIND_SERVICE = 5,
+  BEBOP_DEFINITION_KIND_CONST = 6,
+  BEBOP_DEFINITION_KIND_DECORATOR = 7,
 } Bebop_DefinitionKind;
 
 /** Service method streaming modes.
@@ -107,11 +107,11 @@ Upload(stream Chunk): Res;    // CLIENT_STREAM
 Chat(stream Msg): stream Msg; // DUPLEX_STREAM
 ``` */
 typedef enum {
-    BEBOP_METHOD_TYPE_UNKNOWN = 0,
-    BEBOP_METHOD_TYPE_UNARY = 1,
-    BEBOP_METHOD_TYPE_SERVER_STREAM = 2,
-    BEBOP_METHOD_TYPE_CLIENT_STREAM = 3,
-    BEBOP_METHOD_TYPE_DUPLEX_STREAM = 4,
+  BEBOP_METHOD_TYPE_UNKNOWN = 0,
+  BEBOP_METHOD_TYPE_UNARY = 1,
+  BEBOP_METHOD_TYPE_SERVER_STREAM = 2,
+  BEBOP_METHOD_TYPE_CLIENT_STREAM = 3,
+  BEBOP_METHOD_TYPE_DUPLEX_STREAM = 4,
 } Bebop_MethodType;
 
 /** Definition visibility.
@@ -122,99 +122,154 @@ The `export` keyword on a nested definition makes it reachable as
 `Parent.Child` from other schemas. Local definitions still appear in
 descriptors because exported types may reference them. */
 typedef enum {
-    BEBOP_VISIBILITY_DEFAULT = 0,
-    BEBOP_VISIBILITY_EXPORT = 1,
-    BEBOP_VISIBILITY_LOCAL = 2,
+  BEBOP_VISIBILITY_DEFAULT = 0,
+  BEBOP_VISIBILITY_EXPORT = 1,
+  BEBOP_VISIBILITY_LOCAL = 2,
 } Bebop_Visibility;
 
 /** Literal value kinds.
 Discriminates which value field of LiteralValue is set. */
 typedef enum {
-    BEBOP_LITERAL_KIND_UNKNOWN = 0,
-    BEBOP_LITERAL_KIND_BOOL = 1,
-    BEBOP_LITERAL_KIND_INT = 2,
-    BEBOP_LITERAL_KIND_FLOAT = 3,
-    BEBOP_LITERAL_KIND_STRING = 4,
-    BEBOP_LITERAL_KIND_UUID = 5,
-    BEBOP_LITERAL_KIND_BYTES = 6,
-    BEBOP_LITERAL_KIND_TIMESTAMP = 7,
-    BEBOP_LITERAL_KIND_DURATION = 8,
+  BEBOP_LITERAL_KIND_UNKNOWN = 0,
+  BEBOP_LITERAL_KIND_BOOL = 1,
+  BEBOP_LITERAL_KIND_INT = 2,
+  BEBOP_LITERAL_KIND_FLOAT = 3,
+  BEBOP_LITERAL_KIND_STRING = 4,
+  BEBOP_LITERAL_KIND_UUID = 5,
+  BEBOP_LITERAL_KIND_BYTES = 6,
+  BEBOP_LITERAL_KIND_TIMESTAMP = 7,
+  BEBOP_LITERAL_KIND_DURATION = 8,
 } Bebop_LiteralKind;
 
 typedef enum {
-    BEBOP_DECORATOR_TARGET_NONE = 0x0u,
-    BEBOP_DECORATOR_TARGET_ENUM = 0x1u,
-    BEBOP_DECORATOR_TARGET_STRUCT = 0x2u,
-    BEBOP_DECORATOR_TARGET_MESSAGE = 0x4u,
-    BEBOP_DECORATOR_TARGET_UNION = 0x8u,
-    BEBOP_DECORATOR_TARGET_FIELD = 0x10u,
-    BEBOP_DECORATOR_TARGET_SERVICE = 0x20u,
-    BEBOP_DECORATOR_TARGET_METHOD = 0x40u,
-    BEBOP_DECORATOR_TARGET_BRANCH = 0x80u,
-    BEBOP_DECORATOR_TARGET_ALL = 0xffu,
+  BEBOP_DECORATOR_TARGET_NONE = 0x0u,
+  BEBOP_DECORATOR_TARGET_ENUM = 0x1u,
+  BEBOP_DECORATOR_TARGET_STRUCT = 0x2u,
+  BEBOP_DECORATOR_TARGET_MESSAGE = 0x4u,
+  BEBOP_DECORATOR_TARGET_UNION = 0x8u,
+  BEBOP_DECORATOR_TARGET_FIELD = 0x10u,
+  BEBOP_DECORATOR_TARGET_SERVICE = 0x20u,
+  BEBOP_DECORATOR_TARGET_METHOD = 0x40u,
+  BEBOP_DECORATOR_TARGET_BRANCH = 0x80u,
+  BEBOP_DECORATOR_TARGET_ALL = 0xffu,
 } Bebop_DecoratorTarget;
 
 /** Schema edition markers.
 Edition values are ordered for comparison. Higher values are later editions.
 A compiler rejects source files declaring an edition it does not support. */
 typedef enum {
-    BEBOP_EDITION_UNKNOWN = 0,
-    BEBOP_EDITION_2026 = 1000,
-    BEBOP_EDITION_MAX = 2147483647,
+  BEBOP_EDITION_UNKNOWN = 0,
+  BEBOP_EDITION_2026 = 1000,
+  BEBOP_EDITION_MAX = 2147483647,
 } Bebop_Edition;
 
 #ifndef BEBOP_BEBOP_DECORATORARG_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_DECORATORARG_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_DecoratorArg* data; size_t length; size_t capacity; } Bebop_DecoratorArg_Array;
+
+typedef struct {
+  Bebop_DecoratorArg* data;
+  size_t length;
+  size_t capacity;
+} Bebop_DecoratorArg_Array;
 #endif
 #ifndef BEBOP_BEBOP_DECORATORUSAGE_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_DECORATORUSAGE_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_DecoratorUsage* data; size_t length; size_t capacity; } Bebop_DecoratorUsage_Array;
+
+typedef struct {
+  Bebop_DecoratorUsage* data;
+  size_t length;
+  size_t capacity;
+} Bebop_DecoratorUsage_Array;
 #endif
 #ifndef BEBOP_BEBOP_ENUMMEMBERDESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_ENUMMEMBERDESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_EnumMemberDescriptor* data; size_t length; size_t capacity; } Bebop_EnumMemberDescriptor_Array;
+
+typedef struct {
+  Bebop_EnumMemberDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_EnumMemberDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_FIELDDESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_FIELDDESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_FieldDescriptor* data; size_t length; size_t capacity; } Bebop_FieldDescriptor_Array;
+
+typedef struct {
+  Bebop_FieldDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_FieldDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_UNIONBRANCHDESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_UNIONBRANCHDESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_UnionBranchDescriptor* data; size_t length; size_t capacity; } Bebop_UnionBranchDescriptor_Array;
+
+typedef struct {
+  Bebop_UnionBranchDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_UnionBranchDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_METHODDESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_METHODDESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_MethodDescriptor* data; size_t length; size_t capacity; } Bebop_MethodDescriptor_Array;
+
+typedef struct {
+  Bebop_MethodDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_MethodDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_LITERALVALUE_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_LITERALVALUE_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_LiteralValue* data; size_t length; size_t capacity; } Bebop_LiteralValue_Array;
+
+typedef struct {
+  Bebop_LiteralValue* data;
+  size_t length;
+  size_t capacity;
+} Bebop_LiteralValue_Array;
 #endif
 #ifndef BEBOP_BEBOP_DECORATORPARAMDEF_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_DECORATORPARAMDEF_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_DecoratorParamDef* data; size_t length; size_t capacity; } Bebop_DecoratorParamDef_Array;
+
+typedef struct {
+  Bebop_DecoratorParamDef* data;
+  size_t length;
+  size_t capacity;
+} Bebop_DecoratorParamDef_Array;
 #endif
 #ifndef BEBOP_BEBOP_DEFINITIONDESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_DEFINITIONDESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_DefinitionDescriptor* data; size_t length; size_t capacity; } Bebop_DefinitionDescriptor_Array;
+
+typedef struct {
+  Bebop_DefinitionDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_DefinitionDescriptor_Array;
 #endif
 #ifndef BEBOP_BEBOP_LOCATION_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_LOCATION_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_Location* data; size_t length; size_t capacity; } Bebop_Location_Array;
+
+typedef struct {
+  Bebop_Location* data;
+  size_t length;
+  size_t capacity;
+} Bebop_Location_Array;
 #endif
 #ifndef BEBOP_BEBOP_SCHEMADESCRIPTOR_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_SCHEMADESCRIPTOR_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_SchemaDescriptor* data; size_t length; size_t capacity; } Bebop_SchemaDescriptor_Array;
+
+typedef struct {
+  Bebop_SchemaDescriptor* data;
+  size_t length;
+  size_t capacity;
+} Bebop_SchemaDescriptor_Array;
 #endif
 typedef enum {
-    BEBOP_TYPE_DESCRIPTOR_KIND_TAG = 1,
-    BEBOP_TYPE_DESCRIPTOR_ARRAY_ELEMENT_TAG = 2,
-    BEBOP_TYPE_DESCRIPTOR_FIXED_ARRAY_ELEMENT_TAG = 3,
-    BEBOP_TYPE_DESCRIPTOR_FIXED_ARRAY_SIZE_TAG = 4,
-    BEBOP_TYPE_DESCRIPTOR_MAP_KEY_TAG = 5,
-    BEBOP_TYPE_DESCRIPTOR_MAP_VALUE_TAG = 6,
-    BEBOP_TYPE_DESCRIPTOR_DEFINED_FQN_TAG = 7,
+  BEBOP_TYPE_DESCRIPTOR_KIND_TAG = 1,
+  BEBOP_TYPE_DESCRIPTOR_ARRAY_ELEMENT_TAG = 2,
+  BEBOP_TYPE_DESCRIPTOR_FIXED_ARRAY_ELEMENT_TAG = 3,
+  BEBOP_TYPE_DESCRIPTOR_FIXED_ARRAY_SIZE_TAG = 4,
+  BEBOP_TYPE_DESCRIPTOR_MAP_KEY_TAG = 5,
+  BEBOP_TYPE_DESCRIPTOR_MAP_VALUE_TAG = 6,
+  BEBOP_TYPE_DESCRIPTOR_DEFINED_FQN_TAG = 7,
 } Bebop_TypeDescriptor_Tag;
 
 /** Type reference.
@@ -235,34 +290,34 @@ array_element.map_value.kind=DEFINED
 array_element.map_value.defined_fqn="mypackage.Item"
 ``` */
 struct Bebop_TypeDescriptor {
-    /** Discriminates which fields below are populated. */
-    BEBOP_WIRE_OPT(Bebop_TypeKind) kind;
-    /** Element type when `kind == ARRAY`. */
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) array_element;
-    /** Element type when `kind == FIXED_ARRAY`. */
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) fixed_array_element;
-    /** Element count when `kind == FIXED_ARRAY`. Range 1-65535. */
-    BEBOP_WIRE_OPT(uint32_t) fixed_array_size;
-    /** Key type when `kind == MAP`. Must be hashable (bool, integers, string, uuid). */
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) map_key;
-    /** Value type when `kind == MAP`. */
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) map_value;
-    /** FQN when `kind == DEFINED`. Always fully qualified after linking. */
-    BEBOP_WIRE_OPT(Bebop_Str) defined_fqn;
-    // @@bebop_insertion_point(struct_scope:Bebop_TypeDescriptor)
+  /** Discriminates which fields below are populated. */
+  BEBOP_WIRE_OPT(Bebop_TypeKind) kind;
+  /** Element type when `kind == ARRAY`. */
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) array_element;
+  /** Element type when `kind == FIXED_ARRAY`. */
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) fixed_array_element;
+  /** Element count when `kind == FIXED_ARRAY`. Range 1-65535. */
+  BEBOP_WIRE_OPT(uint32_t) fixed_array_size;
+  /** Key type when `kind == MAP`. Must be hashable (bool, integers, string, uuid). */
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) map_key;
+  /** Value type when `kind == MAP`. */
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) map_value;
+  /** FQN when `kind == DEFINED`. Always fully qualified after linking. */
+  BEBOP_WIRE_OPT(Bebop_Str) defined_fqn;
+  // @@bebop_insertion_point(struct_scope:Bebop_TypeDescriptor)
 };
 
 typedef enum {
-    BEBOP_LITERAL_VALUE_KIND_TAG = 1,
-    BEBOP_LITERAL_VALUE_BOOL_VALUE_TAG = 2,
-    BEBOP_LITERAL_VALUE_INT_VALUE_TAG = 3,
-    BEBOP_LITERAL_VALUE_FLOAT_VALUE_TAG = 4,
-    BEBOP_LITERAL_VALUE_STRING_VALUE_TAG = 5,
-    BEBOP_LITERAL_VALUE_UUID_VALUE_TAG = 6,
-    BEBOP_LITERAL_VALUE_RAW_VALUE_TAG = 7,
-    BEBOP_LITERAL_VALUE_BYTES_VALUE_TAG = 8,
-    BEBOP_LITERAL_VALUE_TIMESTAMP_VALUE_TAG = 9,
-    BEBOP_LITERAL_VALUE_DURATION_VALUE_TAG = 10,
+  BEBOP_LITERAL_VALUE_KIND_TAG = 1,
+  BEBOP_LITERAL_VALUE_BOOL_VALUE_TAG = 2,
+  BEBOP_LITERAL_VALUE_INT_VALUE_TAG = 3,
+  BEBOP_LITERAL_VALUE_FLOAT_VALUE_TAG = 4,
+  BEBOP_LITERAL_VALUE_STRING_VALUE_TAG = 5,
+  BEBOP_LITERAL_VALUE_UUID_VALUE_TAG = 6,
+  BEBOP_LITERAL_VALUE_RAW_VALUE_TAG = 7,
+  BEBOP_LITERAL_VALUE_BYTES_VALUE_TAG = 8,
+  BEBOP_LITERAL_VALUE_TIMESTAMP_VALUE_TAG = 9,
+  BEBOP_LITERAL_VALUE_DURATION_VALUE_TAG = 10,
 } Bebop_LiteralValue_Tag;
 
 /** Concrete value.
@@ -271,36 +326,36 @@ defaults/constraints. One typed value field is set, determined by `kind`.
 The `raw_value` field preserves pre-expansion text for constants using
 environment variable substitution (`$(...)`). */
 struct Bebop_LiteralValue {
-    BEBOP_WIRE_OPT(Bebop_LiteralKind) kind;
-    BEBOP_WIRE_OPT(bool) bool_value;
-    BEBOP_WIRE_OPT(int64_t) int_value;
-    BEBOP_WIRE_OPT(double) float_value;
-    BEBOP_WIRE_OPT(Bebop_Str) string_value;
-    BEBOP_WIRE_OPT(Bebop_UUID) uuid_value;
-    /** Original source text before `$(...)` expansion. Only set for string
+  BEBOP_WIRE_OPT(Bebop_LiteralKind) kind;
+  BEBOP_WIRE_OPT(bool) bool_value;
+  BEBOP_WIRE_OPT(int64_t) int_value;
+  BEBOP_WIRE_OPT(double) float_value;
+  BEBOP_WIRE_OPT(Bebop_Str) string_value;
+  BEBOP_WIRE_OPT(Bebop_UUID) uuid_value;
+  /** Original source text before `$(...)` expansion. Only set for string
 literals that contained environment variable references. */
-    BEBOP_WIRE_OPT(Bebop_Str) raw_value;
-    /** When `kind == BYTES`. */
-    BEBOP_WIRE_OPT(Bebop_U8_Array) bytes_value;
-    /** When `kind == TIMESTAMP`. */
-    BEBOP_WIRE_OPT(Bebop_Timestamp) timestamp_value;
-    /** When `kind == DURATION`. */
-    BEBOP_WIRE_OPT(Bebop_Duration) duration_value;
-    // @@bebop_insertion_point(struct_scope:Bebop_LiteralValue)
+  BEBOP_WIRE_OPT(Bebop_Str) raw_value;
+  /** When `kind == BYTES`. */
+  BEBOP_WIRE_OPT(Bebop_U8_Array) bytes_value;
+  /** When `kind == TIMESTAMP`. */
+  BEBOP_WIRE_OPT(Bebop_Timestamp) timestamp_value;
+  /** When `kind == DURATION`. */
+  BEBOP_WIRE_OPT(Bebop_Duration) duration_value;
+  // @@bebop_insertion_point(struct_scope:Bebop_LiteralValue)
 };
 
 /** Named or positional argument in a decorator usage.
 Positional arguments have an empty string for `name`. */
 struct Bebop_DecoratorArg {
-    const Bebop_Str name;
-    const Bebop_LiteralValue value;
-    // @@bebop_insertion_point(struct_scope:Bebop_DecoratorArg)
+  const Bebop_Str name;
+  const Bebop_LiteralValue value;
+  // @@bebop_insertion_point(struct_scope:Bebop_DecoratorArg)
 };
 
 typedef enum {
-    BEBOP_DECORATOR_USAGE_FQN_TAG = 1,
-    BEBOP_DECORATOR_USAGE_ARGS_TAG = 2,
-    BEBOP_DECORATOR_USAGE_EXPORT_DATA_TAG = 3,
+  BEBOP_DECORATOR_USAGE_FQN_TAG = 1,
+  BEBOP_DECORATOR_USAGE_ARGS_TAG = 2,
+  BEBOP_DECORATOR_USAGE_EXPORT_DATA_TAG = 3,
 } Bebop_DecoratorUsage_Tag;
 
 /** Decorator applied to a definition, field, enum member, branch, or method.
@@ -310,21 +365,21 @@ The `export_data` map holds key-value pairs from executing the decorator's
 Lua export block. Generators read these to access decorator-computed
 metadata without re-running Lua. */
 struct Bebop_DecoratorUsage {
-    /** FQN of the decorator definition (e.g., `validators.range`). */
-    BEBOP_WIRE_OPT(Bebop_Str) fqn;
-    /** Arguments passed at the usage site, in declaration order. */
-    BEBOP_WIRE_OPT(Bebop_DecoratorArg_Array) args;
-    /** Results from the decorator's export block. */
-    BEBOP_WIRE_OPT(Bebop_Map) export_data;
-    // @@bebop_insertion_point(struct_scope:Bebop_DecoratorUsage)
+  /** FQN of the decorator definition (e.g., `validators.range`). */
+  BEBOP_WIRE_OPT(Bebop_Str) fqn;
+  /** Arguments passed at the usage site, in declaration order. */
+  BEBOP_WIRE_OPT(Bebop_DecoratorArg_Array) args;
+  /** Results from the decorator's export block. */
+  BEBOP_WIRE_OPT(Bebop_Map) export_data;
+  // @@bebop_insertion_point(struct_scope:Bebop_DecoratorUsage)
 };
 
 typedef enum {
-    BEBOP_FIELD_DESCRIPTOR_NAME_TAG = 1,
-    BEBOP_FIELD_DESCRIPTOR_DOCUMENTATION_TAG = 2,
-    BEBOP_FIELD_DESCRIPTOR_TYPE_TAG = 3,
-    BEBOP_FIELD_DESCRIPTOR_INDEX_TAG = 4,
-    BEBOP_FIELD_DESCRIPTOR_DECORATORS_TAG = 5,
+  BEBOP_FIELD_DESCRIPTOR_NAME_TAG = 1,
+  BEBOP_FIELD_DESCRIPTOR_DOCUMENTATION_TAG = 2,
+  BEBOP_FIELD_DESCRIPTOR_TYPE_TAG = 3,
+  BEBOP_FIELD_DESCRIPTOR_INDEX_TAG = 4,
+  BEBOP_FIELD_DESCRIPTOR_DECORATORS_TAG = 5,
 } Bebop_FieldDescriptor_Tag;
 
 /** Field in a struct or message.
@@ -334,22 +389,22 @@ Struct and message fields share this type, distinguished by `index`:
 Struct fields encode in declaration order with no separators. Message
 fields encode as (tag, value) pairs in any order, terminated by 0. */
 struct Bebop_FieldDescriptor {
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    /** Text from preceding `///` comments in source. */
-    BEBOP_WIRE_OPT(Bebop_Str) documentation;
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) type;
-    /** Wire tag: 0 for struct fields, 1-255 for message fields. */
-    BEBOP_WIRE_OPT(uint32_t) index;
-    BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
-    // @@bebop_insertion_point(struct_scope:Bebop_FieldDescriptor)
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  /** Text from preceding `///` comments in source. */
+  BEBOP_WIRE_OPT(Bebop_Str) documentation;
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) type;
+  /** Wire tag: 0 for struct fields, 1-255 for message fields. */
+  BEBOP_WIRE_OPT(uint32_t) index;
+  BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
+  // @@bebop_insertion_point(struct_scope:Bebop_FieldDescriptor)
 };
 
 typedef enum {
-    BEBOP_ENUM_MEMBER_DESCRIPTOR_NAME_TAG = 1,
-    BEBOP_ENUM_MEMBER_DESCRIPTOR_DOCUMENTATION_TAG = 2,
-    BEBOP_ENUM_MEMBER_DESCRIPTOR_VALUE_TAG = 3,
-    BEBOP_ENUM_MEMBER_DESCRIPTOR_DECORATORS_TAG = 4,
-    BEBOP_ENUM_MEMBER_DESCRIPTOR_VALUE_EXPR_TAG = 5,
+  BEBOP_ENUM_MEMBER_DESCRIPTOR_NAME_TAG = 1,
+  BEBOP_ENUM_MEMBER_DESCRIPTOR_DOCUMENTATION_TAG = 2,
+  BEBOP_ENUM_MEMBER_DESCRIPTOR_VALUE_TAG = 3,
+  BEBOP_ENUM_MEMBER_DESCRIPTOR_DECORATORS_TAG = 4,
+  BEBOP_ENUM_MEMBER_DESCRIPTOR_VALUE_EXPR_TAG = 5,
 } Bebop_EnumMemberDescriptor_Tag;
 
 /** Enum member (name + integer value).
@@ -357,23 +412,23 @@ The `value` is stored as uint64 regardless of the enum's base type.
 For signed base types, sign-extend from the base type's bit width.
 A member with value 0xFFFFFFFFFFFFFFFF in an int8-based enum is -1. */
 struct Bebop_EnumMemberDescriptor {
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    BEBOP_WIRE_OPT(Bebop_Str) documentation;
-    /** Stored unsigned. Reinterpret per the parent enum's `base_type`. */
-    BEBOP_WIRE_OPT(uint64_t) value;
-    BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
-    /** Original expression text (e.g., `1 << 3`). Absent for simple literals. */
-    BEBOP_WIRE_OPT(Bebop_Str) value_expr;
-    // @@bebop_insertion_point(struct_scope:Bebop_EnumMemberDescriptor)
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  BEBOP_WIRE_OPT(Bebop_Str) documentation;
+  /** Stored unsigned. Reinterpret per the parent enum's `base_type`. */
+  BEBOP_WIRE_OPT(uint64_t) value;
+  BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
+  /** Original expression text (e.g., `1 << 3`). Absent for simple literals. */
+  BEBOP_WIRE_OPT(Bebop_Str) value_expr;
+  // @@bebop_insertion_point(struct_scope:Bebop_EnumMemberDescriptor)
 };
 
 typedef enum {
-    BEBOP_UNION_BRANCH_DESCRIPTOR_DISCRIMINATOR_TAG = 1,
-    BEBOP_UNION_BRANCH_DESCRIPTOR_DOCUMENTATION_TAG = 2,
-    BEBOP_UNION_BRANCH_DESCRIPTOR_INLINE_FQN_TAG = 3,
-    BEBOP_UNION_BRANCH_DESCRIPTOR_TYPE_REF_FQN_TAG = 4,
-    BEBOP_UNION_BRANCH_DESCRIPTOR_NAME_TAG = 5,
-    BEBOP_UNION_BRANCH_DESCRIPTOR_DECORATORS_TAG = 6,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_DISCRIMINATOR_TAG = 1,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_DOCUMENTATION_TAG = 2,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_INLINE_FQN_TAG = 3,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_TYPE_REF_FQN_TAG = 4,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_NAME_TAG = 5,
+  BEBOP_UNION_BRANCH_DESCRIPTOR_DECORATORS_TAG = 6,
 } Bebop_UnionBranchDescriptor_Tag;
 
 /** Union branch.
@@ -391,48 +446,48 @@ union Shape { rect(2): Rect }
 ```
 Sets `type_ref_fqn = "mypackage.Rect"` and `name = "rect"`. */
 struct Bebop_UnionBranchDescriptor {
-    /** Wire discriminator byte. Range 1-255. */
-    BEBOP_WIRE_OPT(uint8_t) discriminator;
-    BEBOP_WIRE_OPT(Bebop_Str) documentation;
-    /** FQN of inline definition. Mutually exclusive with `type_ref_fqn`. */
-    BEBOP_WIRE_OPT(Bebop_Str) inline_fqn;
-    /** FQN of referenced type. Mutually exclusive with `inline_fqn`. */
-    BEBOP_WIRE_OPT(Bebop_Str) type_ref_fqn;
-    /** Branch name for type-reference branches. */
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
-    // @@bebop_insertion_point(struct_scope:Bebop_UnionBranchDescriptor)
+  /** Wire discriminator byte. Range 1-255. */
+  BEBOP_WIRE_OPT(uint8_t) discriminator;
+  BEBOP_WIRE_OPT(Bebop_Str) documentation;
+  /** FQN of inline definition. Mutually exclusive with `type_ref_fqn`. */
+  BEBOP_WIRE_OPT(Bebop_Str) inline_fqn;
+  /** FQN of referenced type. Mutually exclusive with `inline_fqn`. */
+  BEBOP_WIRE_OPT(Bebop_Str) type_ref_fqn;
+  /** Branch name for type-reference branches. */
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
+  // @@bebop_insertion_point(struct_scope:Bebop_UnionBranchDescriptor)
 };
 
 typedef enum {
-    BEBOP_METHOD_DESCRIPTOR_NAME_TAG = 1,
-    BEBOP_METHOD_DESCRIPTOR_DOCUMENTATION_TAG = 2,
-    BEBOP_METHOD_DESCRIPTOR_REQUEST_TYPE_TAG = 3,
-    BEBOP_METHOD_DESCRIPTOR_RESPONSE_TYPE_TAG = 4,
-    BEBOP_METHOD_DESCRIPTOR_METHOD_TYPE_TAG = 5,
-    BEBOP_METHOD_DESCRIPTOR_ID_TAG = 6,
-    BEBOP_METHOD_DESCRIPTOR_DECORATORS_TAG = 7,
+  BEBOP_METHOD_DESCRIPTOR_NAME_TAG = 1,
+  BEBOP_METHOD_DESCRIPTOR_DOCUMENTATION_TAG = 2,
+  BEBOP_METHOD_DESCRIPTOR_REQUEST_TYPE_TAG = 3,
+  BEBOP_METHOD_DESCRIPTOR_RESPONSE_TYPE_TAG = 4,
+  BEBOP_METHOD_DESCRIPTOR_METHOD_TYPE_TAG = 5,
+  BEBOP_METHOD_DESCRIPTOR_ID_TAG = 6,
+  BEBOP_METHOD_DESCRIPTOR_DECORATORS_TAG = 7,
 } Bebop_MethodDescriptor_Tag;
 
 /** Service method.
 The `id` is MurmurHash3 of `/ServiceName/MethodName`, computed at compile
 time. Gives a stable 32-bit routing key without transmitting the full name. */
 struct Bebop_MethodDescriptor {
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    BEBOP_WIRE_OPT(Bebop_Str) documentation;
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) request_type;
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) response_type;
-    BEBOP_WIRE_OPT(Bebop_MethodType) method_type;
-    /** MurmurHash3 of `/ServiceName/MethodName`. */
-    BEBOP_WIRE_OPT(uint32_t) id;
-    BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
-    // @@bebop_insertion_point(struct_scope:Bebop_MethodDescriptor)
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  BEBOP_WIRE_OPT(Bebop_Str) documentation;
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) request_type;
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) response_type;
+  BEBOP_WIRE_OPT(Bebop_MethodType) method_type;
+  /** MurmurHash3 of `/ServiceName/MethodName`. */
+  BEBOP_WIRE_OPT(uint32_t) id;
+  BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
+  // @@bebop_insertion_point(struct_scope:Bebop_MethodDescriptor)
 };
 
 typedef enum {
-    BEBOP_ENUM_DEF_BASE_TYPE_TAG = 1,
-    BEBOP_ENUM_DEF_MEMBERS_TAG = 2,
-    BEBOP_ENUM_DEF_IS_FLAGS_TAG = 3,
+  BEBOP_ENUM_DEF_BASE_TYPE_TAG = 1,
+  BEBOP_ENUM_DEF_MEMBERS_TAG = 2,
+  BEBOP_ENUM_DEF_IS_FLAGS_TAG = 3,
 } Bebop_EnumDef_Tag;
 
 /** Enum definition body.
@@ -441,17 +496,17 @@ Defaults to `UINT32` when no suffix is specified. Valid base types:
 `BYTE`, `INT8`, `INT16`, `UINT16`, `INT32`, `UINT32`, `INT64`, `UINT64`.
 Member values are stored as uint64 and reinterpreted per `base_type`. */
 struct Bebop_EnumDef {
-    BEBOP_WIRE_OPT(Bebop_TypeKind) base_type;
-    BEBOP_WIRE_OPT(Bebop_EnumMemberDescriptor_Array) members;
-    /** True when `@flags` is applied. Members are bit positions for OR. */
-    BEBOP_WIRE_OPT(bool) is_flags;
-    // @@bebop_insertion_point(struct_scope:Bebop_EnumDef)
+  BEBOP_WIRE_OPT(Bebop_TypeKind) base_type;
+  BEBOP_WIRE_OPT(Bebop_EnumMemberDescriptor_Array) members;
+  /** True when `@flags` is applied. Members are bit positions for OR. */
+  BEBOP_WIRE_OPT(bool) is_flags;
+  // @@bebop_insertion_point(struct_scope:Bebop_EnumDef)
 };
 
 typedef enum {
-    BEBOP_STRUCT_DEF_FIELDS_TAG = 1,
-    BEBOP_STRUCT_DEF_IS_MUTABLE_TAG = 2,
-    BEBOP_STRUCT_DEF_FIXED_SIZE_TAG = 3,
+  BEBOP_STRUCT_DEF_FIELDS_TAG = 1,
+  BEBOP_STRUCT_DEF_IS_MUTABLE_TAG = 2,
+  BEBOP_STRUCT_DEF_FIXED_SIZE_TAG = 3,
 } Bebop_StructDef_Tag;
 
 /** Struct definition body.
@@ -459,52 +514,52 @@ Fields encode positionally: bytes concatenated in declaration order,
 no tags, no length prefix (for fixed-size structs). Variable-size structs
 get a u32 byte-length prefix. */
 struct Bebop_StructDef {
-    BEBOP_WIRE_OPT(Bebop_FieldDescriptor_Array) fields;
-    /** True when declared with `mut`. Mutable structs allow field reassignment. */
-    BEBOP_WIRE_OPT(bool) is_mutable;
-    /** Total wire bytes when all fields are fixed-size. Zero when any field
+  BEBOP_WIRE_OPT(Bebop_FieldDescriptor_Array) fields;
+  /** True when declared with `mut`. Mutable structs allow field reassignment. */
+  BEBOP_WIRE_OPT(bool) is_mutable;
+  /** Total wire bytes when all fields are fixed-size. Zero when any field
 is variable-size. Generators use this to pre-allocate buffers. */
-    BEBOP_WIRE_OPT(uint32_t) fixed_size;
-    // @@bebop_insertion_point(struct_scope:Bebop_StructDef)
+  BEBOP_WIRE_OPT(uint32_t) fixed_size;
+  // @@bebop_insertion_point(struct_scope:Bebop_StructDef)
 };
 
 typedef enum {
-    BEBOP_MESSAGE_DEF_FIELDS_TAG = 1,
+  BEBOP_MESSAGE_DEF_FIELDS_TAG = 1,
 } Bebop_MessageDef_Tag;
 
 /** Message definition body.
 Fields encode as tagged pairs (index, value), terminated by zero byte.
 Fields can be added or removed without breaking existing decoders. */
 struct Bebop_MessageDef {
-    BEBOP_WIRE_OPT(Bebop_FieldDescriptor_Array) fields;
-    // @@bebop_insertion_point(struct_scope:Bebop_MessageDef)
+  BEBOP_WIRE_OPT(Bebop_FieldDescriptor_Array) fields;
+  // @@bebop_insertion_point(struct_scope:Bebop_MessageDef)
 };
 
 typedef enum {
-    BEBOP_UNION_DEF_BRANCHES_TAG = 1,
+  BEBOP_UNION_DEF_BRANCHES_TAG = 1,
 } Bebop_UnionDef_Tag;
 
 /** Union definition body.
 Wire encoding: u32 byte_length, discriminator byte, branch payload.
 Decoders read the length to skip unknown discriminators. */
 struct Bebop_UnionDef {
-    BEBOP_WIRE_OPT(Bebop_UnionBranchDescriptor_Array) branches;
-    // @@bebop_insertion_point(struct_scope:Bebop_UnionDef)
+  BEBOP_WIRE_OPT(Bebop_UnionBranchDescriptor_Array) branches;
+  // @@bebop_insertion_point(struct_scope:Bebop_UnionDef)
 };
 
 typedef enum {
-    BEBOP_SERVICE_DEF_METHODS_TAG = 1,
+  BEBOP_SERVICE_DEF_METHODS_TAG = 1,
 } Bebop_ServiceDef_Tag;
 
 /** Service definition body. */
 struct Bebop_ServiceDef {
-    BEBOP_WIRE_OPT(Bebop_MethodDescriptor_Array) methods;
-    // @@bebop_insertion_point(struct_scope:Bebop_ServiceDef)
+  BEBOP_WIRE_OPT(Bebop_MethodDescriptor_Array) methods;
+  // @@bebop_insertion_point(struct_scope:Bebop_ServiceDef)
 };
 
 typedef enum {
-    BEBOP_CONST_DEF_TYPE_TAG = 1,
-    BEBOP_CONST_DEF_VALUE_TAG = 2,
+  BEBOP_CONST_DEF_TYPE_TAG = 1,
+  BEBOP_CONST_DEF_VALUE_TAG = 2,
 } Bebop_ConstDef_Tag;
 
 /** Const definition body.
@@ -516,18 +571,18 @@ const API_KEY : string = $(API_KEY);
 The LiteralValue's `raw_value` preserves `$(API_KEY)` while `string_value`
 holds the expanded result. */
 struct Bebop_ConstDef {
-    BEBOP_WIRE_OPT(Bebop_TypeDescriptor *) type;
-    BEBOP_WIRE_OPT(Bebop_LiteralValue *) value;
-    // @@bebop_insertion_point(struct_scope:Bebop_ConstDef)
+  BEBOP_WIRE_OPT(Bebop_TypeDescriptor*) type;
+  BEBOP_WIRE_OPT(Bebop_LiteralValue*) value;
+  // @@bebop_insertion_point(struct_scope:Bebop_ConstDef)
 };
 
 typedef enum {
-    BEBOP_DECORATOR_PARAM_DEF_NAME_TAG = 1,
-    BEBOP_DECORATOR_PARAM_DEF_DESCRIPTION_TAG = 2,
-    BEBOP_DECORATOR_PARAM_DEF_TYPE_TAG = 3,
-    BEBOP_DECORATOR_PARAM_DEF_REQUIRED_TAG = 4,
-    BEBOP_DECORATOR_PARAM_DEF_DEFAULT_VALUE_TAG = 5,
-    BEBOP_DECORATOR_PARAM_DEF_ALLOWED_VALUES_TAG = 6,
+  BEBOP_DECORATOR_PARAM_DEF_NAME_TAG = 1,
+  BEBOP_DECORATOR_PARAM_DEF_DESCRIPTION_TAG = 2,
+  BEBOP_DECORATOR_PARAM_DEF_TYPE_TAG = 3,
+  BEBOP_DECORATOR_PARAM_DEF_REQUIRED_TAG = 4,
+  BEBOP_DECORATOR_PARAM_DEF_DEFAULT_VALUE_TAG = 5,
+  BEBOP_DECORATOR_PARAM_DEF_ALLOWED_VALUES_TAG = 6,
 } Bebop_DecoratorParamDef_Tag;
 
 /** Decorator parameter definition.
@@ -540,62 +595,62 @@ Defines the schema for one argument a decorator accepts:
 }
 ``` */
 struct Bebop_DecoratorParamDef {
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    /** Description from the `///` comment preceding this param. */
-    BEBOP_WIRE_OPT(Bebop_Str) description;
-    /** Must be a scalar TypeKind. */
-    BEBOP_WIRE_OPT(Bebop_TypeKind) type;
-    /** True for required (`!`) params, false for optional (`?`). */
-    BEBOP_WIRE_OPT(bool) required;
-    /** Default value for optional params. Absent for required params. */
-    BEBOP_WIRE_OPT(Bebop_LiteralValue *) default_value;
-    /** Allowed-value constraint from `in [...]`. When non-empty, arguments
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  /** Description from the `///` comment preceding this param. */
+  BEBOP_WIRE_OPT(Bebop_Str) description;
+  /** Must be a scalar TypeKind. */
+  BEBOP_WIRE_OPT(Bebop_TypeKind) type;
+  /** True for required (`!`) params, false for optional (`?`). */
+  BEBOP_WIRE_OPT(bool) required;
+  /** Default value for optional params. Absent for required params. */
+  BEBOP_WIRE_OPT(Bebop_LiteralValue*) default_value;
+  /** Allowed-value constraint from `in [...]`. When non-empty, arguments
 must match one of these values. */
-    BEBOP_WIRE_OPT(Bebop_LiteralValue_Array) allowed_values;
-    // @@bebop_insertion_point(struct_scope:Bebop_DecoratorParamDef)
+  BEBOP_WIRE_OPT(Bebop_LiteralValue_Array) allowed_values;
+  // @@bebop_insertion_point(struct_scope:Bebop_DecoratorParamDef)
 };
 
 typedef enum {
-    BEBOP_DECORATOR_DEF_TARGETS_TAG = 1,
-    BEBOP_DECORATOR_DEF_ALLOW_MULTIPLE_TAG = 2,
-    BEBOP_DECORATOR_DEF_PARAMS_TAG = 3,
-    BEBOP_DECORATOR_DEF_VALIDATE_SOURCE_TAG = 4,
-    BEBOP_DECORATOR_DEF_EXPORT_SOURCE_TAG = 5,
+  BEBOP_DECORATOR_DEF_TARGETS_TAG = 1,
+  BEBOP_DECORATOR_DEF_ALLOW_MULTIPLE_TAG = 2,
+  BEBOP_DECORATOR_DEF_PARAMS_TAG = 3,
+  BEBOP_DECORATOR_DEF_VALIDATE_SOURCE_TAG = 4,
+  BEBOP_DECORATOR_DEF_EXPORT_SOURCE_TAG = 5,
 } Bebop_DecoratorDef_Tag;
 
 /** Decorator definition body.
 Describes the decorator contract: which elements it can target, what
 parameters it accepts, and optional Lua source for validate/export. */
 struct Bebop_DecoratorDef {
-    /** Bitmask of DecoratorTarget values this decorator may apply to. */
-    BEBOP_WIRE_OPT(Bebop_DecoratorTarget) targets;
-    /** When true, the decorator can appear multiple times on the same target. */
-    BEBOP_WIRE_OPT(bool) allow_multiple;
-    BEBOP_WIRE_OPT(Bebop_DecoratorParamDef_Array) params;
-    /** Lua source for validate block. Runs at compile time to reject invalid
+  /** Bitmask of DecoratorTarget values this decorator may apply to. */
+  BEBOP_WIRE_OPT(Bebop_DecoratorTarget) targets;
+  /** When true, the decorator can appear multiple times on the same target. */
+  BEBOP_WIRE_OPT(bool) allow_multiple;
+  BEBOP_WIRE_OPT(Bebop_DecoratorParamDef_Array) params;
+  /** Lua source for validate block. Runs at compile time to reject invalid
 usages. Absent when the decorator has no validate block. */
-    BEBOP_WIRE_OPT(Bebop_Str) validate_source;
-    /** Lua source for export block. Produces key-value metadata stored in
+  BEBOP_WIRE_OPT(Bebop_Str) validate_source;
+  /** Lua source for export block. Produces key-value metadata stored in
 DecoratorUsage.export_data. Absent when no export block. */
-    BEBOP_WIRE_OPT(Bebop_Str) export_source;
-    // @@bebop_insertion_point(struct_scope:Bebop_DecoratorDef)
+  BEBOP_WIRE_OPT(Bebop_Str) export_source;
+  // @@bebop_insertion_point(struct_scope:Bebop_DecoratorDef)
 };
 
 typedef enum {
-    BEBOP_DEFINITION_DESCRIPTOR_KIND_TAG = 1,
-    BEBOP_DEFINITION_DESCRIPTOR_NAME_TAG = 2,
-    BEBOP_DEFINITION_DESCRIPTOR_FQN_TAG = 3,
-    BEBOP_DEFINITION_DESCRIPTOR_DOCUMENTATION_TAG = 4,
-    BEBOP_DEFINITION_DESCRIPTOR_VISIBILITY_TAG = 5,
-    BEBOP_DEFINITION_DESCRIPTOR_DECORATORS_TAG = 6,
-    BEBOP_DEFINITION_DESCRIPTOR_NESTED_TAG = 7,
-    BEBOP_DEFINITION_DESCRIPTOR_ENUM_DEF_TAG = 8,
-    BEBOP_DEFINITION_DESCRIPTOR_STRUCT_DEF_TAG = 9,
-    BEBOP_DEFINITION_DESCRIPTOR_MESSAGE_DEF_TAG = 10,
-    BEBOP_DEFINITION_DESCRIPTOR_UNION_DEF_TAG = 11,
-    BEBOP_DEFINITION_DESCRIPTOR_SERVICE_DEF_TAG = 12,
-    BEBOP_DEFINITION_DESCRIPTOR_CONST_DEF_TAG = 13,
-    BEBOP_DEFINITION_DESCRIPTOR_DECORATOR_DEF_TAG = 14,
+  BEBOP_DEFINITION_DESCRIPTOR_KIND_TAG = 1,
+  BEBOP_DEFINITION_DESCRIPTOR_NAME_TAG = 2,
+  BEBOP_DEFINITION_DESCRIPTOR_FQN_TAG = 3,
+  BEBOP_DEFINITION_DESCRIPTOR_DOCUMENTATION_TAG = 4,
+  BEBOP_DEFINITION_DESCRIPTOR_VISIBILITY_TAG = 5,
+  BEBOP_DEFINITION_DESCRIPTOR_DECORATORS_TAG = 6,
+  BEBOP_DEFINITION_DESCRIPTOR_NESTED_TAG = 7,
+  BEBOP_DEFINITION_DESCRIPTOR_ENUM_DEF_TAG = 8,
+  BEBOP_DEFINITION_DESCRIPTOR_STRUCT_DEF_TAG = 9,
+  BEBOP_DEFINITION_DESCRIPTOR_MESSAGE_DEF_TAG = 10,
+  BEBOP_DEFINITION_DESCRIPTOR_UNION_DEF_TAG = 11,
+  BEBOP_DEFINITION_DESCRIPTOR_SERVICE_DEF_TAG = 12,
+  BEBOP_DEFINITION_DESCRIPTOR_CONST_DEF_TAG = 13,
+  BEBOP_DEFINITION_DESCRIPTOR_DECORATOR_DEF_TAG = 14,
 } Bebop_DefinitionDescriptor_Tag;
 
 /** Named definition.
@@ -607,40 +662,40 @@ Nested definitions (types declared inside struct/message/union bodies)
 live in the `nested` array. Inline union branch definitions also appear
 there. Each nested definition has its own FQN encoding the full path. */
 struct Bebop_DefinitionDescriptor {
-    BEBOP_WIRE_OPT(Bebop_DefinitionKind) kind;
-    /** Simple name as declared in source. */
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    /** Fully-qualified name including package and parent scopes. */
-    BEBOP_WIRE_OPT(Bebop_Str) fqn;
-    /** Text from preceding `///` comments in source. */
-    BEBOP_WIRE_OPT(Bebop_Str) documentation;
-    BEBOP_WIRE_OPT(Bebop_Visibility) visibility;
-    BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
-    /** Types declared inside this definition's body. */
-    BEBOP_WIRE_OPT(Bebop_DefinitionDescriptor_Array) nested;
-    BEBOP_WIRE_OPT(Bebop_EnumDef *) enum_def;
-    BEBOP_WIRE_OPT(Bebop_StructDef *) struct_def;
-    BEBOP_WIRE_OPT(Bebop_MessageDef *) message_def;
-    BEBOP_WIRE_OPT(Bebop_UnionDef *) union_def;
-    BEBOP_WIRE_OPT(Bebop_ServiceDef *) service_def;
-    BEBOP_WIRE_OPT(Bebop_ConstDef *) const_def;
-    BEBOP_WIRE_OPT(Bebop_DecoratorDef *) decorator_def;
-    // @@bebop_insertion_point(struct_scope:Bebop_DefinitionDescriptor)
+  BEBOP_WIRE_OPT(Bebop_DefinitionKind) kind;
+  /** Simple name as declared in source. */
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  /** Fully-qualified name including package and parent scopes. */
+  BEBOP_WIRE_OPT(Bebop_Str) fqn;
+  /** Text from preceding `///` comments in source. */
+  BEBOP_WIRE_OPT(Bebop_Str) documentation;
+  BEBOP_WIRE_OPT(Bebop_Visibility) visibility;
+  BEBOP_WIRE_OPT(Bebop_DecoratorUsage_Array) decorators;
+  /** Types declared inside this definition's body. */
+  BEBOP_WIRE_OPT(Bebop_DefinitionDescriptor_Array) nested;
+  BEBOP_WIRE_OPT(Bebop_EnumDef*) enum_def;
+  BEBOP_WIRE_OPT(Bebop_StructDef*) struct_def;
+  BEBOP_WIRE_OPT(Bebop_MessageDef*) message_def;
+  BEBOP_WIRE_OPT(Bebop_UnionDef*) union_def;
+  BEBOP_WIRE_OPT(Bebop_ServiceDef*) service_def;
+  BEBOP_WIRE_OPT(Bebop_ConstDef*) const_def;
+  BEBOP_WIRE_OPT(Bebop_DecoratorDef*) decorator_def;
+  // @@bebop_insertion_point(struct_scope:Bebop_DefinitionDescriptor)
 };
 
 typedef enum {
-    BEBOP_LOCATION_PATH_TAG = 1,
-    BEBOP_LOCATION_SPAN_TAG = 2,
-    BEBOP_LOCATION_LEADING_COMMENTS_TAG = 3,
-    BEBOP_LOCATION_TRAILING_COMMENTS_TAG = 4,
-    BEBOP_LOCATION_DETACHED_COMMENTS_TAG = 5,
+  BEBOP_LOCATION_PATH_TAG = 1,
+  BEBOP_LOCATION_SPAN_TAG = 2,
+  BEBOP_LOCATION_LEADING_COMMENTS_TAG = 3,
+  BEBOP_LOCATION_TRAILING_COMMENTS_TAG = 4,
+  BEBOP_LOCATION_DETACHED_COMMENTS_TAG = 5,
 } Bebop_Location_Tag;
 
 /** Source location for a descriptor element.
 Maps descriptor elements to source positions and comments. Used for
 error reporting, documentation extraction, and IDE features. */
 struct Bebop_Location {
-    /** Path into the descriptor tree. Encoded as pairs of (field_tag, index):
+  /** Path into the descriptor tree. Encoded as pairs of (field_tag, index):
 ```
 [5, 0]       -> schema.definitions[0]
 [5, 0, 1, 2] -> schema.definitions[0].fields[2]
@@ -648,22 +703,22 @@ struct Bebop_Location {
 ```
 Field tags correspond to definition body field indices
 (StructDef.fields = 1, EnumDef.members = 2, etc.). */
-    BEBOP_WIRE_OPT(Bebop_I32_Array) path;
-    /** Source span as `[start_line, start_col, end_line, end_col]`.
+  BEBOP_WIRE_OPT(Bebop_I32_Array) path;
+  /** Source span as `[start_line, start_col, end_line, end_col]`.
 All values 1-based. Columns count characters, tabs advance to
 next multiple of 4. */
-    BEBOP_WIRE_OPT_FA(int32_t, [4]) span;
-    /** Comments on adjacent preceding lines with no blank line separation. */
-    BEBOP_WIRE_OPT(Bebop_Str) leading_comments;
-    /** Comment on the same line after the element or after an opening brace. */
-    BEBOP_WIRE_OPT(Bebop_Str) trailing_comments;
-    /** Comment groups separated from the element by blank lines. */
-    BEBOP_WIRE_OPT(Bebop_Str_Array) detached_comments;
-    // @@bebop_insertion_point(struct_scope:Bebop_Location)
+  BEBOP_WIRE_OPT_FA(int32_t, [4]) span;
+  /** Comments on adjacent preceding lines with no blank line separation. */
+  BEBOP_WIRE_OPT(Bebop_Str) leading_comments;
+  /** Comment on the same line after the element or after an opening brace. */
+  BEBOP_WIRE_OPT(Bebop_Str) trailing_comments;
+  /** Comment groups separated from the element by blank lines. */
+  BEBOP_WIRE_OPT(Bebop_Str_Array) detached_comments;
+  // @@bebop_insertion_point(struct_scope:Bebop_Location)
 };
 
 typedef enum {
-    BEBOP_SOURCE_CODE_INFO_LOCATIONS_TAG = 1,
+  BEBOP_SOURCE_CODE_INFO_LOCATIONS_TAG = 1,
 } Bebop_SourceCodeInfo_Tag;
 
 /** Source code info for a schema.
@@ -671,17 +726,17 @@ One Location entry per locatable element. Includes definitions, fields,
 enum members, union branches, and service methods. Not every element
 has a location. */
 struct Bebop_SourceCodeInfo {
-    BEBOP_WIRE_OPT(Bebop_Location_Array) locations;
-    // @@bebop_insertion_point(struct_scope:Bebop_SourceCodeInfo)
+  BEBOP_WIRE_OPT(Bebop_Location_Array) locations;
+  // @@bebop_insertion_point(struct_scope:Bebop_SourceCodeInfo)
 };
 
 typedef enum {
-    BEBOP_SCHEMA_DESCRIPTOR_PATH_TAG = 1,
-    BEBOP_SCHEMA_DESCRIPTOR_PACKAGE_TAG = 2,
-    BEBOP_SCHEMA_DESCRIPTOR_EDITION_TAG = 3,
-    BEBOP_SCHEMA_DESCRIPTOR_IMPORTS_TAG = 4,
-    BEBOP_SCHEMA_DESCRIPTOR_DEFINITIONS_TAG = 5,
-    BEBOP_SCHEMA_DESCRIPTOR_SOURCE_CODE_INFO_TAG = 6,
+  BEBOP_SCHEMA_DESCRIPTOR_PATH_TAG = 1,
+  BEBOP_SCHEMA_DESCRIPTOR_PACKAGE_TAG = 2,
+  BEBOP_SCHEMA_DESCRIPTOR_EDITION_TAG = 3,
+  BEBOP_SCHEMA_DESCRIPTOR_IMPORTS_TAG = 4,
+  BEBOP_SCHEMA_DESCRIPTOR_DEFINITIONS_TAG = 5,
+  BEBOP_SCHEMA_DESCRIPTOR_SOURCE_CODE_INFO_TAG = 6,
 } Bebop_SchemaDescriptor_Tag;
 
 /** Descriptor for a single .bop source file.
@@ -689,22 +744,22 @@ Each source file produces one SchemaDescriptor. Definitions are
 topologically sorted: every type appears after the types it depends on.
 Generators can emit types in array order without forward declarations. */
 struct Bebop_SchemaDescriptor {
-    /** File path as provided to the compiler. */
-    BEBOP_WIRE_OPT(Bebop_Str) path;
-    /** Package declaration from source. Absent when no package is declared. */
-    BEBOP_WIRE_OPT(Bebop_Str) package;
-    BEBOP_WIRE_OPT(Bebop_Edition) edition;
-    /** Import paths in source declaration order. */
-    BEBOP_WIRE_OPT(Bebop_Str_Array) imports;
-    /** All definitions in topological dependency order. */
-    BEBOP_WIRE_OPT(Bebop_DefinitionDescriptor_Array) definitions;
-    /** Source code info. Only present when requested during compilation. */
-    BEBOP_WIRE_OPT(Bebop_SourceCodeInfo *) source_code_info;
-    // @@bebop_insertion_point(struct_scope:Bebop_SchemaDescriptor)
+  /** File path as provided to the compiler. */
+  BEBOP_WIRE_OPT(Bebop_Str) path;
+  /** Package declaration from source. Absent when no package is declared. */
+  BEBOP_WIRE_OPT(Bebop_Str) package;
+  BEBOP_WIRE_OPT(Bebop_Edition) edition;
+  /** Import paths in source declaration order. */
+  BEBOP_WIRE_OPT(Bebop_Str_Array) imports;
+  /** All definitions in topological dependency order. */
+  BEBOP_WIRE_OPT(Bebop_DefinitionDescriptor_Array) definitions;
+  /** Source code info. Only present when requested during compilation. */
+  BEBOP_WIRE_OPT(Bebop_SourceCodeInfo*) source_code_info;
+  // @@bebop_insertion_point(struct_scope:Bebop_SchemaDescriptor)
 };
 
 typedef enum {
-    BEBOP_DESCRIPTOR_SET_SCHEMAS_TAG = 1,
+  BEBOP_DESCRIPTOR_SET_SCHEMAS_TAG = 1,
 } Bebop_DescriptorSet_Tag;
 
 /** Root container for compiled schemas.
@@ -713,136 +768,208 @@ ordered so imported schemas appear before schemas that import them.
 Processing schemas[0..N] in order encounters dependencies before
 they are referenced. */
 struct Bebop_DescriptorSet {
-    BEBOP_WIRE_OPT(Bebop_SchemaDescriptor_Array) schemas;
-    // @@bebop_insertion_point(struct_scope:Bebop_DescriptorSet)
+  BEBOP_WIRE_OPT(Bebop_SchemaDescriptor_Array) schemas;
+  // @@bebop_insertion_point(struct_scope:Bebop_DescriptorSet)
 };
 
 #define BEBOP_TYPE_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_TYPE_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_TypeDescriptor_EncodedSize(const Bebop_TypeDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_TypeDescriptor_Encode(Bebop_Writer *w, const Bebop_TypeDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_TypeDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_TypeDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_TypeDescriptor_EncodedSize(const Bebop_TypeDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_TypeDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_TypeDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_TypeDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_TypeDescriptor* v
+);
 #define BEBOP_LITERAL_VALUE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_LITERAL_VALUE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_LiteralValue_EncodedSize(const Bebop_LiteralValue *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_LiteralValue_Encode(Bebop_Writer *w, const Bebop_LiteralValue *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_LiteralValue_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_LiteralValue *v);
+BEBOP_WIRE_PURE size_t Bebop_LiteralValue_EncodedSize(const Bebop_LiteralValue* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_LiteralValue_Encode(
+    Bebop_Writer* w, const Bebop_LiteralValue* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_LiteralValue_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_LiteralValue* v
+);
 #define BEBOP_DECORATOR_ARG_MIN_SIZE 0
 #define BEBOP_DECORATOR_ARG_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DecoratorArg_EncodedSize(const Bebop_DecoratorArg *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorArg_Encode(Bebop_Writer *w, const Bebop_DecoratorArg *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorArg_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DecoratorArg *v);
+BEBOP_WIRE_PURE size_t Bebop_DecoratorArg_EncodedSize(const Bebop_DecoratorArg* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorArg_Encode(
+    Bebop_Writer* w, const Bebop_DecoratorArg* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorArg_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DecoratorArg* v
+);
 #define BEBOP_DECORATOR_USAGE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DECORATOR_USAGE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DecoratorUsage_EncodedSize(const Bebop_DecoratorUsage *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorUsage_Encode(Bebop_Writer *w, const Bebop_DecoratorUsage *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorUsage_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DecoratorUsage *v);
+BEBOP_WIRE_PURE size_t Bebop_DecoratorUsage_EncodedSize(const Bebop_DecoratorUsage* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorUsage_Encode(
+    Bebop_Writer* w, const Bebop_DecoratorUsage* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorUsage_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DecoratorUsage* v
+);
 #define BEBOP_FIELD_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_FIELD_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_FieldDescriptor_EncodedSize(const Bebop_FieldDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_FieldDescriptor_Encode(Bebop_Writer *w, const Bebop_FieldDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_FieldDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_FieldDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_FieldDescriptor_EncodedSize(const Bebop_FieldDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_FieldDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_FieldDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_FieldDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_FieldDescriptor* v
+);
 #define BEBOP_ENUM_MEMBER_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_ENUM_MEMBER_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_EnumMemberDescriptor_EncodedSize(const Bebop_EnumMemberDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumMemberDescriptor_Encode(Bebop_Writer *w, const Bebop_EnumMemberDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumMemberDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_EnumMemberDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_EnumMemberDescriptor_EncodedSize(const Bebop_EnumMemberDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumMemberDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_EnumMemberDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumMemberDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_EnumMemberDescriptor* v
+);
 #define BEBOP_UNION_BRANCH_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_UNION_BRANCH_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_UnionBranchDescriptor_EncodedSize(const Bebop_UnionBranchDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionBranchDescriptor_Encode(Bebop_Writer *w, const Bebop_UnionBranchDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionBranchDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_UnionBranchDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_UnionBranchDescriptor_EncodedSize(
+    const Bebop_UnionBranchDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionBranchDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_UnionBranchDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionBranchDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_UnionBranchDescriptor* v
+);
 #define BEBOP_METHOD_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_METHOD_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_MethodDescriptor_EncodedSize(const Bebop_MethodDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_MethodDescriptor_Encode(Bebop_Writer *w, const Bebop_MethodDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_MethodDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_MethodDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_MethodDescriptor_EncodedSize(const Bebop_MethodDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_MethodDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_MethodDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_MethodDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_MethodDescriptor* v
+);
 #define BEBOP_ENUM_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_ENUM_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_EnumDef_EncodedSize(const Bebop_EnumDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumDef_Encode(Bebop_Writer *w, const Bebop_EnumDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_EnumDef *v);
+BEBOP_WIRE_PURE size_t Bebop_EnumDef_EncodedSize(const Bebop_EnumDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumDef_Encode(Bebop_Writer* w, const Bebop_EnumDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_EnumDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_EnumDef* v
+);
 #define BEBOP_STRUCT_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_STRUCT_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_StructDef_EncodedSize(const Bebop_StructDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_StructDef_Encode(Bebop_Writer *w, const Bebop_StructDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_StructDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_StructDef *v);
+BEBOP_WIRE_PURE size_t Bebop_StructDef_EncodedSize(const Bebop_StructDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_StructDef_Encode(Bebop_Writer* w, const Bebop_StructDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_StructDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_StructDef* v
+);
 #define BEBOP_MESSAGE_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_MESSAGE_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_MessageDef_EncodedSize(const Bebop_MessageDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_MessageDef_Encode(Bebop_Writer *w, const Bebop_MessageDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_MessageDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_MessageDef *v);
+BEBOP_WIRE_PURE size_t Bebop_MessageDef_EncodedSize(const Bebop_MessageDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_MessageDef_Encode(Bebop_Writer* w, const Bebop_MessageDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_MessageDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_MessageDef* v
+);
 #define BEBOP_UNION_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_UNION_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_UnionDef_EncodedSize(const Bebop_UnionDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionDef_Encode(Bebop_Writer *w, const Bebop_UnionDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_UnionDef *v);
+BEBOP_WIRE_PURE size_t Bebop_UnionDef_EncodedSize(const Bebop_UnionDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionDef_Encode(Bebop_Writer* w, const Bebop_UnionDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_UnionDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_UnionDef* v
+);
 #define BEBOP_SERVICE_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_SERVICE_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_ServiceDef_EncodedSize(const Bebop_ServiceDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_ServiceDef_Encode(Bebop_Writer *w, const Bebop_ServiceDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_ServiceDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_ServiceDef *v);
+BEBOP_WIRE_PURE size_t Bebop_ServiceDef_EncodedSize(const Bebop_ServiceDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_ServiceDef_Encode(Bebop_Writer* w, const Bebop_ServiceDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_ServiceDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_ServiceDef* v
+);
 #define BEBOP_CONST_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_CONST_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_ConstDef_EncodedSize(const Bebop_ConstDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_ConstDef_Encode(Bebop_Writer *w, const Bebop_ConstDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_ConstDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_ConstDef *v);
+BEBOP_WIRE_PURE size_t Bebop_ConstDef_EncodedSize(const Bebop_ConstDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_ConstDef_Encode(Bebop_Writer* w, const Bebop_ConstDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_ConstDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_ConstDef* v
+);
 #define BEBOP_DECORATOR_PARAM_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DECORATOR_PARAM_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DecoratorParamDef_EncodedSize(const Bebop_DecoratorParamDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorParamDef_Encode(Bebop_Writer *w, const Bebop_DecoratorParamDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorParamDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DecoratorParamDef *v);
+BEBOP_WIRE_PURE size_t Bebop_DecoratorParamDef_EncodedSize(const Bebop_DecoratorParamDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorParamDef_Encode(
+    Bebop_Writer* w, const Bebop_DecoratorParamDef* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorParamDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DecoratorParamDef* v
+);
 #define BEBOP_DECORATOR_DEF_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DECORATOR_DEF_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DecoratorDef_EncodedSize(const Bebop_DecoratorDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorDef_Encode(Bebop_Writer *w, const Bebop_DecoratorDef *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorDef_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DecoratorDef *v);
+BEBOP_WIRE_PURE size_t Bebop_DecoratorDef_EncodedSize(const Bebop_DecoratorDef* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorDef_Encode(
+    Bebop_Writer* w, const Bebop_DecoratorDef* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DecoratorDef_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DecoratorDef* v
+);
 #define BEBOP_DEFINITION_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DEFINITION_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DefinitionDescriptor_EncodedSize(const Bebop_DefinitionDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DefinitionDescriptor_Encode(Bebop_Writer *w, const Bebop_DefinitionDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DefinitionDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DefinitionDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_DefinitionDescriptor_EncodedSize(const Bebop_DefinitionDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DefinitionDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_DefinitionDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DefinitionDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DefinitionDescriptor* v
+);
 #define BEBOP_LOCATION_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_LOCATION_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_Location_EncodedSize(const Bebop_Location *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Location_Encode(Bebop_Writer *w, const Bebop_Location *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Location_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Location *v);
+BEBOP_WIRE_PURE size_t Bebop_Location_EncodedSize(const Bebop_Location* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Location_Encode(Bebop_Writer* w, const Bebop_Location* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Location_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Location* v
+);
 #define BEBOP_SOURCE_CODE_INFO_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_SOURCE_CODE_INFO_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_SourceCodeInfo_EncodedSize(const Bebop_SourceCodeInfo *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_SourceCodeInfo_Encode(Bebop_Writer *w, const Bebop_SourceCodeInfo *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_SourceCodeInfo_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_SourceCodeInfo *v);
+BEBOP_WIRE_PURE size_t Bebop_SourceCodeInfo_EncodedSize(const Bebop_SourceCodeInfo* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_SourceCodeInfo_Encode(
+    Bebop_Writer* w, const Bebop_SourceCodeInfo* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_SourceCodeInfo_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_SourceCodeInfo* v
+);
 #define BEBOP_SCHEMA_DESCRIPTOR_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_SCHEMA_DESCRIPTOR_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_SchemaDescriptor_EncodedSize(const Bebop_SchemaDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_SchemaDescriptor_Encode(Bebop_Writer *w, const Bebop_SchemaDescriptor *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_SchemaDescriptor_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_SchemaDescriptor *v);
+BEBOP_WIRE_PURE size_t Bebop_SchemaDescriptor_EncodedSize(const Bebop_SchemaDescriptor* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_SchemaDescriptor_Encode(
+    Bebop_Writer* w, const Bebop_SchemaDescriptor* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_SchemaDescriptor_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_SchemaDescriptor* v
+);
 #define BEBOP_DESCRIPTOR_SET_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define BEBOP_DESCRIPTOR_SET_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Bebop_DescriptorSet_EncodedSize(const Bebop_DescriptorSet *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DescriptorSet_Encode(Bebop_Writer *w, const Bebop_DescriptorSet *v);
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_DescriptorSet_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_DescriptorSet *v);
+BEBOP_WIRE_PURE size_t Bebop_DescriptorSet_EncodedSize(const Bebop_DescriptorSet* v);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DescriptorSet_Encode(
+    Bebop_Writer* w, const Bebop_DescriptorSet* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_DescriptorSet_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_DescriptorSet* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Bebop_TypeKind__refl_descriptor;
 extern const BebopReflection_DefinitionDescriptor Bebop_DefinitionKind__refl_descriptor;

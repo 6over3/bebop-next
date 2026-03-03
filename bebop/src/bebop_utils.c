@@ -809,7 +809,11 @@ static int64_t bebop__util_days_from_civil(int y, int m, int d)
 }
 
 bool bebop_util_parse_timestamp(
-    const char* str, const size_t len, int64_t* out_seconds, int32_t* out_nanos, int32_t* out_offset_ms
+    const char* str,
+    const size_t len,
+    int64_t* out_seconds,
+    int32_t* out_nanos,
+    int32_t* out_offset_ms
 )
 {
   if (!str || len < 20 || !out_seconds || !out_nanos || !out_offset_ms) {

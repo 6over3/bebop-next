@@ -500,15 +500,23 @@ void test_timestamp(void)
       {.seconds = -62135596800, .nanos = 0, .offset_ms = 0},
       {.seconds = 253402300799, .nanos = 999999999, .offset_ms = 0},
 
-      {.seconds = 1609459200, .nanos = 0, .offset_ms = 3600000},    // +01:00 (3600000 ms)
+      {.seconds = 1609459200, .nanos = 0, .offset_ms = 3600000},  // +01:00 (3600000 ms)
       {.seconds = 1609459200, .nanos = 0, .offset_ms = -18000000},  // -05:00 (-18000000 ms)
-      {.seconds = 1609459200, .nanos = 123456789, .offset_ms = 19800000 },  // +05:30 (19800000 ms)
+      {.seconds = 1609459200, .nanos = 123456789, .offset_ms = 19800000},  // +05:30 (19800000 ms)
 
       // Edge cases: maximum and minimum offsets (±24 hours)
-      {.seconds = 1609459200, .nanos = 0, .offset_ms = 86400000},   // +24:00:00 (max positive offset)
-      {.seconds = 1609459200, .nanos = 0, .offset_ms = -86400000},  // -24:00:00 (max negative offset)
-      {.seconds = 1609459200, .nanos = 999999999, .offset_ms = 86399999},  // +23:59:59.999 (max - 1ms)
-      {.seconds = 1609459200, .nanos = 999999999, .offset_ms = -86399999}, // -23:59:59.999 (min + 1ms)
+      {
+          .seconds = 1609459200, .nanos = 0, .offset_ms = 86400000
+      },  // +24:00:00 (max positive offset)
+      {
+          .seconds = 1609459200, .nanos = 0, .offset_ms = -86400000
+      },  // -24:00:00 (max negative offset)
+      {
+          .seconds = 1609459200, .nanos = 999999999, .offset_ms = 86399999
+      },  // +23:59:59.999 (max - 1ms)
+      {
+          .seconds = 1609459200, .nanos = 999999999, .offset_ms = -86399999
+      },  // -23:59:59.999 (min + 1ms)
   };
 
   for (size_t i = 0; i < sizeof(test_timestamps) / sizeof(test_timestamps[0]); i++) {

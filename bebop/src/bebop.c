@@ -32,6 +32,7 @@
 
 #if defined(_MSC_VER) && !defined(__cplusplus) && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
 #define BEBOP__MAX_ALIGN_T_DEFINED
+
 typedef struct {
   long long __max_align_ll;
   long double __max_align_ld;
@@ -879,10 +880,7 @@ bebop_def_t* bebop__schema_find_def(bebop_schema_t* schema, bebop_str_t name);
 bool bebop__schema_has_visibility(bebop_schema_t* source, bebop_schema_t* target);
 
 const char* bebop__lua_wrap_function(
-    bebop_arena_t* arena,
-    bebop__str_view_t source,
-    const char* const* params,
-    uint32_t param_count
+    bebop_arena_t* arena, bebop__str_view_t source, const char* const* params, uint32_t param_count
 );
 
 typedef struct bebop_lua_state bebop_lua_state_t;

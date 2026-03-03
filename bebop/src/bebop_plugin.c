@@ -156,7 +156,9 @@ const char* bebop_plugin_request_file_at(const bebop_plugin_request_t* r, uint32
 
 const char* bebop_plugin_request_parameter(const bebop_plugin_request_t* req)
 {
-  if (req == NULL) return NULL;
+  if (req == NULL) {
+    return NULL;
+  }
   return BEBOP_WIRE_IS_SOME(req->data.parameter) ? req->data.parameter.value.data : NULL;
 }
 
@@ -171,7 +173,8 @@ bebop_version_t bebop_plugin_request_compiler_version(const bebop_plugin_request
 
 uint32_t bebop_plugin_request_schema_count(const bebop_plugin_request_t* req)
 {
-  return req && BEBOP_WIRE_IS_SOME(req->data.schemas) ? (uint32_t)req->data.schemas.value.length : 0;
+  return req && BEBOP_WIRE_IS_SOME(req->data.schemas) ? (uint32_t)req->data.schemas.value.length
+                                                      : 0;
 }
 
 const bebop_descriptor_schema_t* bebop_plugin_request_schema_at(
@@ -308,7 +311,9 @@ bebop_status_t bebop_plugin_response_encode(
 
 const char* bebop_plugin_response_error(const bebop_plugin_response_t* resp)
 {
-  if (resp == NULL) return NULL;
+  if (resp == NULL) {
+    return NULL;
+  }
   return BEBOP_WIRE_IS_SOME(resp->data.error) ? resp->data.error.value.data : NULL;
 }
 
@@ -596,7 +601,12 @@ void bebop_plugin_request_builder_set_version(bebop_plugin_request_builder_t* b,
   if (!b) {
     return;
   }
-  const Bebop_Version ver = {.major = v.major, .minor = v.minor, .patch = v.patch, .suffix = bebop__parser_dup_str(b->ctx, v.suffix ? v.suffix : "")};
+  const Bebop_Version ver = {
+      .major = v.major,
+      .minor = v.minor,
+      .patch = v.patch,
+      .suffix = bebop__parser_dup_str(b->ctx, v.suffix ? v.suffix : "")
+  };
   b->data.compiler_version.has_value = true;
   memcpy(BEBOP_WIRE_MUTPTR(Bebop_Version, &b->data.compiler_version.value), &ver, sizeof(ver));
 }

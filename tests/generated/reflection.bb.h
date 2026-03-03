@@ -17,6 +17,7 @@
 #define REFLECTION_REFLECTION_BOP_H_
 
 #include <bebop_wire.h>
+
 #include "bebop/any.bb.h"
 // @@bebop_insertion_point(includes)
 
@@ -44,259 +45,327 @@ typedef struct Reflection_Event Reflection_Event;
 typedef struct Reflection_AnyContainer Reflection_AnyContainer;
 
 typedef enum {
-    REFLECTION_STATUS_UNKNOWN = 0,
-    REFLECTION_STATUS_ACTIVE = 1,
-    REFLECTION_STATUS_INACTIVE = 2,
-    REFLECTION_STATUS_PENDING = 3,
+  REFLECTION_STATUS_UNKNOWN = 0,
+  REFLECTION_STATUS_ACTIVE = 1,
+  REFLECTION_STATUS_INACTIVE = 2,
+  REFLECTION_STATUS_PENDING = 3,
 } Reflection_Status;
 
 #ifndef BEBOP_REFLECTION_POINT_ARRAY_VIEW_DEFINED_
 #define BEBOP_REFLECTION_POINT_ARRAY_VIEW_DEFINED_
-typedef struct { Reflection_Point* data; size_t length; size_t capacity; } Reflection_Point_Array;
+
+typedef struct {
+  Reflection_Point* data;
+  size_t length;
+  size_t capacity;
+} Reflection_Point_Array;
 #endif
 #ifndef BEBOP_BEBOP_ANY_ARRAY_VIEW_DEFINED_
 #define BEBOP_BEBOP_ANY_ARRAY_VIEW_DEFINED_
-typedef struct { Bebop_Any* data; size_t length; size_t capacity; } Bebop_Any_Array;
+
+typedef struct {
+  Bebop_Any* data;
+  size_t length;
+  size_t capacity;
+} Bebop_Any_Array;
 #endif
 /** Point with two coordinates */
 struct Reflection_Point {
-    const float x;
-    const float y;
-    // @@bebop_insertion_point(struct_scope:Reflection_Point)
+  const float x;
+  const float y;
+  // @@bebop_insertion_point(struct_scope:Reflection_Point)
 };
 
 /** RGB color */
 struct Reflection_Color {
-    const uint8_t r;
-    const uint8_t g;
-    const uint8_t b;
-    const uint8_t a;
-    // @@bebop_insertion_point(struct_scope:Reflection_Color)
+  const uint8_t r;
+  const uint8_t g;
+  const uint8_t b;
+  const uint8_t a;
+  // @@bebop_insertion_point(struct_scope:Reflection_Color)
 };
 
 /** All scalar types for comprehensive testing */
 struct Reflection_AllScalars {
-    const Bebop_Str f_string;
-    const Bebop_UUID f_uuid;
-    const int64_t f_int64;
-    const uint64_t f_uint64;
-    const double f_float64;
-    const int32_t f_int32;
-    const uint32_t f_uint32;
-    const float f_float32;
-    const int16_t f_int16;
-    const uint16_t f_uint16;
-    const bool f_bool;
-    const uint8_t f_byte;
-    const int8_t f_int8;
-    const uint8_t f_uint8;
-    // @@bebop_insertion_point(struct_scope:Reflection_AllScalars)
+  const Bebop_Str f_string;
+  const Bebop_UUID f_uuid;
+  const int64_t f_int64;
+  const uint64_t f_uint64;
+  const double f_float64;
+  const int32_t f_int32;
+  const uint32_t f_uint32;
+  const float f_float32;
+  const int16_t f_int16;
+  const uint16_t f_uint16;
+  const bool f_bool;
+  const uint8_t f_byte;
+  const int8_t f_int8;
+  const uint8_t f_uint8;
+  // @@bebop_insertion_point(struct_scope:Reflection_AllScalars)
 };
 
 typedef enum {
-    REFLECTION_OPTIONAL_FIELDS_NAME_TAG = 1,
-    REFLECTION_OPTIONAL_FIELDS_AGE_TAG = 2,
-    REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG = 3,
+  REFLECTION_OPTIONAL_FIELDS_NAME_TAG = 1,
+  REFLECTION_OPTIONAL_FIELDS_AGE_TAG = 2,
+  REFLECTION_OPTIONAL_FIELDS_ACTIVE_TAG = 3,
 } Reflection_OptionalFields_Tag;
 
 /** Message with optional fields */
 struct Reflection_OptionalFields {
-    BEBOP_WIRE_OPT(Bebop_Str) name;
-    BEBOP_WIRE_OPT(int32_t) age;
-    BEBOP_WIRE_OPT(bool) active;
-    // @@bebop_insertion_point(struct_scope:Reflection_OptionalFields)
+  BEBOP_WIRE_OPT(Bebop_Str) name;
+  BEBOP_WIRE_OPT(int32_t) age;
+  BEBOP_WIRE_OPT(bool) active;
+  // @@bebop_insertion_point(struct_scope:Reflection_OptionalFields)
 };
 
 /** Test for arrays */
 struct Reflection_ArrayContainer {
-    const Bebop_I32_Array integers;
-    const Bebop_Str_Array strings;
-    const Reflection_Point_Array points;
-    // @@bebop_insertion_point(struct_scope:Reflection_ArrayContainer)
+  const Bebop_I32_Array integers;
+  const Bebop_Str_Array strings;
+  const Reflection_Point_Array points;
+  // @@bebop_insertion_point(struct_scope:Reflection_ArrayContainer)
 };
 
 /** Test for fixed arrays */
 struct Reflection_FixedArrayContainer {
-    const float coords[3];
-    const uint8_t bytes[16];
-    // @@bebop_insertion_point(struct_scope:Reflection_FixedArrayContainer)
+  const float coords[3];
+  const uint8_t bytes[16];
+  // @@bebop_insertion_point(struct_scope:Reflection_FixedArrayContainer)
 };
 
 /** Test for maps */
 struct Reflection_MapContainer {
-    const Bebop_Map string_to_int;
-    const Bebop_Map int_to_point;
-    // @@bebop_insertion_point(struct_scope:Reflection_MapContainer)
+  const Bebop_Map string_to_int;
+  const Bebop_Map int_to_point;
+  // @@bebop_insertion_point(struct_scope:Reflection_MapContainer)
 };
 
 struct Reflection_Outer_Inner {
-    const Bebop_Str value;
-    const int32_t count;
-    // @@bebop_insertion_point(struct_scope:Reflection_Outer_Inner)
+  const Bebop_Str value;
+  const int32_t count;
+  // @@bebop_insertion_point(struct_scope:Reflection_Outer_Inner)
 };
 
 /** Nested struct */
 struct Reflection_Outer {
-    const Reflection_Outer_Inner inner;
-    const int32_t id;
-    // @@bebop_insertion_point(struct_scope:Reflection_Outer)
+  const Reflection_Outer_Inner inner;
+  const int32_t id;
+  // @@bebop_insertion_point(struct_scope:Reflection_Outer)
 };
 
 struct Reflection_WithEnum {
-    const Bebop_Str name;
-    const Reflection_Status status;
-    // @@bebop_insertion_point(struct_scope:Reflection_WithEnum)
+  const Bebop_Str name;
+  const Reflection_Status status;
+  // @@bebop_insertion_point(struct_scope:Reflection_WithEnum)
 };
 
 struct Reflection_Shape_Circle {
-    const Reflection_Point center;
-    const float radius;
-    // @@bebop_insertion_point(struct_scope:Reflection_Shape_Circle)
+  const Reflection_Point center;
+  const float radius;
+  // @@bebop_insertion_point(struct_scope:Reflection_Shape_Circle)
 };
 
 struct Reflection_Shape_Rectangle {
-    const Reflection_Point origin;
-    const float width;
-    const float height;
-    // @@bebop_insertion_point(struct_scope:Reflection_Shape_Rectangle)
+  const Reflection_Point origin;
+  const float width;
+  const float height;
+  // @@bebop_insertion_point(struct_scope:Reflection_Shape_Rectangle)
 };
 
 struct Reflection_Shape_Triangle {
-    const Reflection_Point a;
-    const Reflection_Point b;
-    const Reflection_Point c;
-    // @@bebop_insertion_point(struct_scope:Reflection_Shape_Triangle)
+  const Reflection_Point a;
+  const Reflection_Point b;
+  const Reflection_Point c;
+  // @@bebop_insertion_point(struct_scope:Reflection_Shape_Triangle)
 };
 
 /** Union for polymorphic data */
 typedef enum {
-    REFLECTION_SHAPE_NONE = 0,
-    REFLECTION_SHAPE_CIRCLE = 1,
-    REFLECTION_SHAPE_RECTANGLE = 2,
-    REFLECTION_SHAPE_TRIANGLE = 3,
+  REFLECTION_SHAPE_NONE = 0,
+  REFLECTION_SHAPE_CIRCLE = 1,
+  REFLECTION_SHAPE_RECTANGLE = 2,
+  REFLECTION_SHAPE_TRIANGLE = 3,
 } Reflection_Shape_Disc;
 
 struct Reflection_Shape {
-    Reflection_Shape_Disc discriminator;
-    union {
-        Reflection_Shape_Circle circle;
-        Reflection_Shape_Rectangle rectangle;
-        Reflection_Shape_Triangle triangle;
-    };
-    // @@bebop_insertion_point(struct_scope:Reflection_Shape)
+  Reflection_Shape_Disc discriminator;
+
+  union {
+    Reflection_Shape_Circle circle;
+    Reflection_Shape_Rectangle rectangle;
+    Reflection_Shape_Triangle triangle;
+  };
+
+  // @@bebop_insertion_point(struct_scope:Reflection_Shape)
 };
 
 /** Event envelope using Any for polymorphic payload */
 struct Reflection_Event {
-    const Bebop_UUID id;
-    const uint64_t timestamp;
-    const Bebop_Any payload;
-    // @@bebop_insertion_point(struct_scope:Reflection_Event)
+  const Bebop_UUID id;
+  const uint64_t timestamp;
+  const Bebop_Any payload;
+  // @@bebop_insertion_point(struct_scope:Reflection_Event)
 };
 
 /** Container with multiple Any values */
 struct Reflection_AnyContainer {
-    const Bebop_Map named;
-    const Bebop_Any_Array items;
-    // @@bebop_insertion_point(struct_scope:Reflection_AnyContainer)
+  const Bebop_Map named;
+  const Bebop_Any_Array items;
+  // @@bebop_insertion_point(struct_scope:Reflection_AnyContainer)
 };
 
 #define REFLECTION_POINT_MIN_SIZE 8
 #define REFLECTION_POINT_FIXED_SIZE 8
 
-BEBOP_WIRE_PURE size_t Reflection_Point_EncodedSize(const Reflection_Point *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Encode(Bebop_Writer *w, const Reflection_Point *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Point *v);
+BEBOP_WIRE_PURE size_t Reflection_Point_EncodedSize(const Reflection_Point* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Encode(Bebop_Writer* w, const Reflection_Point* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Point_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Point* v
+);
 #define REFLECTION_COLOR_MIN_SIZE 4
 #define REFLECTION_COLOR_FIXED_SIZE 4
 
-BEBOP_WIRE_PURE size_t Reflection_Color_EncodedSize(const Reflection_Color *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Encode(Bebop_Writer *w, const Reflection_Color *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Color *v);
+BEBOP_WIRE_PURE size_t Reflection_Color_EncodedSize(const Reflection_Color* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Encode(Bebop_Writer* w, const Reflection_Color* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Color_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Color* v
+);
 #define REFLECTION_ALL_SCALARS_MIN_SIZE 0
 #define REFLECTION_ALL_SCALARS_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_AllScalars_EncodedSize(const Reflection_AllScalars *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Encode(Bebop_Writer *w, const Reflection_AllScalars *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_AllScalars *v);
+BEBOP_WIRE_PURE size_t Reflection_AllScalars_EncodedSize(const Reflection_AllScalars* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Encode(
+    Bebop_Writer* w, const Reflection_AllScalars* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AllScalars_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_AllScalars* v
+);
 #define REFLECTION_OPTIONAL_FIELDS_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define REFLECTION_OPTIONAL_FIELDS_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_OptionalFields_EncodedSize(const Reflection_OptionalFields *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Encode(Bebop_Writer *w, const Reflection_OptionalFields *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_OptionalFields *v);
+BEBOP_WIRE_PURE size_t Reflection_OptionalFields_EncodedSize(const Reflection_OptionalFields* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Encode(
+    Bebop_Writer* w, const Reflection_OptionalFields* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_OptionalFields_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_OptionalFields* v
+);
 #define REFLECTION_ARRAY_CONTAINER_MIN_SIZE 0
 #define REFLECTION_ARRAY_CONTAINER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_ArrayContainer_EncodedSize(const Reflection_ArrayContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Encode(Bebop_Writer *w, const Reflection_ArrayContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_ArrayContainer *v);
+BEBOP_WIRE_PURE size_t Reflection_ArrayContainer_EncodedSize(const Reflection_ArrayContainer* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Encode(
+    Bebop_Writer* w, const Reflection_ArrayContainer* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_ArrayContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_ArrayContainer* v
+);
 #define REFLECTION_FIXED_ARRAY_CONTAINER_MIN_SIZE 28
 #define REFLECTION_FIXED_ARRAY_CONTAINER_FIXED_SIZE 28
 
-BEBOP_WIRE_PURE size_t Reflection_FixedArrayContainer_EncodedSize(const Reflection_FixedArrayContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Encode(Bebop_Writer *w, const Reflection_FixedArrayContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_FixedArrayContainer *v);
+BEBOP_WIRE_PURE size_t Reflection_FixedArrayContainer_EncodedSize(
+    const Reflection_FixedArrayContainer* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Encode(
+    Bebop_Writer* w, const Reflection_FixedArrayContainer* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_FixedArrayContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_FixedArrayContainer* v
+);
 #define REFLECTION_MAP_CONTAINER_MIN_SIZE 0
 #define REFLECTION_MAP_CONTAINER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_MapContainer_EncodedSize(const Reflection_MapContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Encode(Bebop_Writer *w, const Reflection_MapContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_MapContainer *v);
+BEBOP_WIRE_PURE size_t Reflection_MapContainer_EncodedSize(const Reflection_MapContainer* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Encode(
+    Bebop_Writer* w, const Reflection_MapContainer* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_MapContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_MapContainer* v
+);
 #define REFLECTION_OUTER_INNER_MIN_SIZE 0
 #define REFLECTION_OUTER_INNER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_Outer_Inner_EncodedSize(const Reflection_Outer_Inner *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Encode(Bebop_Writer *w, const Reflection_Outer_Inner *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Outer_Inner *v);
+BEBOP_WIRE_PURE size_t Reflection_Outer_Inner_EncodedSize(const Reflection_Outer_Inner* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Encode(
+    Bebop_Writer* w, const Reflection_Outer_Inner* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Inner_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Outer_Inner* v
+);
 #define REFLECTION_OUTER_MIN_SIZE 0
 #define REFLECTION_OUTER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_Outer_EncodedSize(const Reflection_Outer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Encode(Bebop_Writer *w, const Reflection_Outer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Outer *v);
+BEBOP_WIRE_PURE size_t Reflection_Outer_EncodedSize(const Reflection_Outer* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Encode(Bebop_Writer* w, const Reflection_Outer* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Outer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Outer* v
+);
 #define REFLECTION_WITH_ENUM_MIN_SIZE 0
 #define REFLECTION_WITH_ENUM_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_WithEnum_EncodedSize(const Reflection_WithEnum *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Encode(Bebop_Writer *w, const Reflection_WithEnum *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_WithEnum *v);
+BEBOP_WIRE_PURE size_t Reflection_WithEnum_EncodedSize(const Reflection_WithEnum* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Encode(
+    Bebop_Writer* w, const Reflection_WithEnum* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_WithEnum_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_WithEnum* v
+);
 #define REFLECTION_SHAPE_CIRCLE_MIN_SIZE 12
 #define REFLECTION_SHAPE_CIRCLE_FIXED_SIZE 12
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Circle_EncodedSize(const Reflection_Shape_Circle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Encode(Bebop_Writer *w, const Reflection_Shape_Circle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Circle *v);
+BEBOP_WIRE_PURE size_t Reflection_Shape_Circle_EncodedSize(const Reflection_Shape_Circle* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Circle* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Circle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Circle* v
+);
 #define REFLECTION_SHAPE_RECTANGLE_MIN_SIZE 16
 #define REFLECTION_SHAPE_RECTANGLE_FIXED_SIZE 16
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Rectangle_EncodedSize(const Reflection_Shape_Rectangle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Encode(Bebop_Writer *w, const Reflection_Shape_Rectangle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Rectangle *v);
+BEBOP_WIRE_PURE size_t Reflection_Shape_Rectangle_EncodedSize(const Reflection_Shape_Rectangle* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Rectangle* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Rectangle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Rectangle* v
+);
 #define REFLECTION_SHAPE_TRIANGLE_MIN_SIZE 24
 #define REFLECTION_SHAPE_TRIANGLE_FIXED_SIZE 24
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_Triangle_EncodedSize(const Reflection_Shape_Triangle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Encode(Bebop_Writer *w, const Reflection_Shape_Triangle *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape_Triangle *v);
+BEBOP_WIRE_PURE size_t Reflection_Shape_Triangle_EncodedSize(const Reflection_Shape_Triangle* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Encode(
+    Bebop_Writer* w, const Reflection_Shape_Triangle* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Triangle_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape_Triangle* v
+);
 #define REFLECTION_SHAPE_MIN_SIZE (BEBOP_WIRE_SIZE_LEN + BEBOP_WIRE_SIZE_BYTE)
 #define REFLECTION_SHAPE_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_Shape_EncodedSize(const Reflection_Shape *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Encode(Bebop_Writer *w, const Reflection_Shape *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Shape *v);
+BEBOP_WIRE_PURE size_t Reflection_Shape_EncodedSize(const Reflection_Shape* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Encode(Bebop_Writer* w, const Reflection_Shape* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Shape_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Shape* v
+);
 #define REFLECTION_EVENT_MIN_SIZE 0
 #define REFLECTION_EVENT_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_Event_EncodedSize(const Reflection_Event *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Encode(Bebop_Writer *w, const Reflection_Event *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_Event *v);
+BEBOP_WIRE_PURE size_t Reflection_Event_EncodedSize(const Reflection_Event* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Encode(Bebop_Writer* w, const Reflection_Event* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_Event_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_Event* v
+);
 #define REFLECTION_ANY_CONTAINER_MIN_SIZE 0
 #define REFLECTION_ANY_CONTAINER_FIXED_SIZE 0
 
-BEBOP_WIRE_PURE size_t Reflection_AnyContainer_EncodedSize(const Reflection_AnyContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Encode(Bebop_Writer *w, const Reflection_AnyContainer *v);
-BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Reflection_AnyContainer *v);
+BEBOP_WIRE_PURE size_t Reflection_AnyContainer_EncodedSize(const Reflection_AnyContainer* v);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Encode(
+    Bebop_Writer* w, const Reflection_AnyContainer* v
+);
+BEBOP_WIRE_HOT Bebop_WireResult Reflection_AnyContainer_Decode(
+    Bebop_WireCtx* ctx, Bebop_Reader* rd, Reflection_AnyContainer* v
+);
 
 extern const BebopReflection_DefinitionDescriptor Reflection_Point__refl_descriptor;
 extern const Bebop_TypeInfo Reflection_Point__type_info;

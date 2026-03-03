@@ -15,39 +15,57 @@
 
 #include "any.bb.h"
 
-BEBOP_WIRE_PURE size_t Bebop_Any_EncodedSize(const Bebop_Any *v) {
-    size_t size = 0;
-    size += BEBOP_WIRE_SIZE_LEN + v->type_url.length + BEBOP_WIRE_SIZE_NUL;
-    size += BEBOP_WIRE_SIZE_LEN;
-    size += v->value.length * BEBOP_WIRE_SIZE_BYTE;
-    return size;
+BEBOP_WIRE_PURE size_t Bebop_Any_EncodedSize(const Bebop_Any* v)
+{
+  size_t size = 0;
+  size += BEBOP_WIRE_SIZE_LEN + v->type_url.length + BEBOP_WIRE_SIZE_NUL;
+  size += BEBOP_WIRE_SIZE_LEN;
+  size += v->value.length * BEBOP_WIRE_SIZE_BYTE;
+  return size;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Encode(Bebop_Writer *w, const Bebop_Any *v) {
-    // @@bebop_insertion_point(encode_start:Bebop_Any)
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->type_url)) != BEBOP_WIRE_OK)) return r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByteArray(w, v->value.data, v->value.length)) != BEBOP_WIRE_OK)) return r;
-    // @@bebop_insertion_point(encode_end:Bebop_Any)
-    return BEBOP_WIRE_OK;
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Encode(Bebop_Writer* w, const Bebop_Any* v)
+{
+  // @@bebop_insertion_point(encode_start:Bebop_Any)
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetStrView(w, v->type_url)) != BEBOP_WIRE_OK)) {
+    return r;
+  }
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Writer_SetByteArray(w, v->value.data, v->value.length)) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  // @@bebop_insertion_point(encode_end:Bebop_Any)
+  return BEBOP_WIRE_OK;
 }
 
-BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Decode(Bebop_WireCtx *ctx, Bebop_Reader *rd, Bebop_Any *v) {
-    BEBOP_WIRE_UNUSED(ctx);
-    // @@bebop_insertion_point(decode_start:Bebop_Any)
-    BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
-    Bebop_WireResult r;
-    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->type_url))) != BEBOP_WIRE_OK)) return r;
-    {
-        uint32_t _len;
-        if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) return r;
-        BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->length = _len;
-        BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->data = BEBOP_WIRE_CASTPTR(uint8_t *, Bebop_Reader_Ptr(rd));
-        BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->capacity = 0;
-        Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_BYTE);
+BEBOP_WIRE_HOT Bebop_WireResult Bebop_Any_Decode(Bebop_WireCtx* ctx, Bebop_Reader* rd, Bebop_Any* v)
+{
+  BEBOP_WIRE_UNUSED(ctx);
+  // @@bebop_insertion_point(decode_start:Bebop_Any)
+  BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);
+  Bebop_WireResult r;
+  if (BEBOP_WIRE_UNLIKELY(
+          (r = Bebop_Reader_GetStr(rd, BEBOP_WIRE_MUTPTR(Bebop_Str, &v->type_url))) != BEBOP_WIRE_OK
+      ))
+  {
+    return r;
+  }
+  {
+    uint32_t _len;
+    if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
+      return r;
     }
-    // @@bebop_insertion_point(decode_end:Bebop_Any)
-    return BEBOP_WIRE_OK;
+    BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->length = _len;
+    BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->data =
+        BEBOP_WIRE_CASTPTR(uint8_t*, Bebop_Reader_Ptr(rd));
+    BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->capacity = 0;
+    Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_BYTE);
+  }
+  // @@bebop_insertion_point(decode_end:Bebop_Any)
+  return BEBOP_WIRE_OK;
 }
 
 const Bebop_TypeInfo Bebop_Any__type_info = {
@@ -59,7 +77,9 @@ const Bebop_TypeInfo Bebop_Any__type_info = {
 };
 
 
-static const BebopReflection_TypeDescriptor Bebop_Any__type_arr_uint8_t = {BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_Byte, NULL, NULL, 0, NULL};
+static const BebopReflection_TypeDescriptor Bebop_Any__type_arr_uint8_t = {
+    BEBOP_REFLECTION_TYPE_ARRAY, &BebopReflection_Type_Byte, NULL, NULL, 0, NULL
+};
 static const BebopReflection_FieldDescriptor Bebop_Any__refl_fields[2] = {
     {"type_url", &BebopReflection_Type_String, 0, offsetof(Bebop_Any, type_url)},
     {"value", &Bebop_Any__type_arr_uint8_t, 0, offsetof(Bebop_Any, value)},
@@ -78,4 +98,3 @@ const BebopReflection_DefinitionDescriptor Bebop_Any__refl_descriptor = {
         .is_mutable = false,
     },
 };
-
