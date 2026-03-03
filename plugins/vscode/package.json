@@ -4,14 +4,14 @@
   "description": "Language support for Bebop schema files",
   "author": "6OVER3 INSTITUTE",
   "license": "Apache-2.0",
-  "version": "0.1.0-dev+207c412",
+  "version": "2026.0.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/6over3/bebop"
+    "url": "https://github.com/6over3/bebop-next"
   },
   "homepage": "https://bebop.sh",
   "bugs": {
-    "url": "https://github.com/6over3/bebop/issues"
+    "url": "https://github.com/6over3/bebop-next/issues"
   },
   "publisher": "6O3",
   "galleryBanner": {
@@ -178,12 +178,6 @@
           },
           "default": [],
           "description": "Additional include paths for import resolution."
-        },
-        "bebop.editor.formatOnSave": {
-          "scope": "resource",
-          "type": "boolean",
-          "default": true,
-          "description": "Format Bebop files on save."
         },
         "bebop.trace.server": {
           "scope": "window",
