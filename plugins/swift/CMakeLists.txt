@@ -1,11 +1,15 @@
-find_program(SWIFT_EXECUTABLE swift)
-if(NOT SWIFT_EXECUTABLE)
+include(CheckLanguage)
+check_language(Swift)
+if(NOT CMAKE_Swift_COMPILER)
     message(STATUS "Swift not found, skipping bebopc-gen-swift")
     return()
 endif()
 
+get_filename_component(SWIFT_BIN_DIR "${CMAKE_Swift_COMPILER}" DIRECTORY)
+set(SWIFT_EXECUTABLE "${SWIFT_BIN_DIR}/swift${CMAKE_EXECUTABLE_SUFFIX}")
+
 execute_process(
-    COMMAND ${SWIFT_EXECUTABLE} --version
+    COMMAND "${SWIFT_EXECUTABLE}" --version
     OUTPUT_VARIABLE SWIFT_VERSION_OUTPUT
     ERROR_QUIET
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -22,12 +26,7 @@ else()
     return()
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(SWIFT_BUILD_CONFIG release)
-else()
-    set(SWIFT_BUILD_CONFIG debug)
-endif()
-
+set(SWIFT_BUILD_CONFIG "$<IF:$<CONFIG:Release>,release,debug>")
 set(SWIFT_BUILD_DIR "${CMAKE_SOURCE_DIR}/.build/${SWIFT_BUILD_CONFIG}")
 set(SWIFT_GEN_SWIFT "${SWIFT_BUILD_DIR}/bebopc-gen-swift${CMAKE_EXECUTABLE_SUFFIX}")
 
