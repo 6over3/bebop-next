@@ -1,6 +1,29 @@
 import Synchronization
 
-public final class FutureStore: Sendable {
+public protocol FutureStorage: Sendable {
+  func register(
+    ctx: RpcContext, idempotencyKey: BebopUUID?, owner: String,
+    discardResult: Bool,
+    execute: @escaping @Sendable (BebopUUID) async -> FutureResult
+  ) async throws -> BebopUUID
+
+  /// Persist result. Return the owner for downstream notification, nil if ID unknown.
+  func complete(id: BebopUUID, result: FutureResult) async -> String?
+
+  /// Push a completed result to matching subscribers.
+  func notify(id: BebopUUID, result: FutureResult, owner: String) async
+
+  @discardableResult
+  func cancel(id: BebopUUID, owner: String) async -> Bool
+
+  func subscribe(
+    futureIds: [BebopUUID]?, owner: String
+  ) async -> (immediate: [FutureResult], stream: AsyncStream<FutureResult>)
+
+  func contains(_ id: BebopUUID) async -> Bool
+}
+
+public final class FutureStore: FutureStorage, Sendable {
 
   private struct FutureEntry: Sendable {
     var state: FutureState
@@ -47,12 +70,13 @@ public final class FutureStore: Sendable {
 
   // MARK: - Registration
 
-  func register(
+  public func register(
     ctx: RpcContext,
     idempotencyKey: BebopUUID?,
     owner: String,
+    discardResult: Bool = false,
     execute: @escaping @Sendable (BebopUUID) async -> FutureResult
-  ) throws -> BebopUUID {
+  ) async throws -> BebopUUID {
     try _state.withLock { state throws(BebopRpcError) in
       if let idempotencyKey, let existing = state.idempotencyIndex[idempotencyKey] {
         if let entry = state.futures[existing], entry.owner == owner {
@@ -79,7 +103,14 @@ public final class FutureStore: Sendable {
 
       let task = Task<Void, Never> { [weak self] in
         let result = await execute(id)
-        self?.complete(id: id, result: result)
+        guard let self else { return }
+        if discardResult {
+          // Notify subscribers, then remove the entry without persisting
+          await self.notify(id: id, result: result, owner: owner)
+          self.removePending(id: id)
+        } else if let owner = await self.complete(id: id, result: result) {
+          await self.notify(id: id, result: result, owner: owner)
+        }
       }
 
       state.futures[id] = FutureEntry(state: .pending(task, ctx), owner: owner)
@@ -89,9 +120,9 @@ public final class FutureStore: Sendable {
 
   // MARK: - Completion
 
-  func complete(id: BebopUUID, result: FutureResult) {
-    let matching = _state.withLock { state -> [Subscriber] in
-      guard var entry = state.futures[id] else { return [] }
+  public func complete(id: BebopUUID, result: FutureResult) async -> String? {
+    _state.withLock { state -> String? in
+      guard var entry = state.futures[id] else { return nil }
       if case .pending = entry.state {
         state.pendingCount -= 1
       }
@@ -100,7 +131,15 @@ public final class FutureStore: Sendable {
       state.futures[id] = entry
       state.completedOrder.append(id)
       evict(&state)
-      return Array(state.subscribers.values.filter { $0.accepts(id, owner: owner) })
+      return owner
+    }
+  }
+
+  // MARK: - Notification
+
+  public func notify(id: BebopUUID, result: FutureResult, owner: String) async {
+    let matching = _state.withLock { state in
+      Array(state.subscribers.values.filter { $0.accepts(id, owner: owner) })
     }
     for sub in matching {
       sub.continuation.yield(result)
@@ -110,7 +149,7 @@ public final class FutureStore: Sendable {
   // MARK: - Cancellation
 
   @discardableResult
-  func cancel(id: BebopUUID, owner: String) -> Bool {
+  public func cancel(id: BebopUUID, owner: String) async -> Bool {
     _state.withLock { state in
       guard let entry = state.futures[id],
         entry.owner == owner,
@@ -127,10 +166,10 @@ public final class FutureStore: Sendable {
 
   // MARK: - Subscription
 
-  func subscribe(
+  public func subscribe(
     futureIds ids: [BebopUUID]?,
     owner: String
-  ) -> (immediate: [FutureResult], stream: AsyncStream<FutureResult>) {
+  ) async -> (immediate: [FutureResult], stream: AsyncStream<FutureResult>) {
     let (stream, continuation) = AsyncStream.makeStream(of: FutureResult.self)
 
     let (immediate, subId) = _state.withLock { state -> ([FutureResult], UInt64) in
@@ -170,8 +209,24 @@ public final class FutureStore: Sendable {
     return (immediate, stream)
   }
 
-  func contains(_ id: BebopUUID) -> Bool {
+  public func contains(_ id: BebopUUID) async -> Bool {
     _state.withLock { $0.futures[id] != nil }
+  }
+
+  // MARK: - Fire-and-forget cleanup
+
+  /// Remove a pending entry after notification without persisting as completed.
+  private func removePending(id: BebopUUID) {
+    _state.withLock { state in
+      guard let entry = state.futures[id],
+        case .pending = entry.state
+      else { return }
+      state.pendingCount -= 1
+      state.futures.removeValue(forKey: id)
+      if let key = state.reverseIdempotency.removeValue(forKey: id) {
+        state.idempotencyIndex.removeValue(forKey: key)
+      }
+    }
   }
 
   // MARK: - Eviction

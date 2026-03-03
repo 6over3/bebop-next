@@ -124,6 +124,7 @@ message FutureDispatchRequest {
     idempotency_key(3): uuid;
     metadata(4): map[string, string];
     deadline(5): timestamp;
+    discard_result(6): bool;
 }
 
 struct FutureHandle {
@@ -618,7 +619,8 @@ Client -> unary(method=2) FutureDispatchRequest {
     payload: <encoded request>,
     idempotency_key: "a1b2c3d4-...",           // client-generated UUID, or omit for no dedup
     metadata: {"auth": "tok"},                 // forwarded to inner call
-    deadline: <timestamp>                      // deadline for inner call, not for dispatch
+    deadline: <timestamp>,                     // deadline for inner call, not for dispatch
+    discard_result: true                      // discard result after delivery, or omit for default retention
 }
 
 Server -> FutureHandle { id: "550e8400-..." }
@@ -654,7 +656,7 @@ Server -> FutureResult { id: "661f9511-...", outcome: Error { code: INTERNAL, de
 
 The `ids` field filters which futures the client wants results for. Omitting it subscribes to all futures owned by the caller. When specific IDs are provided, the server pushes any already-completed results immediately, then continues pushing as remaining futures finish. The server only pushes results for futures the caller owns. See section 14.6.
 
-On reconnection, the client opens a new resolve stream. If the client passes IDs of still-pending futures, the server replays any that completed while the client was disconnected (assuming the server hasn't evicted them). Result retention is server policy, not protocol-defined.
+On reconnection, the client opens a new resolve stream. If the client passes IDs of still-pending futures, the server replays any that completed while the client was disconnected (assuming the server hasn't evicted them). See section 14.8 for result retention requirements.
 
 ### 14.4. Cancel
 
@@ -685,6 +687,20 @@ The ownership check is transparent to handlers. The router enforces it before th
 ### 14.7. Rehydration
 
 After a reconnect or app restart, a client can rehydrate a future from a saved UUID without re-dispatching. Open a resolve stream with the saved ID. If the future has already completed and the server still has the result, it arrives immediately. If the future is still running, the result arrives when it finishes.
+
+### 14.8. Retention
+
+Servers MUST support configurable result retention for completed futures. The server's retention policy sets the default behavior for all futures.
+
+The client can override retention per-dispatch by setting `discard_result` to true in `FutureDispatchRequest`. When set, the server delivers the result to active resolve streams and immediately discards it. The server still returns a handle — the client may need the ID for cancellation while the work is in progress. Rehydration (14.7) is unavailable for fire-and-forget futures because there is no stored result to replay. Idempotency keys still work: the server can dedup a retried dispatch even if it won't retain the result.
+
+When `discard_result` is omitted or false, the server applies its configured retention policy. The client cannot force the server to retain a result longer than the server's policy allows.
+
+### 14.9. Storage
+
+The protocol makes no assumptions about how future state is persisted. Server implementations MUST define an asynchronous storage interface so that backends (in-memory, database, disk, tiered cache) are pluggable.
+
+The default implementation MAY be in-memory.
 
 ## 15. Service discovery
 
@@ -1079,7 +1095,7 @@ When futures are enabled, the server MUST:
 
 When futures are not enabled, the server MUST return UNIMPLEMENTED for method IDs 2, 3, and 4.
 
-Result retention policy (how long completed futures are kept before eviction) is implementation-defined. Servers SHOULD provide a configurable limit.
+Result retention policy MUST be configurable. See section 14.8 for requirements including fire-and-forget mode. When `FutureDispatchRequest.discard_result` is true, the server MUST discard the result after delivering it to active subscribers. Servers SHOULD provide a configurable limit on how long completed futures are kept before eviction.
 
 ### 19.7. Server: resource limits
 

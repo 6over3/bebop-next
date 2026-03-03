@@ -56,7 +56,7 @@ struct WidgetHandler: WidgetServiceHandler {
 struct LoopbackChannel: BebopChannel {
   typealias Metadata = Void
 
-  let router: BebopRouter
+  let router: BebopRouter<FutureStore>
   let peerInfo: PeerInfo?
 
   func unary(method: UInt32, request: [UInt8], context: RpcContext) async throws -> Response<
@@ -138,7 +138,7 @@ func buildRouter(
   interceptors: [any BebopInterceptor] = [],
   discoveryEnabled: Bool = true,
   futuresEnabled: Bool = false
-) -> BebopRouter {
+) -> BebopRouter<FutureStore> {
   let builder = BebopRouterBuilder()
   builder.config.discoveryEnabled = discoveryEnabled
   builder.config.futuresEnabled = futuresEnabled

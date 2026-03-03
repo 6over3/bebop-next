@@ -550,22 +550,22 @@ public struct WidgetService_Dispatch<C: BebopChannel> {
 
   public func getWidget(
     _ request: EchoRequest,
-    idempotencyKey: BebopUUID? = nil,
+    options: DispatchOptions = .init(),
     context: RpcContext = RpcContext()
   ) async throws -> BebopFuture<EchoResponse> {
     try await dispatcher.dispatch(
       methodId: 0xA3F7_3AA7,
       request: request,
-      idempotencyKey: idempotencyKey,
+      options: options,
       context: context)
   }
 
   public func getWidget(
     value: String,
-    idempotencyKey: BebopUUID? = nil,
+    options: DispatchOptions = .init(),
     context: RpcContext = RpcContext()
   ) async throws -> BebopFuture<EchoResponse> {
-    try await getWidget(EchoRequest(value: value), idempotencyKey: idempotencyKey, context: context)
+    try await getWidget(EchoRequest(value: value), options: options, context: context)
   }
 }
 

@@ -66,12 +66,27 @@ public final class BebopRouterBuilder {
     }
   }
 
-  public func build() -> BebopRouter {
+  public func build() -> BebopRouter<FutureStore> {
+    var store: FutureStore?
+    if config.futuresEnabled {
+      store = FutureStore(
+        maxPendingFutures: config.maxPendingFutures,
+        maxCompletedFutures: config.maxCompletedFutures)
+    }
+    return BebopRouter(
+      methods: methods,
+      serviceInfos: serviceInfos,
+      interceptors: interceptors,
+      config: config,
+      futureStore: store)
+  }
+
+  public func build<Store: FutureStorage>(futureStore: Store) -> BebopRouter<Store> {
     BebopRouter(
       methods: methods,
       serviceInfos: serviceInfos,
       interceptors: interceptors,
-      config: config
-    )
+      config: config,
+      futureStore: futureStore)
   }
 }

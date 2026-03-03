@@ -49,16 +49,17 @@ extension BebopRouter {
       throw BebopRpcError(code: .notFound, detail: "unknown method")
     }
 
-    let idempotencyKey = req.idempotencyKey
-    let dispatchMetadata = req.metadata ?? [:]
     let deadline = req.deadline
 
     let innerCtx = RpcContext(
-      metadata: ctx.metadata.merging(dispatchMetadata) { _, new in new },
+      metadata: ctx.metadata.merging(req.metadata ?? [:]) { _, new in new },
       deadline: deadline)
     innerCtx[PeerInfoKey.self] = ctx[PeerInfoKey.self]
 
-    let id = try store.register(ctx: innerCtx, idempotencyKey: idempotencyKey, owner: owner) {
+    let id = try await store.register(
+      ctx: innerCtx, idempotencyKey: req.idempotencyKey, owner: owner,
+      discardResult: req.discardResult ?? false
+    ) {
       [self] futureId in
       do {
         let result: [UInt8]
@@ -102,7 +103,7 @@ extension BebopRouter {
 
     let req = try FutureResolveRequest.decode(from: payload)
     let requestedIds = req.ids
-    let (immediate, stream) = store.subscribe(futureIds: requestedIds, owner: owner)
+    let (immediate, stream) = await store.subscribe(futureIds: requestedIds, owner: owner)
 
     return AsyncThrowingStream { continuation in
       let task = Task {
@@ -149,7 +150,7 @@ extension BebopRouter {
     try await runInterceptors(methodId: BebopReservedMethod.cancel, ctx: ctx)
 
     let req = try FutureCancelRequest.decode(from: payload)
-    store.cancel(id: req.id, owner: owner)
+    await store.cancel(id: req.id, owner: owner)
     return BebopEmpty().serializedData()
   }
 }

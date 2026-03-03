@@ -1620,7 +1620,7 @@ A Bebop RPC frame has a fixed 9-byte header:
 \end{center}
 \vspace{4pt}
 
-\noindent The \texttt{length} field is the payload byte count. \texttt{flags} is a bitfield combining \texttt{END\_STREAM}, \texttt{ERROR}, \texttt{COMPRESSED}, and \texttt{TRAILER}. \texttt{stream\_id} provides multiplexing on transports that require it. A complete unary RPC uses 18 bytes of framing overhead: 9 bytes in each direction.
+\noindent The \texttt{length} field is the payload byte count. \texttt{flags} is a bitfield combining \texttt{END\_STREAM}, \texttt{ERROR}, \texttt{COMPRESSED}, \texttt{TRAILER}, and \texttt{CURSOR}. \texttt{stream\_id} provides multiplexing on transports that require it. A complete unary RPC uses 18 bytes of framing overhead: 9 bytes in each direction.
 
 The protocol supports four method types: unary (single request, single response), server streaming (one request, multiple responses), client streaming (multiple requests, one response), and duplex streaming (both directions). These match gRPC's taxonomy, and status codes 0--16 align with gRPC's definitions, so bridging between the two protocols requires no code remapping.
 
@@ -1654,6 +1654,52 @@ Bebop RPC transmits deadlines as absolute timestamps with nanosecond precision. 
 
 gRPC converts absolute deadlines to relative timeouts with elapsed time deducted at each hop~\cite{grpc-deadlines-guide}. Bebop avoids the deduction step by transmitting the absolute timestamp directly on binary transports. On HTTP transports, the deadline is a millisecond Unix timestamp in the \texttt{bebop-deadline} header. Both representations refer to the same wall-clock instant, so no rounding accumulates across hops.
 
+\subsection{Stream Cursors}
+\label{sec:stream-cursors}
+
+A server-stream call that delivers 10{,}000 results and drops at result 9{,}500 has two options without protocol support: re-request the entire stream, or track progress in the application layer. gRPC takes the second approach---the protocol has no resumption mechanism, so handlers implement their own checkpointing.
+
+Bebop RPC provides cursor-based resumption at the frame level. The \texttt{CallHeader} carries a \texttt{cursor} field (uint64). On the first call this is zero. On reconnection, the client sends the last cursor it fully processed. The handler reads \texttt{RpcContext.cursor} and skips past already-delivered data. In the other direction, response frames carry position markers: when the \texttt{CURSOR} flag (0x10) is set, 8 bytes of little-endian uint64 follow the payload. The \texttt{length} field counts only payload bytes; the cursor is appended outside it. Not every frame needs a cursor, and a stream may freely mix cursored and non-cursored frames.
+
+What a cursor value means is handler-specific: a database offset, a sequence number, a timestamp, a log position. The protocol treats it as an opaque uint64. Resume logic stays in the call header and wire frames, never in application message types. This separation is also why only unary methods can be dispatched as futures (Section~\ref{sec:futures})---server-stream methods already have a protocol-level mechanism for surviving disconnections.
+
+\subsection{Futures}
+\label{sec:futures}
+
+Long-running operations create a tension in synchronous RPC. An ML inference call that takes 30 seconds holds a connection and a server thread for the duration. The caller cannot disconnect and reconnect without losing the result. gRPC's standard pattern for this is Google's \texttt{google.longrunning.Operations} service~\cite{google-lro}, which returns an operation ID and requires the client to poll a separate \texttt{GetOperation} endpoint until completion.
+
+Bebop RPC replaces polling with push-based delivery using three reserved method IDs:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}clll@{}}
+\toprule
+\textbf{ID} & \textbf{Method} & \textbf{Type} & \textbf{Payload} \\
+\midrule
+2 & Dispatch & unary & \texttt{FutureDispatchRequest} $\to$ \texttt{FutureHandle} \\
+3 & Resolve & server-stream & \texttt{FutureResolveRequest} $\to$ \texttt{FutureResult} \\
+4 & Cancel & unary & \texttt{FutureCancelRequest} $\to$ \texttt{Empty} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent A \texttt{FutureDispatchRequest} wraps a unary call or batch for background execution. The server registers the work, spawns a task, and returns a \texttt{FutureHandle} containing a server-generated v4 UUID. The dispatch call completes in the time it takes to validate the request and allocate the ID; the \texttt{deadline} field in the request applies to the inner call's execution, not to the dispatch itself.
+
+The resolve stream (method~3) is a server-stream connection that pushes \texttt{FutureResult} messages as futures complete. Each result contains the future's UUID and a terminal outcome: either a success payload with response metadata, or an error with a status code. The \texttt{ids} field in the request filters delivery to specific futures; omitting it subscribes to all futures owned by the caller. When specific IDs are requested and some have already completed, the server sends those results immediately before continuing with remaining completions. The inner handler is unaware it is running as a future---the server invokes it identically to a synchronous unary call.
+
+\subsubsection{Idempotency and ownership}
+
+The \texttt{FutureDispatchRequest} carries an optional \texttt{idempotency\_key} field, a client-generated UUID. If a pending or completed future with the same key exists for the same caller, the server returns the existing handle without dispatching again. Cancellation releases the key so a subsequent dispatch creates a new future. Keys are scoped per caller; two different callers can use the same key without collision.
+
+Every future is bound to a caller identity resolved from peer information: authenticated identity if available, otherwise the connection's remote address. The server checks this identity on every resolve and cancel operation. A caller that does not own a future receives \texttt{PERMISSION\_DENIED}.
+
+\subsubsection{Retention and storage}
+
+The server configures a default retention policy---typically eviction-by-count---that applies to all completed futures. Clients can override this per-dispatch by setting \texttt{discard\_result} in the dispatch request. When set, the server delivers the result to active resolve streams and immediately discards it---the future is not promised. The handle is still returned so the client can cancel in-flight work, and idempotency keys still deduplicate retries, but rehydration from a saved UUID returns nothing because the result no longer exists. Clients cannot force retention beyond the server's policy; they can only opt out of it.
+
+The reference implementation defines an asynchronous storage protocol so that the in-memory store can be replaced with database, disk, or tiered-cache backends. Protocol operations are split for composability: persisting a completed result and notifying active subscribers are separate interface methods, allowing a database backend to commit before fanning out to in-memory streams.
+
 \subsection{Deployment Model}
 
 gRPC requires HTTP/2~\cite{grpc-http2-spec}. This creates friction in several environments. AWS Lambda's API Gateway communicates with functions over HTTP/1.1; a Coinbase engineering investigation found gRPC ``very close to possible'' for unary calls but hit blocking issues with trailing headers, and streaming was unsupported entirely~\cite{henry-grpc-lambda}. Cloudflare Workers lack HTTP/2 streaming support in the \texttt{workerd} runtime~\cite{cloudflare-workerd-grpc}. In browsers, gRPC-Web requires an Envoy proxy because browser APIs do not expose HTTP/2 framing or trailing headers~\cite{brandhorst-grpc-web}.
@@ -1674,6 +1720,7 @@ Bebop RPC is transport-agnostic. Unary and streaming methods work over HTTP/1.1 
 Wire encoding & Protobuf + HTTP/2 framing & Bebop throughout \\
 Frame overhead & 5B length prefix + HTTP/2 frame & 9B fixed header \\
 Batch pipelining & Application-level & Native with dependency graph \\
+Async dispatch & Polling (\texttt{google.longrunning}) & Push-based futures \\
 Transport & HTTP/2 required & Any \\
 Serverless & Limited & HTTP/1.1 compatible \\
 Method dispatch & String path matching & 4-byte hash comparison \\
@@ -1705,6 +1752,8 @@ Apache Thrift~\cite{slee-thrift} combines an IDL, multiple serialization formats
 
 Twirp~\cite{nelson-twirp} dropped streaming entirely in favor of HTTP/1.1 compatibility and deployment simplicity. Bebop RPC retains streaming by supporting multiple transports.
 
+Google's long-running operations pattern~\cite{google-lro} adds async dispatch to gRPC through a polling-based \texttt{Operations} service. The client calls \texttt{GetOperation} until the \texttt{done} field is true. Bebop's futures use a push-based resolve stream instead, avoiding repeated round trips but requiring the client to maintain a stream connection.
+
 
 \section{Conclusion}
 
@@ -1714,7 +1763,7 @@ Bebop decodes tensor data 213$\times$ faster than Protocol Buffers. Fixed-width 
 
 The tradeoff is wire size. Fixed-width integers cost more bytes than varints for small values. Section~\ref{sec:eval} shows where this matters and where compression eliminates the difference.
 
-Faster serialization matters more when the RPC layer preserves the gain. Batch pipelining turns $N$ dependent calls into a single exchange, and HTTP/1.1 compatibility means the protocol deploys where gRPC cannot.
+Faster serialization matters more when the RPC layer preserves the gain. Batch pipelining turns $N$ dependent calls into a single exchange, futures replace polling for long-running operations with push-based delivery, and HTTP/1.1 compatibility means the protocol deploys where gRPC cannot.
 
 What surprised us was how much performance came from doing less. Fixed sizes, predictable layouts, no per-value decisions. The same choices that make Bebop fast also keep the compiler small. The implementation is 35,000 lines of C with single-pass code generation. Simplicity compounded.
 
@@ -1825,6 +1874,9 @@ J. Brandhorst. ``The state of gRPC in the browser.'' \textit{gRPC Blog}, January
 
 \bibitem{nelson-twirp}
 S. Nelson. ``Twirp: a sweet new RPC framework for Go.'' \textit{Twitch Blog}, January 2018. \url{https://blog.twitch.tv/en/2018/01/16/twirp-a-sweet-new-rpc-framework-for-go-5f2febbf35f/}
+
+\bibitem{google-lro}
+Google. ``Long Running Operations.'' \textit{API Design Guide}. \url{https://cloud.google.com/apis/design/design_patterns#long_running_operations}, 2017.
 
 \bibitem{slee-thrift}
 M. Slee, A. Agarwal, and M. Kwiatkowski. ``Thrift: Scalable Cross-Language Services Implementation.'' Facebook Technical Paper, April 2007. \url{https://thrift.apache.org/static/files/thrift-20070401.pdf}

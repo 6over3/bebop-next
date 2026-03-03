@@ -91,11 +91,11 @@ private struct MetadataHandler: WidgetServiceHandler {
     let f1: BebopFuture<EchoResponse> = try await dispatcher.dispatch(
       methodId: getWidgetId,
       request: EchoRequest(value: "a"),
-      idempotencyKey: key)
+      options: .init(idempotencyKey: key))
     let f2: BebopFuture<EchoResponse> = try await dispatcher.dispatch(
       methodId: getWidgetId,
       request: EchoRequest(value: "b"),
-      idempotencyKey: key)
+      options: .init(idempotencyKey: key))
     #expect(f1.id == f2.id)
   }
 

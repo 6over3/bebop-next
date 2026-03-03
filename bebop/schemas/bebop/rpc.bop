@@ -189,6 +189,10 @@ message FutureDispatchRequest {
     metadata(4): map[string, string];
     /// Absolute deadline for the inner call. Omit for no deadline.
     deadline(5): timestamp;
+    /// When true, the server discards the result after delivering it to
+    /// active resolve streams. Rehydration is unavailable. Omit or false
+    /// for default retention.
+    discard_result(6): bool;
 }
 
 /// Method ID 2 response. Returned immediately after dispatch.

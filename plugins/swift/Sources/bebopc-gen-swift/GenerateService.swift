@@ -758,13 +758,13 @@ enum GenerateService {
         """
         \(vis)func \(m.swiftName)(
             _ request: \(m.requestTypeName),
-            idempotencyKey: BebopUUID? = nil,
+            options: DispatchOptions = .init(),
             context: RpcContext = RpcContext()
         ) async throws -> BebopFuture<\(m.responseTypeName)> {
             try await dispatcher.dispatch(
                 methodId: 0x\(hex(m.methodId)),
                 request: request,
-                idempotencyKey: idempotencyKey,
+                options: options,
                 context: context)
         }
         """)
@@ -797,10 +797,10 @@ enum GenerateService {
     if params.isEmpty {
       return """
         \(vis)func \(m.swiftName)(
-            idempotencyKey: BebopUUID? = nil,
+            options: DispatchOptions = .init(),
             context: RpcContext = RpcContext()
         ) async throws -> \(returnType) {
-            try await \(m.swiftName)(\(m.requestTypeName)(), idempotencyKey: idempotencyKey, context: context)
+            try await \(m.swiftName)(\(m.requestTypeName)(), options: options, context: context)
         }
         """
     }
@@ -818,10 +818,10 @@ enum GenerateService {
     return """
       \(vis)func \(m.swiftName)(
           \(paramList),
-          idempotencyKey: BebopUUID? = nil,
+          options: DispatchOptions = .init(),
           context: RpcContext = RpcContext()
       ) async throws -> \(returnType) {
-          try await \(m.swiftName)(\(m.requestTypeName)(\(constructArgs)), idempotencyKey: idempotencyKey, context: context)
+          try await \(m.swiftName)(\(m.requestTypeName)(\(constructArgs)), options: options, context: context)
       }
       """
   }

@@ -18,30 +18,26 @@ public struct BebopRouterConfig: Sendable {
   public init() {}
 }
 
-public struct BebopRouter: Sendable {
+public struct BebopRouter<Store: FutureStorage>: Sendable {
   public let config: BebopRouterConfig
 
   let methods: [UInt32: MethodRegistration]
   let serviceInfos: [ServiceInfo]
   let interceptors: [any BebopInterceptor]
-  let futureStore: FutureStore?
+  let futureStore: Store?
 
   init(
     methods: [UInt32: MethodRegistration],
     serviceInfos: [ServiceInfo],
     interceptors: [any BebopInterceptor],
-    config: BebopRouterConfig
+    config: BebopRouterConfig,
+    futureStore: Store?
   ) {
     self.methods = methods
     self.serviceInfos = serviceInfos
     self.interceptors = interceptors
     self.config = config
-    self.futureStore =
-      config.futuresEnabled
-      ? FutureStore(
-        maxPendingFutures: config.maxPendingFutures,
-        maxCompletedFutures: config.maxCompletedFutures)
-      : nil
+    self.futureStore = futureStore
   }
 
   // MARK: - Dispatch

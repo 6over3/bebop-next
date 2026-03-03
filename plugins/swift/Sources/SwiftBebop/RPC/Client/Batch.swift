@@ -120,8 +120,8 @@ public final class Batch<Channel: BebopChannel>: Sendable {
   /// in the background; await the returned future for results.
   public func dispatch(
     using dispatcher: FutureDispatcher<Channel>,
-    context: RpcContext = RpcContext(),
-    idempotencyKey: BebopUUID? = nil
+    options: DispatchOptions = .init(),
+    context: RpcContext = RpcContext()
   ) async throws -> BebopFuture<BatchResults> {
     let request = _state.withLock { state -> BatchRequest in
       precondition(!state.executed, "Batch already executed")
@@ -132,9 +132,10 @@ public final class Batch<Channel: BebopChannel>: Sendable {
     let dispatchReq = FutureDispatchRequest(
       methodId: BebopReservedMethod.batch,
       payload: request.serializedData(),
-      idempotencyKey: idempotencyKey,
-      metadata: context.metadata.isEmpty ? nil : context.metadata,
-      deadline: context.deadline)
+      idempotencyKey: options.idempotencyKey,
+      metadata: context.metadata,
+      deadline: context.deadline,
+      discardResult: options.discardResult)
 
     let dispatchCtx = RpcContext(metadata: context.metadata)
 

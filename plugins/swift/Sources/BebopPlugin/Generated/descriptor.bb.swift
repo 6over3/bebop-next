@@ -890,7 +890,7 @@ public final class LiteralValue: BebopRecord, BebopReflectable, @unchecked Senda
     if uuidValue != nil { size += 1 + 16 }
     if let _v = rawValue { size += 1 + (4 + _v.utf8.count + 1) }
     if let _v = bytesValue { size += 1 + (4 + _v.count &* 1) }
-    if timestampValue != nil { size += 1 + 12 }
+    if timestampValue != nil { size += 1 + 16 }
     if durationValue != nil { size += 1 + 12 }
     return size
   }

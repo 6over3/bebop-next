@@ -1,3 +1,16 @@
+public struct DispatchOptions: Sendable {
+  public var idempotencyKey: BebopUUID?
+  public var discardResult: Bool?
+
+  public init(
+    idempotencyKey: BebopUUID? = nil,
+    discardResult: Bool? = nil
+  ) {
+    self.idempotencyKey = idempotencyKey
+    self.discardResult = discardResult
+  }
+}
+
 /// Entry point for dispatching futures. One resolver per channel —
 /// use `makeFutureResolver()` to share across dispatchers.
 public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
@@ -20,15 +33,16 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
   public func dispatch<Req: BebopRecord, Res: BebopRecord>(
     methodId: UInt32,
     request: Req,
-    idempotencyKey: BebopUUID? = nil,
+    options: DispatchOptions = .init(),
     context: RpcContext = RpcContext()
   ) async throws -> BebopFuture<Res> {
     let dispatchReq = FutureDispatchRequest(
       methodId: methodId,
       payload: request.serializedData(),
-      idempotencyKey: idempotencyKey,
-      metadata: context.metadata.isEmpty ? nil : context.metadata,
-      deadline: context.deadline)
+      idempotencyKey: options.idempotencyKey,
+      metadata: context.metadata,
+      deadline: context.deadline,
+      discardResult: options.discardResult)
 
     // The deadline applies to the future's execution, not the dispatch call.
     let dispatchCtx = RpcContext(metadata: context.metadata)

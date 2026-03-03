@@ -360,7 +360,7 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
   public var encodedSize: Int {
     var size = 5
     if methodId != nil { size += 1 + 4 }
-    if deadline != nil { size += 1 + 12 }
+    if deadline != nil { size += 1 + 16 }
     if let _v = metadata {
       size +=
         1
@@ -1303,21 +1303,27 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
   /// Absolute deadline for the inner call. Omit for no deadline.
   public var deadline: BebopTimestamp?
 
+  /// When true, the server discards the result after delivering it to
+  /// active resolve streams. Rehydration is unavailable. Omit or false
+  /// for default retention.
+  public var discardResult: Bool?
+
   public init(
     methodId: UInt32? = nil, payload: [UInt8]? = nil, idempotencyKey: BebopUUID? = nil,
-    metadata: [String: String]? = nil, deadline: BebopTimestamp? = nil
+    metadata: [String: String]? = nil, deadline: BebopTimestamp? = nil, discardResult: Bool? = nil
   ) {
     self.methodId = methodId
     self.payload = payload
     self.idempotencyKey = idempotencyKey
     self.metadata = metadata
     self.deadline = deadline
+    self.discardResult = discardResult
   }
 
   public static func == (lhs: FutureDispatchRequest, rhs: FutureDispatchRequest) -> Bool {
     return lhs.methodId == rhs.methodId && lhs.payload == rhs.payload
       && lhs.idempotencyKey == rhs.idempotencyKey && lhs.metadata == rhs.metadata
-      && lhs.deadline == rhs.deadline
+      && lhs.deadline == rhs.deadline && lhs.discardResult == rhs.discardResult
   }
 
   public func hash(into hasher: inout Hasher) {
@@ -1326,6 +1332,7 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
     hasher.combine(idempotencyKey)
     hasher.combine(metadata)
     hasher.combine(deadline)
+    hasher.combine(discardResult)
   }
 
   public static func decode(from reader: inout BebopReader) throws -> FutureDispatchRequest {
@@ -1337,6 +1344,7 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
     var idempotencyKey: BebopUUID? = nil
     var metadata: [String: String]? = nil
     var deadline: BebopTimestamp? = nil
+    var discardResult: Bool? = nil
     while reader.position < end {
       let tag = try reader.readTag()
       if tag == 0 { break }
@@ -1351,6 +1359,8 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
         metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
       case 5:
         deadline = try reader.readTimestamp()
+      case 6:
+        discardResult = try reader.readBool()
       default:
         try reader.skip(end - reader.position)
       }
@@ -1358,7 +1368,7 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
     // @@bebop_insertion_point(decode_end:FutureDispatchRequest)
     return FutureDispatchRequest(
       methodId: methodId, payload: payload, idempotencyKey: idempotencyKey, metadata: metadata,
-      deadline: deadline)
+      deadline: deadline, discardResult: discardResult)
   }
 
   public func encode(to writer: inout BebopWriter) {
@@ -1387,6 +1397,10 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
       writer.writeTag(5)
       writer.writeTimestamp(_v)
     }
+    if let _v = discardResult {
+      writer.writeTag(6)
+      writer.writeBool(_v)
+    }
     writer.writeEndMarker()
     writer.fillMessageLength(at: pos)
     // @@bebop_insertion_point(encode_end:FutureDispatchRequest)
@@ -1406,7 +1420,8 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
             return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
           })
     }
-    if deadline != nil { size += 1 + 12 }
+    if deadline != nil { size += 1 + 16 }
+    if discardResult != nil { size += 1 + 1 }
     return size
   }
 
@@ -1416,6 +1431,7 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
     case idempotencyKey = "idempotency_key"
     case metadata
     case deadline
+    case discardResult = "discard_result"
   }
 
   public static let bebopReflection = BebopTypeReflection(
@@ -1448,6 +1464,11 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
           name: "deadline",
           index: 5,
           typeName: "BebopTimestamp"
+        ),
+        BebopFieldReflection(
+          name: "discard_result",
+          index: 6,
+          typeName: "Bool"
         ),
       ])
     )
