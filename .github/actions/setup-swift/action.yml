@@ -1,0 +1,65 @@
+name: Setup Swift
+description: Install Swift toolchain on Linux and Windows
+
+inputs:
+  swift-version:
+    description: Swift release version (e.g. "6.2")
+    required: true
+  arch:
+    description: Target architecture (x64 or arm64)
+    required: false
+    default: x64
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Swift (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if [ "${{ inputs.arch }}" = "arm64" ]; then
+          platform="ubuntu2404-aarch64"
+          suffix="-ubuntu24.04-aarch64"
+        else
+          platform="ubuntu2404"
+          suffix="-ubuntu24.04"
+        fi
+        url="https://download.swift.org/swift-${{ inputs.swift-version }}-release/${platform}/swift-${{ inputs.swift-version }}-RELEASE/swift-${{ inputs.swift-version }}-RELEASE${suffix}.tar.gz"
+        curl -fsSL "$url" -o swift.tar.gz
+        sudo mkdir -p /opt/swift
+        sudo tar xzf swift.tar.gz -C /opt/swift --strip-components=1
+        echo "/opt/swift/usr/bin" >> "$GITHUB_PATH"
+
+    - name: Setup Swift (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if ("${{ inputs.arch }}" -eq "arm64") {
+          $platform = "windows10-arm64"
+          $suffix = "-windows10-arm64"
+        } else {
+          $platform = "windows10"
+          $suffix = "-windows10"
+        }
+        $url = "https://download.swift.org/swift-${{ inputs.swift-version }}-release/${platform}/swift-${{ inputs.swift-version }}-RELEASE/swift-${{ inputs.swift-version }}-RELEASE${suffix}.exe"
+        Write-Host "Downloading Swift from: $url"
+        Invoke-WebRequest -Uri $url -OutFile swift-installer.exe -MaximumRetryCount 3
+        Start-Process -FilePath .\swift-installer.exe -ArgumentList '-q' -Wait
+        $swiftRoot = "$env:LOCALAPPDATA\Programs\Swift"
+        if (-not (Test-Path $swiftRoot)) {
+          Write-Error "Swift install directory not found"
+          exit 1
+        }
+        Get-ChildItem -Path $swiftRoot -Recurse -Directory -Filter "bin" | ForEach-Object {
+          Write-Host "Adding to PATH: $($_.FullName)"
+          echo "$($_.FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        }
+        $sdkroot = Get-ChildItem -Path "$swiftRoot\Platforms" -Recurse -Directory -Filter "Windows.sdk" | Select-Object -First 1
+        if ($sdkroot) {
+          Write-Host "SDKROOT: $($sdkroot.FullName)"
+          echo "SDKROOT=$($sdkroot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        }
+
+    - name: Verify Swift
+      shell: bash
+      run: swift --version

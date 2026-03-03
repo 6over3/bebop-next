@@ -12,7 +12,7 @@
 // Native __bf16 detection
 #if defined(__BFLT16_MAX__)
 #define CBFLOAT16_HAS_NATIVE 1
-#elif defined(__clang__) \
+#elif defined(__clang__) && !defined(_WIN32) \
     && (defined(__aarch64__) || defined(__arm__) || defined(__riscv) || defined(__loongarch__) \
         || ((defined(__x86_64__) || defined(__i386__)) && defined(__SSE2__)))
 #define CBFLOAT16_HAS_NATIVE 1
