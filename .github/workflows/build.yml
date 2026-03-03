@@ -68,6 +68,11 @@ jobs:
             Write-Host "Adding to PATH: $($_.FullName)"
             echo "$($_.FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
+          $sdkroot = Get-ChildItem -Path "$swiftRoot\Platforms" -Recurse -Directory -Filter "Windows.sdk" | Select-Object -First 1
+          if ($sdkroot) {
+            Write-Host "SDKROOT: $($sdkroot.FullName)"
+            echo "SDKROOT=$($sdkroot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
