@@ -1,5 +1,7 @@
 #if canImport(Darwin)
   import Darwin
+#elseif canImport(WinSDK)
+  import WinSDK
 #elseif canImport(Bionic)
   import Bionic
 #elseif os(WASI)
@@ -14,9 +16,19 @@
 
 extension BebopTimestamp {
   public static var now: BebopTimestamp {
-    var ts = timespec()
-    clock_gettime(CLOCK_REALTIME, &ts)
-    return BebopTimestamp(seconds: Int64(ts.tv_sec), nanoseconds: Int32(ts.tv_nsec))
+    #if os(Windows)
+      var ft = FILETIME()
+      GetSystemTimePreciseAsFileTime(&ft)
+      let ticks = (UInt64(ft.dwHighDateTime) << 32) | UInt64(ft.dwLowDateTime)
+      let unixTicks = ticks &- 116_444_736_000_000_000
+      let seconds = Int64(unixTicks / 10_000_000)
+      let nanoseconds = Int32((unixTicks % 10_000_000) * 100)
+      return BebopTimestamp(seconds: seconds, nanoseconds: nanoseconds)
+    #else
+      var ts = timespec()
+      clock_gettime(CLOCK_REALTIME, &ts)
+      return BebopTimestamp(seconds: Int64(ts.tv_sec), nanoseconds: Int32(ts.tv_nsec))
+    #endif
   }
 
   public init(fromNow duration: Duration) {

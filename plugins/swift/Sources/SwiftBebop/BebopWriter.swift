@@ -1,5 +1,7 @@
 #if canImport(Darwin)
   import Darwin
+#elseif canImport(ucrt)
+  import ucrt
 #elseif canImport(Bionic)
   import Bionic
 #elseif os(WASI)
