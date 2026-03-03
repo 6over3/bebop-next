@@ -469,7 +469,7 @@ Use for event times, creation dates, expiration times, audit logs.
 \begin{tabular}[t]{@{}r@{\,}l@{}}
 \texttt{e8 03 00 00 00 00 00 00} & sec=1000 \\
 \texttt{00 ca 9a 3b} & ns=999999488 \\
-\texttt{80 62 ee 01} & offset_ms=32400000 \\
+\texttt{80 62 ee 01} & offset\_ms=32400000 \\
 \end{tabular}
 
 \vspace{4pt}
@@ -628,7 +628,7 @@ Empty structs encode as zero bytes.
 \subsection{Messages}
 
 \begin{minipage}{\textwidth}
-\begin{minipage}[t]{0.44\textwidth}
+\begin{minipage}[t]{0.41\textwidth}
 Messages have a 4-byte length prefix, followed by tagged fields, followed by a \texttt{0x00} end marker.
 
 \vspace{6pt}
@@ -637,7 +637,7 @@ Each field is encoded as: 1-byte tag, then the field value.
 \vspace{6pt}
 Absent fields are not encoded. Unknown tags are skipped by decoders. Tags must be in range 1--255.
 \end{minipage}\hfill
-\begin{minipage}[t]{0.52\textwidth}
+\begin{minipage}[t]{0.56\textwidth}
 \small\raggedright
 \texttt{message Request \{ id(1): int32; name(2): string; \}}\\
 \texttt{Request \{ id: 42, name: "test" \}}
@@ -659,14 +659,14 @@ Absent fields are not encoded. Unknown tags are skipped by decoders. Tags must b
 
 \subsection{Unions}
 
-\begin{minipage}[t]{0.48\textwidth}
+\begin{minipage}[t]{0.41\textwidth}
 \raggedright
 Unions have a 4-byte length prefix, followed by a 1-byte discriminator, followed by the branch content.
 
 \vspace{6pt}
 Discriminators must be in range 0--255.
 \end{minipage}\hfill
-\begin{minipage}[t]{0.48\textwidth}
+\begin{minipage}[t]{0.56\textwidth}
 \small\raggedright
 \texttt{union Shape \{ Circle(1): \{ radius: float32; \}; \}}\\
 \texttt{Shape.Circle \{ radius: 5.0 \}}
