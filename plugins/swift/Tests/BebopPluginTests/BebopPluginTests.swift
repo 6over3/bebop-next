@@ -425,27 +425,26 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
 }
 
 @Test func diagnosticRoundTrip() throws {
-  var span: InlineArray<4, Int32> = .init(repeating: 0)
-  span[0] = 1
-  span[1] = 5
-  span[2] = 1
-  span[3] = 20
   let d = Diagnostic(
     severity: .warning,
     text: "field is deprecated",
     hint: "use new_field instead",
     file: "test.bop",
-    span: span
+    span: {
+      let values: [Int32] = [1, 5, 1, 20]
+      return InlineArray<4, Int32> { values[$0] }
+    }()
   )
   let decoded = try roundTrip(d)
   #expect(decoded.severity == .warning)
   #expect(decoded.text == "field is deprecated")
   #expect(decoded.hint == "use new_field instead")
   #expect(decoded.file == "test.bop")
-  #expect(decoded.span?[0] == 1)
-  #expect(decoded.span?[1] == 5)
-  #expect(decoded.span?[2] == 1)
-  #expect(decoded.span?[3] == 20)
+  let span = try #require(decoded.span)
+  #expect(span[0] == 1)
+  #expect(span[1] == 5)
+  #expect(span[2] == 1)
+  #expect(span[3] == 20)
 }
 
 // MARK: - DescriptorCompat: ResponseBuilder
