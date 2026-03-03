@@ -116,14 +116,16 @@ jobs:
 
             if [[ "$target" == windows-* ]]; then
               cp artifacts/${artifact}/bin/bebopc.exe "${staging}/"
-              cp artifacts/${artifact}/bin/bebopc-gen-c.exe "${staging}/"
-              cp artifacts/${artifact}/bin/bebopc-gen-swift.exe "${staging}/"
               cp artifacts/${artifact}/lib/bebop.lib "${staging}/"
+              for gen in artifacts/${artifact}/bin/bebopc-gen-*.exe; do
+                [ -f "$gen" ] && cp "$gen" "${staging}/"
+              done
             else
               cp artifacts/${artifact}/bin/bebopc "${staging}/"
-              cp artifacts/${artifact}/bin/bebopc-gen-c "${staging}/"
-              cp artifacts/${artifact}/bin/bebopc-gen-swift "${staging}/"
               cp artifacts/${artifact}/lib/libbebop.a "${staging}/"
+              for gen in artifacts/${artifact}/bin/bebopc-gen-*; do
+                [ -f "$gen" ] && cp "$gen" "${staging}/"
+              done
             fi
             cp -r artifacts/${artifact}/include "${staging}/"
             cp -r artifacts/${artifact}/share/bebop "${staging}/schemas"
