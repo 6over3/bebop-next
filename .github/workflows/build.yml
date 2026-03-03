@@ -48,18 +48,25 @@ jobs:
         if: inputs.swift-version != '' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          winget install --id Swift.Toolchain -e --accept-source-agreements --accept-package-agreements --disable-interactivity --silent
-          $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-          $swift = (Get-Command swift -ErrorAction SilentlyContinue).Source
-          if ($swift) {
-            $swiftDir = Split-Path $swift
-            Write-Host "Found Swift at: $swiftDir"
-            echo "$swiftDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            swift --version
+          if ("${{ inputs.arch }}" -eq "arm64") {
+            $platform = "windows10-arm64"
+            $suffix = "-windows10-arm64"
           } else {
+            $platform = "windows10"
+            $suffix = "-windows10"
+          }
+          $url = "https://download.swift.org/swift-${{ inputs.swift-version }}-release/${platform}/swift-${{ inputs.swift-version }}-RELEASE/swift-${{ inputs.swift-version }}-RELEASE${suffix}.exe"
+          Write-Host "Downloading Swift from: $url"
+          Invoke-WebRequest -Uri $url -OutFile swift-installer.exe -MaximumRetryCount 3
+          Start-Process -FilePath .\swift-installer.exe -ArgumentList '-q' -Wait
+          $swift = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Swift" -Recurse -Filter "swift.exe" | Select-Object -First 1
+          if (-not $swift) {
             Write-Error "Swift not found after install"
             exit 1
           }
+          Write-Host "Found Swift at: $($swift.DirectoryName)"
+          echo "$($swift.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $swift.FullName --version
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'

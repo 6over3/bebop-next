@@ -1,12 +1,15 @@
 include(CheckLanguage)
 check_language(Swift)
-if(NOT CMAKE_Swift_COMPILER)
+if(CMAKE_Swift_COMPILER)
+    get_filename_component(SWIFT_BIN_DIR "${CMAKE_Swift_COMPILER}" DIRECTORY)
+    find_program(SWIFT_EXECUTABLE swift HINTS "${SWIFT_BIN_DIR}")
+else()
+    find_program(SWIFT_EXECUTABLE swift)
+endif()
+if(NOT SWIFT_EXECUTABLE)
     message(STATUS "Swift not found, skipping bebopc-gen-swift")
     return()
 endif()
-
-get_filename_component(SWIFT_BIN_DIR "${CMAKE_Swift_COMPILER}" DIRECTORY)
-set(SWIFT_EXECUTABLE "${SWIFT_BIN_DIR}/swift${CMAKE_EXECUTABLE_SUFFIX}")
 
 execute_process(
     COMMAND "${SWIFT_EXECUTABLE}" --version
