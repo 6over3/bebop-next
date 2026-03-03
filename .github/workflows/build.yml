@@ -59,13 +59,15 @@ jobs:
           Write-Host "Downloading Swift from: $url"
           Invoke-WebRequest -Uri $url -OutFile swift-installer.exe -MaximumRetryCount 3
           Start-Process -FilePath .\swift-installer.exe -ArgumentList '-q' -Wait
-          $swift = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Swift" -Recurse -Filter "swift.exe" | Select-Object -First 1
-          if (-not $swift) {
-            Write-Error "Swift not found after install"
+          $swiftRoot = "$env:LOCALAPPDATA\Programs\Swift"
+          if (-not (Test-Path $swiftRoot)) {
+            Write-Error "Swift install directory not found"
             exit 1
           }
-          Write-Host "Found Swift at: $($swift.DirectoryName)"
-          echo "$($swift.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Get-ChildItem -Path $swiftRoot -Recurse -Directory -Filter "bin" | ForEach-Object {
+            Write-Host "Adding to PATH: $($_.FullName)"
+            echo "$($_.FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
