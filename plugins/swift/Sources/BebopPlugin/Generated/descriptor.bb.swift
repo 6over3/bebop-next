@@ -18,40 +18,46 @@ import SwiftBebop
 
 // @@bebop_insertion_point(imports)
 
-private func == <let N: Int, Element: Equatable>(
-  lhs: InlineArray<N, Element>, rhs: InlineArray<N, Element>
+private func == < let N: Int, Element: Equatable > (
+    lhs: InlineArray<N, Element>, rhs: InlineArray<N, Element>
 ) -> Bool {
-  for i in 0..<N { if lhs[i] != rhs[i] { return false } }
-  return true
+    for i in 0 ..< N {
+        if lhs[i] != rhs[i] { return false }
+    }
+    return true
 }
 
-private func == <let N: Int, Element: Equatable>(
-  lhs: InlineArray<N, Element>?, rhs: InlineArray<N, Element>?
+private func == < let N: Int, Element: Equatable > (
+    lhs: InlineArray<N, Element>?, rhs: InlineArray<N, Element>?
 ) -> Bool {
-  switch (lhs, rhs) {
-  case (.none, .none): return true
-  case (.some(let l), .some(let r)): return l == r
-  default: return false
-  }
+    switch (lhs, rhs) {
+    case (.none, .none): true
+    case let (.some(l), .some(r)): l == r
+    default: false
+    }
 }
 
 extension Hasher {
-  fileprivate mutating func combine<let N: Int, Element: Hashable>(
-    _ value: InlineArray<N, Element>
-  ) {
-    for i in 0..<N { combine(value[i]) }
-  }
-
-  fileprivate mutating func combine<let N: Int, Element: Hashable>(
-    _ value: InlineArray<N, Element>?
-  ) {
-    switch value {
-    case .none: combine(false)
-    case .some(let v):
-      combine(true)
-      for i in 0..<N { combine(v[i]) }
+    fileprivate mutating func combine< let N: Int, Element: Hashable > (
+        _ value: InlineArray<N, Element>
+    ) {
+        for i in 0 ..< N {
+            combine(value[i])
+        }
     }
-  }
+
+    fileprivate mutating func combine< let N: Int, Element: Hashable > (
+        _ value: InlineArray<N, Element>?
+    ) {
+        switch value {
+        case .none: combine(false)
+        case let .some(v):
+            combine(true)
+            for i in 0 ..< N {
+                combine(v[i])
+            }
+        }
+    }
 }
 
 /// Scalar and compound type kinds.
@@ -64,106 +70,106 @@ extension Hasher {
 /// - `DEFINED`: referenced type FQN in `defined_fqn`
 /// Value 0 is a sentinel. A valid TypeDescriptor never has `kind == UNKNOWN`.
 public struct TypeKind: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let unknown = TypeKind(rawValue: 0)
+    public static let unknown = TypeKind(rawValue: 0)
 
-  public static let bool = TypeKind(rawValue: 1)
+    public static let bool = TypeKind(rawValue: 1)
 
-  public static let byte = TypeKind(rawValue: 2)
+    public static let byte = TypeKind(rawValue: 2)
 
-  public static let int8 = TypeKind(rawValue: 3)
+    public static let int8 = TypeKind(rawValue: 3)
 
-  public static let int16 = TypeKind(rawValue: 4)
+    public static let int16 = TypeKind(rawValue: 4)
 
-  public static let uint16 = TypeKind(rawValue: 5)
+    public static let uint16 = TypeKind(rawValue: 5)
 
-  public static let int32 = TypeKind(rawValue: 6)
+    public static let int32 = TypeKind(rawValue: 6)
 
-  public static let uint32 = TypeKind(rawValue: 7)
+    public static let uint32 = TypeKind(rawValue: 7)
 
-  public static let int64 = TypeKind(rawValue: 8)
+    public static let int64 = TypeKind(rawValue: 8)
 
-  public static let uint64 = TypeKind(rawValue: 9)
+    public static let uint64 = TypeKind(rawValue: 9)
 
-  public static let int128 = TypeKind(rawValue: 10)
+    public static let int128 = TypeKind(rawValue: 10)
 
-  public static let uint128 = TypeKind(rawValue: 11)
+    public static let uint128 = TypeKind(rawValue: 11)
 
-  public static let float16 = TypeKind(rawValue: 12)
+    public static let float16 = TypeKind(rawValue: 12)
 
-  public static let float32 = TypeKind(rawValue: 13)
+    public static let float32 = TypeKind(rawValue: 13)
 
-  public static let float64 = TypeKind(rawValue: 14)
+    public static let float64 = TypeKind(rawValue: 14)
 
-  public static let bfloat16 = TypeKind(rawValue: 15)
+    public static let bfloat16 = TypeKind(rawValue: 15)
 
-  public static let string = TypeKind(rawValue: 16)
+    public static let string = TypeKind(rawValue: 16)
 
-  public static let uuid = TypeKind(rawValue: 17)
+    public static let uuid = TypeKind(rawValue: 17)
 
-  public static let timestamp = TypeKind(rawValue: 18)
+    public static let timestamp = TypeKind(rawValue: 18)
 
-  public static let duration = TypeKind(rawValue: 19)
+    public static let duration = TypeKind(rawValue: 19)
 
-  public static let array = TypeKind(rawValue: 20)
+    public static let array = TypeKind(rawValue: 20)
 
-  public static let fixedArray = TypeKind(rawValue: 21)
+    public static let fixedArray = TypeKind(rawValue: 21)
 
-  public static let map = TypeKind(rawValue: 22)
+    public static let map = TypeKind(rawValue: 22)
 
-  public static let defined = TypeKind(rawValue: 23)
+    public static let defined = TypeKind(rawValue: 23)
 
-  public static func decode(from reader: inout BebopReader) throws -> TypeKind {
-    return TypeKind(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> TypeKind {
+        try TypeKind(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "TypeKind",
-    fqn: "bebop.TypeKind",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNKNOWN", value: 0),
-          (name: "BOOL", value: 1),
-          (name: "BYTE", value: 2),
-          (name: "INT8", value: 3),
-          (name: "INT16", value: 4),
-          (name: "UINT16", value: 5),
-          (name: "INT32", value: 6),
-          (name: "UINT32", value: 7),
-          (name: "INT64", value: 8),
-          (name: "UINT64", value: 9),
-          (name: "INT128", value: 10),
-          (name: "UINT128", value: 11),
-          (name: "FLOAT16", value: 12),
-          (name: "FLOAT32", value: 13),
-          (name: "FLOAT64", value: 14),
-          (name: "BFLOAT16", value: 15),
-          (name: "STRING", value: 16),
-          (name: "UUID", value: 17),
-          (name: "TIMESTAMP", value: 18),
-          (name: "DURATION", value: 19),
-          (name: "ARRAY", value: 20),
-          (name: "FIXED_ARRAY", value: 21),
-          (name: "MAP", value: 22),
-          (name: "DEFINED", value: 23),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "TypeKind",
+        fqn: "bebop.TypeKind",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNKNOWN", value: 0),
+                    (name: "BOOL", value: 1),
+                    (name: "BYTE", value: 2),
+                    (name: "INT8", value: 3),
+                    (name: "INT16", value: 4),
+                    (name: "UINT16", value: 5),
+                    (name: "INT32", value: 6),
+                    (name: "UINT32", value: 7),
+                    (name: "INT64", value: 8),
+                    (name: "UINT64", value: 9),
+                    (name: "INT128", value: 10),
+                    (name: "UINT128", value: 11),
+                    (name: "FLOAT16", value: 12),
+                    (name: "FLOAT32", value: 13),
+                    (name: "FLOAT64", value: 14),
+                    (name: "BFLOAT16", value: 15),
+                    (name: "STRING", value: 16),
+                    (name: "UUID", value: 17),
+                    (name: "TIMESTAMP", value: 18),
+                    (name: "DURATION", value: 19),
+                    (name: "ARRAY", value: 20),
+                    (name: "FIXED_ARRAY", value: 21),
+                    (name: "MAP", value: 22),
+                    (name: "DEFINED", value: 23),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:TypeKind)
+    // @@bebop_insertion_point(enum_scope:TypeKind)
 }
 
 /// Named definition kinds.
@@ -171,58 +177,58 @@ public struct TypeKind: RawRepresentable, Sendable, Hashable, BebopRecord, Bebop
 /// is populated. A definition with `kind == STRUCT` has `struct_def` set;
 /// other body fields are absent.
 public struct DefinitionKind: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let unknown = DefinitionKind(rawValue: 0)
+    public static let unknown = DefinitionKind(rawValue: 0)
 
-  public static let `enum` = DefinitionKind(rawValue: 1)
+    public static let `enum` = DefinitionKind(rawValue: 1)
 
-  public static let `struct` = DefinitionKind(rawValue: 2)
+    public static let `struct` = DefinitionKind(rawValue: 2)
 
-  public static let message = DefinitionKind(rawValue: 3)
+    public static let message = DefinitionKind(rawValue: 3)
 
-  public static let union = DefinitionKind(rawValue: 4)
+    public static let union = DefinitionKind(rawValue: 4)
 
-  public static let service = DefinitionKind(rawValue: 5)
+    public static let service = DefinitionKind(rawValue: 5)
 
-  public static let const = DefinitionKind(rawValue: 6)
+    public static let const = DefinitionKind(rawValue: 6)
 
-  public static let decorator = DefinitionKind(rawValue: 7)
+    public static let decorator = DefinitionKind(rawValue: 7)
 
-  public static func decode(from reader: inout BebopReader) throws -> DefinitionKind {
-    return DefinitionKind(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DefinitionKind {
+        try DefinitionKind(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DefinitionKind",
-    fqn: "bebop.DefinitionKind",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNKNOWN", value: 0),
-          (name: "ENUM", value: 1),
-          (name: "STRUCT", value: 2),
-          (name: "MESSAGE", value: 3),
-          (name: "UNION", value: 4),
-          (name: "SERVICE", value: 5),
-          (name: "CONST", value: 6),
-          (name: "DECORATOR", value: 7),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DefinitionKind",
+        fqn: "bebop.DefinitionKind",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNKNOWN", value: 0),
+                    (name: "ENUM", value: 1),
+                    (name: "STRUCT", value: 2),
+                    (name: "MESSAGE", value: 3),
+                    (name: "UNION", value: 4),
+                    (name: "SERVICE", value: 5),
+                    (name: "CONST", value: 6),
+                    (name: "DECORATOR", value: 7),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:DefinitionKind)
+    // @@bebop_insertion_point(enum_scope:DefinitionKind)
 }
 
 /// Service method streaming modes.
@@ -234,49 +240,49 @@ public struct DefinitionKind: RawRepresentable, Sendable, Hashable, BebopRecord,
 /// Chat(stream Msg): stream Msg; // DUPLEX_STREAM
 /// ```
 public struct MethodType: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let unknown = MethodType(rawValue: 0)
+    public static let unknown = MethodType(rawValue: 0)
 
-  public static let unary = MethodType(rawValue: 1)
+    public static let unary = MethodType(rawValue: 1)
 
-  public static let serverStream = MethodType(rawValue: 2)
+    public static let serverStream = MethodType(rawValue: 2)
 
-  public static let clientStream = MethodType(rawValue: 3)
+    public static let clientStream = MethodType(rawValue: 3)
 
-  public static let duplexStream = MethodType(rawValue: 4)
+    public static let duplexStream = MethodType(rawValue: 4)
 
-  public static func decode(from reader: inout BebopReader) throws -> MethodType {
-    return MethodType(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> MethodType {
+        try MethodType(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "MethodType",
-    fqn: "bebop.MethodType",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNKNOWN", value: 0),
-          (name: "UNARY", value: 1),
-          (name: "SERVER_STREAM", value: 2),
-          (name: "CLIENT_STREAM", value: 3),
-          (name: "DUPLEX_STREAM", value: 4),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "MethodType",
+        fqn: "bebop.MethodType",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNKNOWN", value: 0),
+                    (name: "UNARY", value: 1),
+                    (name: "SERVER_STREAM", value: 2),
+                    (name: "CLIENT_STREAM", value: 3),
+                    (name: "DUPLEX_STREAM", value: 4),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:MethodType)
+    // @@bebop_insertion_point(enum_scope:MethodType)
 }
 
 /// Definition visibility.
@@ -287,215 +293,215 @@ public struct MethodType: RawRepresentable, Sendable, Hashable, BebopRecord, Beb
 /// `Parent.Child` from other schemas. Local definitions still appear in
 /// descriptors because exported types may reference them.
 public struct Visibility: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let `default` = Visibility(rawValue: 0)
+    public static let `default` = Visibility(rawValue: 0)
 
-  public static let export = Visibility(rawValue: 1)
+    public static let export = Visibility(rawValue: 1)
 
-  public static let local = Visibility(rawValue: 2)
+    public static let local = Visibility(rawValue: 2)
 
-  public static func decode(from reader: inout BebopReader) throws -> Visibility {
-    return Visibility(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> Visibility {
+        try Visibility(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "Visibility",
-    fqn: "bebop.Visibility",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "DEFAULT", value: 0),
-          (name: "EXPORT", value: 1),
-          (name: "LOCAL", value: 2),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "Visibility",
+        fqn: "bebop.Visibility",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "DEFAULT", value: 0),
+                    (name: "EXPORT", value: 1),
+                    (name: "LOCAL", value: 2),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:Visibility)
+    // @@bebop_insertion_point(enum_scope:Visibility)
 }
 
 /// Literal value kinds.
 /// Discriminates which value field of LiteralValue is set.
 public struct LiteralKind: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let unknown = LiteralKind(rawValue: 0)
+    public static let unknown = LiteralKind(rawValue: 0)
 
-  public static let bool = LiteralKind(rawValue: 1)
+    public static let bool = LiteralKind(rawValue: 1)
 
-  public static let int = LiteralKind(rawValue: 2)
+    public static let int = LiteralKind(rawValue: 2)
 
-  public static let float = LiteralKind(rawValue: 3)
+    public static let float = LiteralKind(rawValue: 3)
 
-  public static let string = LiteralKind(rawValue: 4)
+    public static let string = LiteralKind(rawValue: 4)
 
-  public static let uuid = LiteralKind(rawValue: 5)
+    public static let uuid = LiteralKind(rawValue: 5)
 
-  public static let bytes = LiteralKind(rawValue: 6)
+    public static let bytes = LiteralKind(rawValue: 6)
 
-  public static let timestamp = LiteralKind(rawValue: 7)
+    public static let timestamp = LiteralKind(rawValue: 7)
 
-  public static let duration = LiteralKind(rawValue: 8)
+    public static let duration = LiteralKind(rawValue: 8)
 
-  public static func decode(from reader: inout BebopReader) throws -> LiteralKind {
-    return LiteralKind(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> LiteralKind {
+        try LiteralKind(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "LiteralKind",
-    fqn: "bebop.LiteralKind",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNKNOWN", value: 0),
-          (name: "BOOL", value: 1),
-          (name: "INT", value: 2),
-          (name: "FLOAT", value: 3),
-          (name: "STRING", value: 4),
-          (name: "UUID", value: 5),
-          (name: "BYTES", value: 6),
-          (name: "TIMESTAMP", value: 7),
-          (name: "DURATION", value: 8),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "LiteralKind",
+        fqn: "bebop.LiteralKind",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNKNOWN", value: 0),
+                    (name: "BOOL", value: 1),
+                    (name: "INT", value: 2),
+                    (name: "FLOAT", value: 3),
+                    (name: "STRING", value: 4),
+                    (name: "UUID", value: 5),
+                    (name: "BYTES", value: 6),
+                    (name: "TIMESTAMP", value: 7),
+                    (name: "DURATION", value: 8),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:LiteralKind)
+    // @@bebop_insertion_point(enum_scope:LiteralKind)
 }
 
 public struct DecoratorTarget: OptionSet, Sendable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let `enum` = DecoratorTarget(rawValue: 1)
+    public static let `enum` = DecoratorTarget(rawValue: 1)
 
-  public static let `struct` = DecoratorTarget(rawValue: 2)
+    public static let `struct` = DecoratorTarget(rawValue: 2)
 
-  public static let message = DecoratorTarget(rawValue: 4)
+    public static let message = DecoratorTarget(rawValue: 4)
 
-  public static let union = DecoratorTarget(rawValue: 8)
+    public static let union = DecoratorTarget(rawValue: 8)
 
-  public static let field = DecoratorTarget(rawValue: 16)
+    public static let field = DecoratorTarget(rawValue: 16)
 
-  public static let service = DecoratorTarget(rawValue: 32)
+    public static let service = DecoratorTarget(rawValue: 32)
 
-  public static let method = DecoratorTarget(rawValue: 64)
+    public static let method = DecoratorTarget(rawValue: 64)
 
-  public static let branch = DecoratorTarget(rawValue: 128)
+    public static let branch = DecoratorTarget(rawValue: 128)
 
-  public static let all = DecoratorTarget(rawValue: 255)
+    public static let all = DecoratorTarget(rawValue: 255)
 
-  public static func decode(from reader: inout BebopReader) throws -> DecoratorTarget {
-    return DecoratorTarget(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DecoratorTarget {
+        try DecoratorTarget(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    self.rawValue = try container.decode(UInt8.self)
-  }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        rawValue = try container.decode(UInt8.self)
+    }
 
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DecoratorTarget",
-    fqn: "bebop.DecoratorTarget",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "NONE", value: 0),
-          (name: "ENUM", value: 1),
-          (name: "STRUCT", value: 2),
-          (name: "MESSAGE", value: 4),
-          (name: "UNION", value: 8),
-          (name: "FIELD", value: 16),
-          (name: "SERVICE", value: 32),
-          (name: "METHOD", value: 64),
-          (name: "BRANCH", value: 128),
-          (name: "ALL", value: 255),
-        ],
-        isFlags: true
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DecoratorTarget",
+        fqn: "bebop.DecoratorTarget",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "NONE", value: 0),
+                    (name: "ENUM", value: 1),
+                    (name: "STRUCT", value: 2),
+                    (name: "MESSAGE", value: 4),
+                    (name: "UNION", value: 8),
+                    (name: "FIELD", value: 16),
+                    (name: "SERVICE", value: 32),
+                    (name: "METHOD", value: 64),
+                    (name: "BRANCH", value: 128),
+                    (name: "ALL", value: 255),
+                ],
+                isFlags: true
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:DecoratorTarget)
+    // @@bebop_insertion_point(enum_scope:DecoratorTarget)
 }
 
 /// Schema edition markers.
 /// Edition values are ordered for comparison. Higher values are later editions.
 /// A compiler rejects source files declaring an edition it does not support.
 public struct Edition: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: Int32
+    public let rawValue: Int32
 
-  public init(rawValue: Int32) { self.rawValue = rawValue }
+    public init(rawValue: Int32) { self.rawValue = rawValue }
 
-  public static let unknown = Edition(rawValue: 0)
+    public static let unknown = Edition(rawValue: 0)
 
-  public static let edition2026 = Edition(rawValue: 1000)
+    public static let edition2026 = Edition(rawValue: 1000)
 
-  public static let max = Edition(rawValue: 2_147_483_647)
+    public static let max = Edition(rawValue: 2_147_483_647)
 
-  public static func decode(from reader: inout BebopReader) throws -> Edition {
-    return Edition(rawValue: try reader.readInt32())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> Edition {
+        try Edition(rawValue: reader.readInt32())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeInt32(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeInt32(rawValue)
+    }
 
-  public var encodedSize: Int { 4 }
+    public var encodedSize: Int { 4 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "Edition",
-    fqn: "bebop.Edition",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNKNOWN", value: 0),
-          (name: "EDITION_2026", value: 1000),
-          (name: "MAX", value: 2_147_483_647),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "Edition",
+        fqn: "bebop.Edition",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNKNOWN", value: 0),
+                    (name: "EDITION_2026", value: 1000),
+                    (name: "MAX", value: 2_147_483_647),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:Edition)
+    // @@bebop_insertion_point(enum_scope:Edition)
 }
 
 /// Type reference.
@@ -516,201 +522,192 @@ public struct Edition: RawRepresentable, Sendable, Hashable, BebopRecord, BebopR
 /// array_element.map_value.defined_fqn="mypackage.Item"
 /// ```
 public final class TypeDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Discriminates which fields below are populated.
-  public var kind: TypeKind?
+    /// Discriminates which fields below are populated.
+    public var kind: TypeKind?
 
-  /// Element type when `kind == ARRAY`.
-  public var arrayElement: TypeDescriptor?
+    /// Element type when `kind == ARRAY`.
+    public var arrayElement: TypeDescriptor?
 
-  /// Element type when `kind == FIXED_ARRAY`.
-  public var fixedArrayElement: TypeDescriptor?
+    /// Element type when `kind == FIXED_ARRAY`.
+    public var fixedArrayElement: TypeDescriptor?
 
-  /// Element count when `kind == FIXED_ARRAY`. Range 1-65535.
-  public var fixedArraySize: UInt32?
+    /// Element count when `kind == FIXED_ARRAY`. Range 1-65535.
+    public var fixedArraySize: UInt32?
 
-  /// Key type when `kind == MAP`. Must be hashable (bool, integers, string, uuid).
-  public var mapKey: TypeDescriptor?
+    /// Key type when `kind == MAP`. Must be hashable (bool, integers, string, uuid).
+    public var mapKey: TypeDescriptor?
 
-  /// Value type when `kind == MAP`.
-  public var mapValue: TypeDescriptor?
+    /// Value type when `kind == MAP`.
+    public var mapValue: TypeDescriptor?
 
-  /// FQN when `kind == DEFINED`. Always fully qualified after linking.
-  public var definedFqn: String?
+    /// FQN when `kind == DEFINED`. Always fully qualified after linking.
+    public var definedFqn: String?
 
-  public init(
-    kind: TypeKind? = nil, arrayElement: TypeDescriptor? = nil,
-    fixedArrayElement: TypeDescriptor? = nil, fixedArraySize: UInt32? = nil,
-    mapKey: TypeDescriptor? = nil, mapValue: TypeDescriptor? = nil, definedFqn: String? = nil
-  ) {
-    self.kind = kind
-    self.arrayElement = arrayElement
-    self.fixedArrayElement = fixedArrayElement
-    self.fixedArraySize = fixedArraySize
-    self.mapKey = mapKey
-    self.mapValue = mapValue
-    self.definedFqn = definedFqn
-  }
-
-  public static func == (lhs: TypeDescriptor, rhs: TypeDescriptor) -> Bool {
-    return lhs.kind == rhs.kind && lhs.arrayElement == rhs.arrayElement
-      && lhs.fixedArrayElement == rhs.fixedArrayElement && lhs.fixedArraySize == rhs.fixedArraySize
-      && lhs.mapKey == rhs.mapKey && lhs.mapValue == rhs.mapValue
-      && lhs.definedFqn == rhs.definedFqn
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(kind)
-    hasher.combine(arrayElement)
-    hasher.combine(fixedArrayElement)
-    hasher.combine(fixedArraySize)
-    hasher.combine(mapKey)
-    hasher.combine(mapValue)
-    hasher.combine(definedFqn)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> TypeDescriptor {
-    // @@bebop_insertion_point(decode_start:TypeDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var kind: TypeKind? = nil
-    var arrayElement: TypeDescriptor? = nil
-    var fixedArrayElement: TypeDescriptor? = nil
-    var fixedArraySize: UInt32? = nil
-    var mapKey: TypeDescriptor? = nil
-    var mapValue: TypeDescriptor? = nil
-    var definedFqn: String? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        kind = try TypeKind.decode(from: &reader)
-      case 2:
-        arrayElement = try TypeDescriptor.decode(from: &reader)
-      case 3:
-        fixedArrayElement = try TypeDescriptor.decode(from: &reader)
-      case 4:
-        fixedArraySize = try reader.readUInt32()
-      case 5:
-        mapKey = try TypeDescriptor.decode(from: &reader)
-      case 6:
-        mapValue = try TypeDescriptor.decode(from: &reader)
-      case 7:
-        definedFqn = try reader.readString()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(kind: TypeKind? = nil, arrayElement: TypeDescriptor? = nil, fixedArrayElement: TypeDescriptor? = nil, fixedArraySize: UInt32? = nil, mapKey: TypeDescriptor? = nil, mapValue: TypeDescriptor? = nil, definedFqn: String? = nil) {
+        self.kind = kind
+        self.arrayElement = arrayElement
+        self.fixedArrayElement = fixedArrayElement
+        self.fixedArraySize = fixedArraySize
+        self.mapKey = mapKey
+        self.mapValue = mapValue
+        self.definedFqn = definedFqn
     }
-    // @@bebop_insertion_point(decode_end:TypeDescriptor)
-    return TypeDescriptor(
-      kind: kind, arrayElement: arrayElement, fixedArrayElement: fixedArrayElement,
-      fixedArraySize: fixedArraySize, mapKey: mapKey, mapValue: mapValue, definedFqn: definedFqn)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:TypeDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = kind {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: TypeDescriptor, rhs: TypeDescriptor) -> Bool {
+        lhs.kind == rhs.kind && lhs.arrayElement == rhs.arrayElement && lhs.fixedArrayElement == rhs.fixedArrayElement && lhs.fixedArraySize == rhs.fixedArraySize && lhs.mapKey == rhs.mapKey && lhs.mapValue == rhs.mapValue && lhs.definedFqn == rhs.definedFqn
     }
-    if let _v = arrayElement {
-      writer.writeTag(2)
-      _v.encode(to: &writer)
-    }
-    if let _v = fixedArrayElement {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = fixedArraySize {
-      writer.writeTag(4)
-      writer.writeUInt32(_v)
-    }
-    if let _v = mapKey {
-      writer.writeTag(5)
-      _v.encode(to: &writer)
-    }
-    if let _v = mapValue {
-      writer.writeTag(6)
-      _v.encode(to: &writer)
-    }
-    if let _v = definedFqn {
-      writer.writeTag(7)
-      writer.writeString(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:TypeDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = kind { size += 1 + _v.encodedSize }
-    if let _v = arrayElement { size += 1 + _v.encodedSize }
-    if let _v = fixedArrayElement { size += 1 + _v.encodedSize }
-    if fixedArraySize != nil { size += 1 + 4 }
-    if let _v = mapKey { size += 1 + _v.encodedSize }
-    if let _v = mapValue { size += 1 + _v.encodedSize }
-    if let _v = definedFqn { size += 1 + (4 + _v.utf8.count + 1) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(arrayElement)
+        hasher.combine(fixedArrayElement)
+        hasher.combine(fixedArraySize)
+        hasher.combine(mapKey)
+        hasher.combine(mapValue)
+        hasher.combine(definedFqn)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case kind
-    case arrayElement = "array_element"
-    case fixedArrayElement = "fixed_array_element"
-    case fixedArraySize = "fixed_array_size"
-    case mapKey = "map_key"
-    case mapValue = "map_value"
-    case definedFqn = "defined_fqn"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> TypeDescriptor {
+        // @@bebop_insertion_point(decode_start:TypeDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var kind: TypeKind? = nil
+        var arrayElement: TypeDescriptor? = nil
+        var fixedArrayElement: TypeDescriptor? = nil
+        var fixedArraySize: UInt32? = nil
+        var mapKey: TypeDescriptor? = nil
+        var mapValue: TypeDescriptor? = nil
+        var definedFqn: String? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                kind = try TypeKind.decode(from: &reader)
+            case 2:
+                arrayElement = try TypeDescriptor.decode(from: &reader)
+            case 3:
+                fixedArrayElement = try TypeDescriptor.decode(from: &reader)
+            case 4:
+                fixedArraySize = try reader.readUInt32()
+            case 5:
+                mapKey = try TypeDescriptor.decode(from: &reader)
+            case 6:
+                mapValue = try TypeDescriptor.decode(from: &reader)
+            case 7:
+                definedFqn = try reader.readString()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:TypeDescriptor)
+        return TypeDescriptor(kind: kind, arrayElement: arrayElement, fixedArrayElement: fixedArrayElement, fixedArraySize: fixedArraySize, mapKey: mapKey, mapValue: mapValue, definedFqn: definedFqn)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "TypeDescriptor",
-    fqn: "bebop.TypeDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "kind",
-          index: 1,
-          typeName: "TypeKind"
-        ),
-        BebopFieldReflection(
-          name: "array_element",
-          index: 2,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "fixed_array_element",
-          index: 3,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "fixed_array_size",
-          index: 4,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "map_key",
-          index: 5,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "map_value",
-          index: 6,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "defined_fqn",
-          index: 7,
-          typeName: "String"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:TypeDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = kind {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = arrayElement {
+            writer.writeTag(2)
+            _v.encode(to: &writer)
+        }
+        if let _v = fixedArrayElement {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = fixedArraySize {
+            writer.writeTag(4)
+            writer.writeUInt32(_v)
+        }
+        if let _v = mapKey {
+            writer.writeTag(5)
+            _v.encode(to: &writer)
+        }
+        if let _v = mapValue {
+            writer.writeTag(6)
+            _v.encode(to: &writer)
+        }
+        if let _v = definedFqn {
+            writer.writeTag(7)
+            writer.writeString(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:TypeDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = kind { size += 1 + _v.encodedSize }
+        if let _v = arrayElement { size += 1 + _v.encodedSize }
+        if let _v = fixedArrayElement { size += 1 + _v.encodedSize }
+        if fixedArraySize != nil { size += 1 + 4 }
+        if let _v = mapKey { size += 1 + _v.encodedSize }
+        if let _v = mapValue { size += 1 + _v.encodedSize }
+        if let _v = definedFqn { size += 1 + (4 + _v.utf8.count + 1) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case arrayElement = "array_element"
+        case fixedArrayElement = "fixed_array_element"
+        case fixedArraySize = "fixed_array_size"
+        case mapKey = "map_key"
+        case mapValue = "map_value"
+        case definedFqn = "defined_fqn"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "TypeDescriptor",
+        fqn: "bebop.TypeDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "kind",
+                    index: 1,
+                    typeName: "TypeKind"
+                ),
+                BebopFieldReflection(
+                    name: "array_element",
+                    index: 2,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "fixed_array_element",
+                    index: 3,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "fixed_array_size",
+                    index: 4,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "map_key",
+                    index: 5,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "map_value",
+                    index: 6,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "defined_fqn",
+                    index: 7,
+                    typeName: "String"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:TypeDescriptor)
+    // @@bebop_insertion_point(message_scope:TypeDescriptor)
 }
 
 /// Concrete value.
@@ -719,318 +716,306 @@ public final class TypeDescriptor: BebopRecord, BebopReflectable, @unchecked Sen
 /// The `raw_value` field preserves pre-expansion text for constants using
 /// environment variable substitution (`$(...)`).
 public final class LiteralValue: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var kind: LiteralKind?
+    public var kind: LiteralKind?
 
-  public var boolValue: Bool?
+    public var boolValue: Bool?
 
-  public var intValue: Int64?
+    public var intValue: Int64?
 
-  public var floatValue: Double?
+    public var floatValue: Double?
 
-  public var stringValue: String?
+    public var stringValue: String?
 
-  public var uuidValue: BebopUUID?
+    public var uuidValue: BebopUUID?
 
-  /// Original source text before `$(...)` expansion. Only set for string
-  /// literals that contained environment variable references.
-  public var rawValue: String?
+    /// Original source text before `$(...)` expansion. Only set for string
+    /// literals that contained environment variable references.
+    public var rawValue: String?
 
-  /// When `kind == BYTES`.
-  public var bytesValue: [UInt8]?
+    /// When `kind == BYTES`.
+    public var bytesValue: [UInt8]?
 
-  /// When `kind == TIMESTAMP`.
-  public var timestampValue: BebopTimestamp?
+    /// When `kind == TIMESTAMP`.
+    public var timestampValue: BebopTimestamp?
 
-  /// When `kind == DURATION`.
-  public var durationValue: Duration?
+    /// When `kind == DURATION`.
+    public var durationValue: Duration?
 
-  public init(
-    kind: LiteralKind? = nil, boolValue: Bool? = nil, intValue: Int64? = nil,
-    floatValue: Double? = nil, stringValue: String? = nil, uuidValue: BebopUUID? = nil,
-    rawValue: String? = nil, bytesValue: [UInt8]? = nil, timestampValue: BebopTimestamp? = nil,
-    durationValue: Duration? = nil
-  ) {
-    self.kind = kind
-    self.boolValue = boolValue
-    self.intValue = intValue
-    self.floatValue = floatValue
-    self.stringValue = stringValue
-    self.uuidValue = uuidValue
-    self.rawValue = rawValue
-    self.bytesValue = bytesValue
-    self.timestampValue = timestampValue
-    self.durationValue = durationValue
-  }
-
-  public static func == (lhs: LiteralValue, rhs: LiteralValue) -> Bool {
-    return lhs.kind == rhs.kind && lhs.boolValue == rhs.boolValue && lhs.intValue == rhs.intValue
-      && lhs.floatValue == rhs.floatValue && lhs.stringValue == rhs.stringValue
-      && lhs.uuidValue == rhs.uuidValue && lhs.rawValue == rhs.rawValue
-      && lhs.bytesValue == rhs.bytesValue && lhs.timestampValue == rhs.timestampValue
-      && lhs.durationValue == rhs.durationValue
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(kind)
-    hasher.combine(boolValue)
-    hasher.combine(intValue)
-    hasher.combine(floatValue)
-    hasher.combine(stringValue)
-    hasher.combine(uuidValue)
-    hasher.combine(rawValue)
-    hasher.combine(bytesValue)
-    hasher.combine(timestampValue)
-    hasher.combine(durationValue)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> LiteralValue {
-    // @@bebop_insertion_point(decode_start:LiteralValue)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var kind: LiteralKind? = nil
-    var boolValue: Bool? = nil
-    var intValue: Int64? = nil
-    var floatValue: Double? = nil
-    var stringValue: String? = nil
-    var uuidValue: BebopUUID? = nil
-    var rawValue: String? = nil
-    var bytesValue: [UInt8]? = nil
-    var timestampValue: BebopTimestamp? = nil
-    var durationValue: Duration? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        kind = try LiteralKind.decode(from: &reader)
-      case 2:
-        boolValue = try reader.readBool()
-      case 3:
-        intValue = try reader.readInt64()
-      case 4:
-        floatValue = try reader.readFloat64()
-      case 5:
-        stringValue = try reader.readString()
-      case 6:
-        uuidValue = try reader.readUUID()
-      case 7:
-        rawValue = try reader.readString()
-      case 8:
-        bytesValue = try reader.readLengthPrefixedArray(of: UInt8.self)
-      case 9:
-        timestampValue = try reader.readTimestamp()
-      case 10:
-        durationValue = try reader.readDuration()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(kind: LiteralKind? = nil, boolValue: Bool? = nil, intValue: Int64? = nil, floatValue: Double? = nil, stringValue: String? = nil, uuidValue: BebopUUID? = nil, rawValue: String? = nil, bytesValue: [UInt8]? = nil, timestampValue: BebopTimestamp? = nil, durationValue: Duration? = nil) {
+        self.kind = kind
+        self.boolValue = boolValue
+        self.intValue = intValue
+        self.floatValue = floatValue
+        self.stringValue = stringValue
+        self.uuidValue = uuidValue
+        self.rawValue = rawValue
+        self.bytesValue = bytesValue
+        self.timestampValue = timestampValue
+        self.durationValue = durationValue
     }
-    // @@bebop_insertion_point(decode_end:LiteralValue)
-    return LiteralValue(
-      kind: kind, boolValue: boolValue, intValue: intValue, floatValue: floatValue,
-      stringValue: stringValue, uuidValue: uuidValue, rawValue: rawValue, bytesValue: bytesValue,
-      timestampValue: timestampValue, durationValue: durationValue)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:LiteralValue)
-    let pos = writer.reserveMessageLength()
-    if let _v = kind {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: LiteralValue, rhs: LiteralValue) -> Bool {
+        lhs.kind == rhs.kind && lhs.boolValue == rhs.boolValue && lhs.intValue == rhs.intValue && lhs.floatValue == rhs.floatValue && lhs.stringValue == rhs.stringValue && lhs.uuidValue == rhs.uuidValue && lhs.rawValue == rhs.rawValue && lhs.bytesValue == rhs.bytesValue && lhs.timestampValue == rhs.timestampValue && lhs.durationValue == rhs.durationValue
     }
-    if let _v = boolValue {
-      writer.writeTag(2)
-      writer.writeBool(_v)
-    }
-    if let _v = intValue {
-      writer.writeTag(3)
-      writer.writeInt64(_v)
-    }
-    if let _v = floatValue {
-      writer.writeTag(4)
-      writer.writeFloat64(_v)
-    }
-    if let _v = stringValue {
-      writer.writeTag(5)
-      writer.writeString(_v)
-    }
-    if let _v = uuidValue {
-      writer.writeTag(6)
-      writer.writeUUID(_v)
-    }
-    if let _v = rawValue {
-      writer.writeTag(7)
-      writer.writeString(_v)
-    }
-    if let _v = bytesValue {
-      writer.writeTag(8)
-      writer.writeLengthPrefixedArray(_v)
-    }
-    if let _v = timestampValue {
-      writer.writeTag(9)
-      writer.writeTimestamp(_v)
-    }
-    if let _v = durationValue {
-      writer.writeTag(10)
-      writer.writeDuration(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:LiteralValue)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = kind { size += 1 + _v.encodedSize }
-    if boolValue != nil { size += 1 + 1 }
-    if intValue != nil { size += 1 + 8 }
-    if floatValue != nil { size += 1 + 8 }
-    if let _v = stringValue { size += 1 + (4 + _v.utf8.count + 1) }
-    if uuidValue != nil { size += 1 + 16 }
-    if let _v = rawValue { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = bytesValue { size += 1 + (4 + _v.count &* 1) }
-    if timestampValue != nil { size += 1 + 16 }
-    if durationValue != nil { size += 1 + 12 }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(boolValue)
+        hasher.combine(intValue)
+        hasher.combine(floatValue)
+        hasher.combine(stringValue)
+        hasher.combine(uuidValue)
+        hasher.combine(rawValue)
+        hasher.combine(bytesValue)
+        hasher.combine(timestampValue)
+        hasher.combine(durationValue)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case kind
-    case boolValue = "bool_value"
-    case intValue = "int_value"
-    case floatValue = "float_value"
-    case stringValue = "string_value"
-    case uuidValue = "uuid_value"
-    case rawValue = "raw_value"
-    case bytesValue = "bytes_value"
-    case timestampValue = "timestamp_value"
-    case durationValue = "duration_value"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> LiteralValue {
+        // @@bebop_insertion_point(decode_start:LiteralValue)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var kind: LiteralKind? = nil
+        var boolValue: Bool? = nil
+        var intValue: Int64? = nil
+        var floatValue: Double? = nil
+        var stringValue: String? = nil
+        var uuidValue: BebopUUID? = nil
+        var rawValue: String? = nil
+        var bytesValue: [UInt8]? = nil
+        var timestampValue: BebopTimestamp? = nil
+        var durationValue: Duration? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                kind = try LiteralKind.decode(from: &reader)
+            case 2:
+                boolValue = try reader.readBool()
+            case 3:
+                intValue = try reader.readInt64()
+            case 4:
+                floatValue = try reader.readFloat64()
+            case 5:
+                stringValue = try reader.readString()
+            case 6:
+                uuidValue = try reader.readUUID()
+            case 7:
+                rawValue = try reader.readString()
+            case 8:
+                bytesValue = try reader.readLengthPrefixedArray(of: UInt8.self)
+            case 9:
+                timestampValue = try reader.readTimestamp()
+            case 10:
+                durationValue = try reader.readDuration()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:LiteralValue)
+        return LiteralValue(kind: kind, boolValue: boolValue, intValue: intValue, floatValue: floatValue, stringValue: stringValue, uuidValue: uuidValue, rawValue: rawValue, bytesValue: bytesValue, timestampValue: timestampValue, durationValue: durationValue)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "LiteralValue",
-    fqn: "bebop.LiteralValue",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "kind",
-          index: 1,
-          typeName: "LiteralKind"
-        ),
-        BebopFieldReflection(
-          name: "bool_value",
-          index: 2,
-          typeName: "Bool"
-        ),
-        BebopFieldReflection(
-          name: "int_value",
-          index: 3,
-          typeName: "Int64"
-        ),
-        BebopFieldReflection(
-          name: "float_value",
-          index: 4,
-          typeName: "Double"
-        ),
-        BebopFieldReflection(
-          name: "string_value",
-          index: 5,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "uuid_value",
-          index: 6,
-          typeName: "BebopUUID"
-        ),
-        BebopFieldReflection(
-          name: "raw_value",
-          index: 7,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "bytes_value",
-          index: 8,
-          typeName: "[UInt8]"
-        ),
-        BebopFieldReflection(
-          name: "timestamp_value",
-          index: 9,
-          typeName: "BebopTimestamp"
-        ),
-        BebopFieldReflection(
-          name: "duration_value",
-          index: 10,
-          typeName: "Duration"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:LiteralValue)
+        let pos = writer.reserveMessageLength()
+        if let _v = kind {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = boolValue {
+            writer.writeTag(2)
+            writer.writeBool(_v)
+        }
+        if let _v = intValue {
+            writer.writeTag(3)
+            writer.writeInt64(_v)
+        }
+        if let _v = floatValue {
+            writer.writeTag(4)
+            writer.writeFloat64(_v)
+        }
+        if let _v = stringValue {
+            writer.writeTag(5)
+            writer.writeString(_v)
+        }
+        if let _v = uuidValue {
+            writer.writeTag(6)
+            writer.writeUUID(_v)
+        }
+        if let _v = rawValue {
+            writer.writeTag(7)
+            writer.writeString(_v)
+        }
+        if let _v = bytesValue {
+            writer.writeTag(8)
+            writer.writeLengthPrefixedArray(_v)
+        }
+        if let _v = timestampValue {
+            writer.writeTag(9)
+            writer.writeTimestamp(_v)
+        }
+        if let _v = durationValue {
+            writer.writeTag(10)
+            writer.writeDuration(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:LiteralValue)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = kind { size += 1 + _v.encodedSize }
+        if boolValue != nil { size += 1 + 1 }
+        if intValue != nil { size += 1 + 8 }
+        if floatValue != nil { size += 1 + 8 }
+        if let _v = stringValue { size += 1 + (4 + _v.utf8.count + 1) }
+        if uuidValue != nil { size += 1 + 16 }
+        if let _v = rawValue { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = bytesValue { size += 1 + (4 + _v.count &* 1) }
+        if timestampValue != nil { size += 1 + 16 }
+        if durationValue != nil { size += 1 + 12 }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case boolValue = "bool_value"
+        case intValue = "int_value"
+        case floatValue = "float_value"
+        case stringValue = "string_value"
+        case uuidValue = "uuid_value"
+        case rawValue = "raw_value"
+        case bytesValue = "bytes_value"
+        case timestampValue = "timestamp_value"
+        case durationValue = "duration_value"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "LiteralValue",
+        fqn: "bebop.LiteralValue",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "kind",
+                    index: 1,
+                    typeName: "LiteralKind"
+                ),
+                BebopFieldReflection(
+                    name: "bool_value",
+                    index: 2,
+                    typeName: "Bool"
+                ),
+                BebopFieldReflection(
+                    name: "int_value",
+                    index: 3,
+                    typeName: "Int64"
+                ),
+                BebopFieldReflection(
+                    name: "float_value",
+                    index: 4,
+                    typeName: "Double"
+                ),
+                BebopFieldReflection(
+                    name: "string_value",
+                    index: 5,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "uuid_value",
+                    index: 6,
+                    typeName: "BebopUUID"
+                ),
+                BebopFieldReflection(
+                    name: "raw_value",
+                    index: 7,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "bytes_value",
+                    index: 8,
+                    typeName: "[UInt8]"
+                ),
+                BebopFieldReflection(
+                    name: "timestamp_value",
+                    index: 9,
+                    typeName: "BebopTimestamp"
+                ),
+                BebopFieldReflection(
+                    name: "duration_value",
+                    index: 10,
+                    typeName: "Duration"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:LiteralValue)
+    // @@bebop_insertion_point(message_scope:LiteralValue)
 }
 
 /// Named or positional argument in a decorator usage.
 /// Positional arguments have an empty string for `name`.
 public struct DecoratorArg: BebopRecord, BebopReflectable {
-  public let name: String
+    public let name: String
 
-  public let value: LiteralValue
+    public let value: LiteralValue
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case value
-  }
+    enum CodingKeys: String, CodingKey {
+        case name
+        case value
+    }
 
-  public init(name: String, value: LiteralValue) {
-    self.name = name
-    self.value = value
-  }
+    public init(name: String, value: LiteralValue) {
+        self.name = name
+        self.value = value
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> DecoratorArg {
-    // @@bebop_insertion_point(decode_start:DecoratorArg)
-    let name = try reader.readString()
-    let value = try LiteralValue.decode(from: &reader)
-    // @@bebop_insertion_point(decode_end:DecoratorArg)
-    return DecoratorArg(name: name, value: value)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DecoratorArg {
+        // @@bebop_insertion_point(decode_start:DecoratorArg)
+        let name = try reader.readString()
+        let value = try LiteralValue.decode(from: &reader)
+        // @@bebop_insertion_point(decode_end:DecoratorArg)
+        return DecoratorArg(name: name, value: value)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DecoratorArg)
-    writer.writeString(name)
-    value.encode(to: &writer)
-    // @@bebop_insertion_point(encode_end:DecoratorArg)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DecoratorArg)
+        writer.writeString(name)
+        value.encode(to: &writer)
+        // @@bebop_insertion_point(encode_end:DecoratorArg)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + name.utf8.count + 1)
-    size += value.encodedSize
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + name.utf8.count + 1)
+        size += value.encodedSize
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DecoratorArg",
-    fqn: "bebop.DecoratorArg",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 0,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "value",
-          index: 0,
-          typeName: "LiteralValue"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DecoratorArg",
+        fqn: "bebop.DecoratorArg",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 0,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "value",
+                    index: 0,
+                    typeName: "LiteralValue"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:DecoratorArg)
+    // @@bebop_insertion_point(struct_scope:DecoratorArg)
 }
 
 /// Decorator applied to a definition, field, enum member, branch, or method.
@@ -1040,131 +1025,118 @@ public struct DecoratorArg: BebopRecord, BebopReflectable {
 /// Lua export block. Generators read these to access decorator-computed
 /// metadata without re-running Lua.
 public final class DecoratorUsage: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// FQN of the decorator definition (e.g., `validators.range`).
-  public var fqn: String?
+    /// FQN of the decorator definition (e.g., `validators.range`).
+    public var fqn: String?
 
-  /// Arguments passed at the usage site, in declaration order.
-  public var args: [DecoratorArg]?
+    /// Arguments passed at the usage site, in declaration order.
+    public var args: [DecoratorArg]?
 
-  /// Results from the decorator's export block.
-  public var exportData: [String: LiteralValue]?
+    /// Results from the decorator's export block.
+    public var exportData: [String: LiteralValue]?
 
-  public init(
-    fqn: String? = nil, args: [DecoratorArg]? = nil, exportData: [String: LiteralValue]? = nil
-  ) {
-    self.fqn = fqn
-    self.args = args
-    self.exportData = exportData
-  }
+    public init(fqn: String? = nil, args: [DecoratorArg]? = nil, exportData: [String: LiteralValue]? = nil) {
+        self.fqn = fqn
+        self.args = args
+        self.exportData = exportData
+    }
 
-  public static func == (lhs: DecoratorUsage, rhs: DecoratorUsage) -> Bool {
-    return lhs.fqn == rhs.fqn && lhs.args == rhs.args && lhs.exportData == rhs.exportData
-  }
+    public static func == (lhs: DecoratorUsage, rhs: DecoratorUsage) -> Bool {
+        lhs.fqn == rhs.fqn && lhs.args == rhs.args && lhs.exportData == rhs.exportData
+    }
 
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(fqn)
-    hasher.combine(args)
-    hasher.combine(exportData)
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fqn)
+        hasher.combine(args)
+        hasher.combine(exportData)
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> DecoratorUsage {
-    // @@bebop_insertion_point(decode_start:DecoratorUsage)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var fqn: String? = nil
-    var args: [DecoratorArg]? = nil
-    var exportData: [String: LiteralValue]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        fqn = try reader.readString()
-      case 2:
-        args = try reader.readDynamicArray { _r in try DecoratorArg.decode(from: &_r) }
-      case 3:
-        exportData = try reader.readDynamicMap { _r in
-          (try _r.readString(), try LiteralValue.decode(from: &_r))
+    public static func decode(from reader: inout BebopReader) throws -> DecoratorUsage {
+        // @@bebop_insertion_point(decode_start:DecoratorUsage)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var fqn: String? = nil
+        var args: [DecoratorArg]? = nil
+        var exportData: [String: LiteralValue]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                fqn = try reader.readString()
+            case 2:
+                args = try reader.readDynamicArray { _r in try DecoratorArg.decode(from: &_r) }
+            case 3:
+                exportData = try reader.readDynamicMap { _r in try (_r.readString(), LiteralValue.decode(from: &_r)) }
+            default:
+                try reader.skip(end - reader.position)
+            }
         }
-      default:
-        try reader.skip(end - reader.position)
-      }
+        // @@bebop_insertion_point(decode_end:DecoratorUsage)
+        return DecoratorUsage(fqn: fqn, args: args, exportData: exportData)
     }
-    // @@bebop_insertion_point(decode_end:DecoratorUsage)
-    return DecoratorUsage(fqn: fqn, args: args, exportData: exportData)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DecoratorUsage)
-    let pos = writer.reserveMessageLength()
-    if let _v = fqn {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DecoratorUsage)
+        let pos = writer.reserveMessageLength()
+        if let _v = fqn {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = args {
+            writer.writeTag(2)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = exportData {
+            writer.writeTag(3)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _v.encode(to: &_w)
+            }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:DecoratorUsage)
     }
-    if let _v = args {
-      writer.writeTag(2)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = exportData {
-      writer.writeTag(3)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _v.encode(to: &_w)
-      }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:DecoratorUsage)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = fqn { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = args { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if let _v = exportData {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + _v.encodedSize
-          })
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = fqn { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = args { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = exportData { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + _v.encodedSize }) }
+        return size
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case fqn
-    case args
-    case exportData = "export_data"
-  }
+    enum CodingKeys: String, CodingKey {
+        case fqn
+        case args
+        case exportData = "export_data"
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DecoratorUsage",
-    fqn: "bebop.DecoratorUsage",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "fqn",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "args",
-          index: 2,
-          typeName: "[DecoratorArg]"
-        ),
-        BebopFieldReflection(
-          name: "export_data",
-          index: 3,
-          typeName: "[String: LiteralValue]"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DecoratorUsage",
+        fqn: "bebop.DecoratorUsage",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "fqn",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "args",
+                    index: 2,
+                    typeName: "[DecoratorArg]"
+                ),
+                BebopFieldReflection(
+                    name: "export_data",
+                    index: 3,
+                    typeName: "[String: LiteralValue]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:DecoratorUsage)
+    // @@bebop_insertion_point(message_scope:DecoratorUsage)
 }
 
 /// Field in a struct or message.
@@ -1174,158 +1146,151 @@ public final class DecoratorUsage: BebopRecord, BebopReflectable, @unchecked Sen
 /// Struct fields encode in declaration order with no separators. Message
 /// fields encode as (tag, value) pairs in any order, terminated by 0.
 public final class FieldDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var name: String?
+    public var name: String?
 
-  /// Text from preceding `///` comments in source.
-  public var documentation: String?
+    /// Text from preceding `///` comments in source.
+    public var documentation: String?
 
-  public var type: TypeDescriptor?
+    public var type: TypeDescriptor?
 
-  /// Wire tag: 0 for struct fields, 1-255 for message fields.
-  public var index: UInt32?
+    /// Wire tag: 0 for struct fields, 1-255 for message fields.
+    public var index: UInt32?
 
-  public var decorators: [DecoratorUsage]?
+    public var decorators: [DecoratorUsage]?
 
-  public init(
-    name: String? = nil, documentation: String? = nil, type: TypeDescriptor? = nil,
-    index: UInt32? = nil, decorators: [DecoratorUsage]? = nil
-  ) {
-    self.name = name
-    self.documentation = documentation
-    self.type = type
-    self.index = index
-    self.decorators = decorators
-  }
-
-  public static func == (lhs: FieldDescriptor, rhs: FieldDescriptor) -> Bool {
-    return lhs.name == rhs.name && lhs.documentation == rhs.documentation && lhs.type == rhs.type
-      && lhs.index == rhs.index && lhs.decorators == rhs.decorators
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(name)
-    hasher.combine(documentation)
-    hasher.combine(type)
-    hasher.combine(index)
-    hasher.combine(decorators)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> FieldDescriptor {
-    // @@bebop_insertion_point(decode_start:FieldDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var name: String? = nil
-    var documentation: String? = nil
-    var type: TypeDescriptor? = nil
-    var index: UInt32? = nil
-    var decorators: [DecoratorUsage]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        name = try reader.readString()
-      case 2:
-        documentation = try reader.readString()
-      case 3:
-        type = try TypeDescriptor.decode(from: &reader)
-      case 4:
-        index = try reader.readUInt32()
-      case 5:
-        decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(name: String? = nil, documentation: String? = nil, type: TypeDescriptor? = nil, index: UInt32? = nil, decorators: [DecoratorUsage]? = nil) {
+        self.name = name
+        self.documentation = documentation
+        self.type = type
+        self.index = index
+        self.decorators = decorators
     }
-    // @@bebop_insertion_point(decode_end:FieldDescriptor)
-    return FieldDescriptor(
-      name: name, documentation: documentation, type: type, index: index, decorators: decorators)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FieldDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = name {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: FieldDescriptor, rhs: FieldDescriptor) -> Bool {
+        lhs.name == rhs.name && lhs.documentation == rhs.documentation && lhs.type == rhs.type && lhs.index == rhs.index && lhs.decorators == rhs.decorators
     }
-    if let _v = documentation {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = type {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = index {
-      writer.writeTag(4)
-      writer.writeUInt32(_v)
-    }
-    if let _v = decorators {
-      writer.writeTag(5)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:FieldDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = type { size += 1 + _v.encodedSize }
-    if index != nil { size += 1 + 4 }
-    if let _v = decorators {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(documentation)
+        hasher.combine(type)
+        hasher.combine(index)
+        hasher.combine(decorators)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case documentation
-    case type
-    case index
-    case decorators
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FieldDescriptor {
+        // @@bebop_insertion_point(decode_start:FieldDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var name: String? = nil
+        var documentation: String? = nil
+        var type: TypeDescriptor? = nil
+        var index: UInt32? = nil
+        var decorators: [DecoratorUsage]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                name = try reader.readString()
+            case 2:
+                documentation = try reader.readString()
+            case 3:
+                type = try TypeDescriptor.decode(from: &reader)
+            case 4:
+                index = try reader.readUInt32()
+            case 5:
+                decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:FieldDescriptor)
+        return FieldDescriptor(name: name, documentation: documentation, type: type, index: index, decorators: decorators)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FieldDescriptor",
-    fqn: "bebop.FieldDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "documentation",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "type",
-          index: 3,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "index",
-          index: 4,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "decorators",
-          index: 5,
-          typeName: "[DecoratorUsage]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FieldDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = name {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = documentation {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = type {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = index {
+            writer.writeTag(4)
+            writer.writeUInt32(_v)
+        }
+        if let _v = decorators {
+            writer.writeTag(5)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:FieldDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = type { size += 1 + _v.encodedSize }
+        if index != nil { size += 1 + 4 }
+        if let _v = decorators { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case documentation
+        case type
+        case index
+        case decorators
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FieldDescriptor",
+        fqn: "bebop.FieldDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "documentation",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "type",
+                    index: 3,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "index",
+                    index: 4,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "decorators",
+                    index: 5,
+                    typeName: "[DecoratorUsage]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:FieldDescriptor)
+    // @@bebop_insertion_point(message_scope:FieldDescriptor)
 }
 
 /// Enum member (name + integer value).
@@ -1333,159 +1298,151 @@ public final class FieldDescriptor: BebopRecord, BebopReflectable, @unchecked Se
 /// For signed base types, sign-extend from the base type's bit width.
 /// A member with value 0xFFFFFFFFFFFFFFFF in an int8-based enum is -1.
 public final class EnumMemberDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var name: String?
+    public var name: String?
 
-  public var documentation: String?
+    public var documentation: String?
 
-  /// Stored unsigned. Reinterpret per the parent enum's `base_type`.
-  public var value: UInt64?
+    /// Stored unsigned. Reinterpret per the parent enum's `base_type`.
+    public var value: UInt64?
 
-  public var decorators: [DecoratorUsage]?
+    public var decorators: [DecoratorUsage]?
 
-  /// Original expression text (e.g., `1 << 3`). Absent for simple literals.
-  public var valueExpr: String?
+    /// Original expression text (e.g., `1 << 3`). Absent for simple literals.
+    public var valueExpr: String?
 
-  public init(
-    name: String? = nil, documentation: String? = nil, value: UInt64? = nil,
-    decorators: [DecoratorUsage]? = nil, valueExpr: String? = nil
-  ) {
-    self.name = name
-    self.documentation = documentation
-    self.value = value
-    self.decorators = decorators
-    self.valueExpr = valueExpr
-  }
-
-  public static func == (lhs: EnumMemberDescriptor, rhs: EnumMemberDescriptor) -> Bool {
-    return lhs.name == rhs.name && lhs.documentation == rhs.documentation && lhs.value == rhs.value
-      && lhs.decorators == rhs.decorators && lhs.valueExpr == rhs.valueExpr
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(name)
-    hasher.combine(documentation)
-    hasher.combine(value)
-    hasher.combine(decorators)
-    hasher.combine(valueExpr)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> EnumMemberDescriptor {
-    // @@bebop_insertion_point(decode_start:EnumMemberDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var name: String? = nil
-    var documentation: String? = nil
-    var value: UInt64? = nil
-    var decorators: [DecoratorUsage]? = nil
-    var valueExpr: String? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        name = try reader.readString()
-      case 2:
-        documentation = try reader.readString()
-      case 3:
-        value = try reader.readUInt64()
-      case 4:
-        decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
-      case 5:
-        valueExpr = try reader.readString()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(name: String? = nil, documentation: String? = nil, value: UInt64? = nil, decorators: [DecoratorUsage]? = nil, valueExpr: String? = nil) {
+        self.name = name
+        self.documentation = documentation
+        self.value = value
+        self.decorators = decorators
+        self.valueExpr = valueExpr
     }
-    // @@bebop_insertion_point(decode_end:EnumMemberDescriptor)
-    return EnumMemberDescriptor(
-      name: name, documentation: documentation, value: value, decorators: decorators,
-      valueExpr: valueExpr)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:EnumMemberDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = name {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: EnumMemberDescriptor, rhs: EnumMemberDescriptor) -> Bool {
+        lhs.name == rhs.name && lhs.documentation == rhs.documentation && lhs.value == rhs.value && lhs.decorators == rhs.decorators && lhs.valueExpr == rhs.valueExpr
     }
-    if let _v = documentation {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = value {
-      writer.writeTag(3)
-      writer.writeUInt64(_v)
-    }
-    if let _v = decorators {
-      writer.writeTag(4)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = valueExpr {
-      writer.writeTag(5)
-      writer.writeString(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:EnumMemberDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
-    if value != nil { size += 1 + 8 }
-    if let _v = decorators {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(documentation)
+        hasher.combine(value)
+        hasher.combine(decorators)
+        hasher.combine(valueExpr)
     }
-    if let _v = valueExpr { size += 1 + (4 + _v.utf8.count + 1) }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case documentation
-    case value
-    case decorators
-    case valueExpr = "value_expr"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> EnumMemberDescriptor {
+        // @@bebop_insertion_point(decode_start:EnumMemberDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var name: String? = nil
+        var documentation: String? = nil
+        var value: UInt64? = nil
+        var decorators: [DecoratorUsage]? = nil
+        var valueExpr: String? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                name = try reader.readString()
+            case 2:
+                documentation = try reader.readString()
+            case 3:
+                value = try reader.readUInt64()
+            case 4:
+                decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
+            case 5:
+                valueExpr = try reader.readString()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:EnumMemberDescriptor)
+        return EnumMemberDescriptor(name: name, documentation: documentation, value: value, decorators: decorators, valueExpr: valueExpr)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "EnumMemberDescriptor",
-    fqn: "bebop.EnumMemberDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "documentation",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "value",
-          index: 3,
-          typeName: "UInt64"
-        ),
-        BebopFieldReflection(
-          name: "decorators",
-          index: 4,
-          typeName: "[DecoratorUsage]"
-        ),
-        BebopFieldReflection(
-          name: "value_expr",
-          index: 5,
-          typeName: "String"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:EnumMemberDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = name {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = documentation {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = value {
+            writer.writeTag(3)
+            writer.writeUInt64(_v)
+        }
+        if let _v = decorators {
+            writer.writeTag(4)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = valueExpr {
+            writer.writeTag(5)
+            writer.writeString(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:EnumMemberDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
+        if value != nil { size += 1 + 8 }
+        if let _v = decorators { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = valueExpr { size += 1 + (4 + _v.utf8.count + 1) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case documentation
+        case value
+        case decorators
+        case valueExpr = "value_expr"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "EnumMemberDescriptor",
+        fqn: "bebop.EnumMemberDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "documentation",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "value",
+                    index: 3,
+                    typeName: "UInt64"
+                ),
+                BebopFieldReflection(
+                    name: "decorators",
+                    index: 4,
+                    typeName: "[DecoratorUsage]"
+                ),
+                BebopFieldReflection(
+                    name: "value_expr",
+                    index: 5,
+                    typeName: "String"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:EnumMemberDescriptor)
+    // @@bebop_insertion_point(message_scope:EnumMemberDescriptor)
 }
 
 /// Union branch.
@@ -1503,376 +1460,357 @@ public final class EnumMemberDescriptor: BebopRecord, BebopReflectable, @uncheck
 /// ```
 /// Sets `type_ref_fqn = "mypackage.Rect"` and `name = "rect"`.
 public final class UnionBranchDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Wire discriminator byte. Range 1-255.
-  public var discriminator: UInt8?
+    /// Wire discriminator byte. Range 1-255.
+    public var discriminator: UInt8?
 
-  public var documentation: String?
+    public var documentation: String?
 
-  /// FQN of inline definition. Mutually exclusive with `type_ref_fqn`.
-  public var inlineFqn: String?
+    /// FQN of inline definition. Mutually exclusive with `type_ref_fqn`.
+    public var inlineFqn: String?
 
-  /// FQN of referenced type. Mutually exclusive with `inline_fqn`.
-  public var typeRefFqn: String?
+    /// FQN of referenced type. Mutually exclusive with `inline_fqn`.
+    public var typeRefFqn: String?
 
-  /// Branch name for type-reference branches.
-  public var name: String?
+    /// Branch name for type-reference branches.
+    public var name: String?
 
-  public var decorators: [DecoratorUsage]?
+    public var decorators: [DecoratorUsage]?
 
-  public init(
-    discriminator: UInt8? = nil, documentation: String? = nil, inlineFqn: String? = nil,
-    typeRefFqn: String? = nil, name: String? = nil, decorators: [DecoratorUsage]? = nil
-  ) {
-    self.discriminator = discriminator
-    self.documentation = documentation
-    self.inlineFqn = inlineFqn
-    self.typeRefFqn = typeRefFqn
-    self.name = name
-    self.decorators = decorators
-  }
-
-  public static func == (lhs: UnionBranchDescriptor, rhs: UnionBranchDescriptor) -> Bool {
-    return lhs.discriminator == rhs.discriminator && lhs.documentation == rhs.documentation
-      && lhs.inlineFqn == rhs.inlineFqn && lhs.typeRefFqn == rhs.typeRefFqn && lhs.name == rhs.name
-      && lhs.decorators == rhs.decorators
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(discriminator)
-    hasher.combine(documentation)
-    hasher.combine(inlineFqn)
-    hasher.combine(typeRefFqn)
-    hasher.combine(name)
-    hasher.combine(decorators)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> UnionBranchDescriptor {
-    // @@bebop_insertion_point(decode_start:UnionBranchDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var discriminator: UInt8? = nil
-    var documentation: String? = nil
-    var inlineFqn: String? = nil
-    var typeRefFqn: String? = nil
-    var name: String? = nil
-    var decorators: [DecoratorUsage]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        discriminator = try reader.readByte()
-      case 2:
-        documentation = try reader.readString()
-      case 3:
-        inlineFqn = try reader.readString()
-      case 4:
-        typeRefFqn = try reader.readString()
-      case 5:
-        name = try reader.readString()
-      case 6:
-        decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(discriminator: UInt8? = nil, documentation: String? = nil, inlineFqn: String? = nil, typeRefFqn: String? = nil, name: String? = nil, decorators: [DecoratorUsage]? = nil) {
+        self.discriminator = discriminator
+        self.documentation = documentation
+        self.inlineFqn = inlineFqn
+        self.typeRefFqn = typeRefFqn
+        self.name = name
+        self.decorators = decorators
     }
-    // @@bebop_insertion_point(decode_end:UnionBranchDescriptor)
-    return UnionBranchDescriptor(
-      discriminator: discriminator, documentation: documentation, inlineFqn: inlineFqn,
-      typeRefFqn: typeRefFqn, name: name, decorators: decorators)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:UnionBranchDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = discriminator {
-      writer.writeTag(1)
-      writer.writeByte(_v)
+    public static func == (lhs: UnionBranchDescriptor, rhs: UnionBranchDescriptor) -> Bool {
+        lhs.discriminator == rhs.discriminator && lhs.documentation == rhs.documentation && lhs.inlineFqn == rhs.inlineFqn && lhs.typeRefFqn == rhs.typeRefFqn && lhs.name == rhs.name && lhs.decorators == rhs.decorators
     }
-    if let _v = documentation {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = inlineFqn {
-      writer.writeTag(3)
-      writer.writeString(_v)
-    }
-    if let _v = typeRefFqn {
-      writer.writeTag(4)
-      writer.writeString(_v)
-    }
-    if let _v = name {
-      writer.writeTag(5)
-      writer.writeString(_v)
-    }
-    if let _v = decorators {
-      writer.writeTag(6)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:UnionBranchDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if discriminator != nil { size += 1 + 1 }
-    if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = inlineFqn { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = typeRefFqn { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = decorators {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(discriminator)
+        hasher.combine(documentation)
+        hasher.combine(inlineFqn)
+        hasher.combine(typeRefFqn)
+        hasher.combine(name)
+        hasher.combine(decorators)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case discriminator
-    case documentation
-    case inlineFqn = "inline_fqn"
-    case typeRefFqn = "type_ref_fqn"
-    case name
-    case decorators
-  }
+    public static func decode(from reader: inout BebopReader) throws -> UnionBranchDescriptor {
+        // @@bebop_insertion_point(decode_start:UnionBranchDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var discriminator: UInt8? = nil
+        var documentation: String? = nil
+        var inlineFqn: String? = nil
+        var typeRefFqn: String? = nil
+        var name: String? = nil
+        var decorators: [DecoratorUsage]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                discriminator = try reader.readByte()
+            case 2:
+                documentation = try reader.readString()
+            case 3:
+                inlineFqn = try reader.readString()
+            case 4:
+                typeRefFqn = try reader.readString()
+            case 5:
+                name = try reader.readString()
+            case 6:
+                decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:UnionBranchDescriptor)
+        return UnionBranchDescriptor(discriminator: discriminator, documentation: documentation, inlineFqn: inlineFqn, typeRefFqn: typeRefFqn, name: name, decorators: decorators)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "UnionBranchDescriptor",
-    fqn: "bebop.UnionBranchDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "discriminator",
-          index: 1,
-          typeName: "UInt8"
-        ),
-        BebopFieldReflection(
-          name: "documentation",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "inline_fqn",
-          index: 3,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "type_ref_fqn",
-          index: 4,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "name",
-          index: 5,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "decorators",
-          index: 6,
-          typeName: "[DecoratorUsage]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:UnionBranchDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = discriminator {
+            writer.writeTag(1)
+            writer.writeByte(_v)
+        }
+        if let _v = documentation {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = inlineFqn {
+            writer.writeTag(3)
+            writer.writeString(_v)
+        }
+        if let _v = typeRefFqn {
+            writer.writeTag(4)
+            writer.writeString(_v)
+        }
+        if let _v = name {
+            writer.writeTag(5)
+            writer.writeString(_v)
+        }
+        if let _v = decorators {
+            writer.writeTag(6)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:UnionBranchDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if discriminator != nil { size += 1 + 1 }
+        if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = inlineFqn { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = typeRefFqn { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = decorators { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case discriminator
+        case documentation
+        case inlineFqn = "inline_fqn"
+        case typeRefFqn = "type_ref_fqn"
+        case name
+        case decorators
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "UnionBranchDescriptor",
+        fqn: "bebop.UnionBranchDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "discriminator",
+                    index: 1,
+                    typeName: "UInt8"
+                ),
+                BebopFieldReflection(
+                    name: "documentation",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "inline_fqn",
+                    index: 3,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "type_ref_fqn",
+                    index: 4,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "name",
+                    index: 5,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "decorators",
+                    index: 6,
+                    typeName: "[DecoratorUsage]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:UnionBranchDescriptor)
+    // @@bebop_insertion_point(message_scope:UnionBranchDescriptor)
 }
 
 /// Service method.
 /// The `id` is MurmurHash3 of `/ServiceName/MethodName`, computed at compile
 /// time. Gives a stable 32-bit routing key without transmitting the full name.
 public final class MethodDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var name: String?
+    public var name: String?
 
-  public var documentation: String?
+    public var documentation: String?
 
-  public var requestType: TypeDescriptor?
+    public var requestType: TypeDescriptor?
 
-  public var responseType: TypeDescriptor?
+    public var responseType: TypeDescriptor?
 
-  public var methodType: MethodType?
+    public var methodType: MethodType?
 
-  /// MurmurHash3 of `/ServiceName/MethodName`.
-  public var id: UInt32?
+    /// MurmurHash3 of `/ServiceName/MethodName`.
+    public var id: UInt32?
 
-  public var decorators: [DecoratorUsage]?
+    public var decorators: [DecoratorUsage]?
 
-  public init(
-    name: String? = nil, documentation: String? = nil, requestType: TypeDescriptor? = nil,
-    responseType: TypeDescriptor? = nil, methodType: MethodType? = nil, id: UInt32? = nil,
-    decorators: [DecoratorUsage]? = nil
-  ) {
-    self.name = name
-    self.documentation = documentation
-    self.requestType = requestType
-    self.responseType = responseType
-    self.methodType = methodType
-    self.id = id
-    self.decorators = decorators
-  }
-
-  public static func == (lhs: MethodDescriptor, rhs: MethodDescriptor) -> Bool {
-    return lhs.name == rhs.name && lhs.documentation == rhs.documentation
-      && lhs.requestType == rhs.requestType && lhs.responseType == rhs.responseType
-      && lhs.methodType == rhs.methodType && lhs.id == rhs.id && lhs.decorators == rhs.decorators
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(name)
-    hasher.combine(documentation)
-    hasher.combine(requestType)
-    hasher.combine(responseType)
-    hasher.combine(methodType)
-    hasher.combine(id)
-    hasher.combine(decorators)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> MethodDescriptor {
-    // @@bebop_insertion_point(decode_start:MethodDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var name: String? = nil
-    var documentation: String? = nil
-    var requestType: TypeDescriptor? = nil
-    var responseType: TypeDescriptor? = nil
-    var methodType: MethodType? = nil
-    var id: UInt32? = nil
-    var decorators: [DecoratorUsage]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        name = try reader.readString()
-      case 2:
-        documentation = try reader.readString()
-      case 3:
-        requestType = try TypeDescriptor.decode(from: &reader)
-      case 4:
-        responseType = try TypeDescriptor.decode(from: &reader)
-      case 5:
-        methodType = try MethodType.decode(from: &reader)
-      case 6:
-        id = try reader.readUInt32()
-      case 7:
-        decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(name: String? = nil, documentation: String? = nil, requestType: TypeDescriptor? = nil, responseType: TypeDescriptor? = nil, methodType: MethodType? = nil, id: UInt32? = nil, decorators: [DecoratorUsage]? = nil) {
+        self.name = name
+        self.documentation = documentation
+        self.requestType = requestType
+        self.responseType = responseType
+        self.methodType = methodType
+        self.id = id
+        self.decorators = decorators
     }
-    // @@bebop_insertion_point(decode_end:MethodDescriptor)
-    return MethodDescriptor(
-      name: name, documentation: documentation, requestType: requestType,
-      responseType: responseType, methodType: methodType, id: id, decorators: decorators)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:MethodDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = name {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: MethodDescriptor, rhs: MethodDescriptor) -> Bool {
+        lhs.name == rhs.name && lhs.documentation == rhs.documentation && lhs.requestType == rhs.requestType && lhs.responseType == rhs.responseType && lhs.methodType == rhs.methodType && lhs.id == rhs.id && lhs.decorators == rhs.decorators
     }
-    if let _v = documentation {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = requestType {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = responseType {
-      writer.writeTag(4)
-      _v.encode(to: &writer)
-    }
-    if let _v = methodType {
-      writer.writeTag(5)
-      _v.encode(to: &writer)
-    }
-    if let _v = id {
-      writer.writeTag(6)
-      writer.writeUInt32(_v)
-    }
-    if let _v = decorators {
-      writer.writeTag(7)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:MethodDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = requestType { size += 1 + _v.encodedSize }
-    if let _v = responseType { size += 1 + _v.encodedSize }
-    if let _v = methodType { size += 1 + _v.encodedSize }
-    if id != nil { size += 1 + 4 }
-    if let _v = decorators {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(documentation)
+        hasher.combine(requestType)
+        hasher.combine(responseType)
+        hasher.combine(methodType)
+        hasher.combine(id)
+        hasher.combine(decorators)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case documentation
-    case requestType = "request_type"
-    case responseType = "response_type"
-    case methodType = "method_type"
-    case id
-    case decorators
-  }
+    public static func decode(from reader: inout BebopReader) throws -> MethodDescriptor {
+        // @@bebop_insertion_point(decode_start:MethodDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var name: String? = nil
+        var documentation: String? = nil
+        var requestType: TypeDescriptor? = nil
+        var responseType: TypeDescriptor? = nil
+        var methodType: MethodType? = nil
+        var id: UInt32? = nil
+        var decorators: [DecoratorUsage]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                name = try reader.readString()
+            case 2:
+                documentation = try reader.readString()
+            case 3:
+                requestType = try TypeDescriptor.decode(from: &reader)
+            case 4:
+                responseType = try TypeDescriptor.decode(from: &reader)
+            case 5:
+                methodType = try MethodType.decode(from: &reader)
+            case 6:
+                id = try reader.readUInt32()
+            case 7:
+                decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:MethodDescriptor)
+        return MethodDescriptor(name: name, documentation: documentation, requestType: requestType, responseType: responseType, methodType: methodType, id: id, decorators: decorators)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "MethodDescriptor",
-    fqn: "bebop.MethodDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "documentation",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "request_type",
-          index: 3,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "response_type",
-          index: 4,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "method_type",
-          index: 5,
-          typeName: "MethodType"
-        ),
-        BebopFieldReflection(
-          name: "id",
-          index: 6,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "decorators",
-          index: 7,
-          typeName: "[DecoratorUsage]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:MethodDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = name {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = documentation {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = requestType {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = responseType {
+            writer.writeTag(4)
+            _v.encode(to: &writer)
+        }
+        if let _v = methodType {
+            writer.writeTag(5)
+            _v.encode(to: &writer)
+        }
+        if let _v = id {
+            writer.writeTag(6)
+            writer.writeUInt32(_v)
+        }
+        if let _v = decorators {
+            writer.writeTag(7)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:MethodDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = requestType { size += 1 + _v.encodedSize }
+        if let _v = responseType { size += 1 + _v.encodedSize }
+        if let _v = methodType { size += 1 + _v.encodedSize }
+        if id != nil { size += 1 + 4 }
+        if let _v = decorators { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case documentation
+        case requestType = "request_type"
+        case responseType = "response_type"
+        case methodType = "method_type"
+        case id
+        case decorators
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "MethodDescriptor",
+        fqn: "bebop.MethodDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "documentation",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "request_type",
+                    index: 3,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "response_type",
+                    index: 4,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "method_type",
+                    index: 5,
+                    typeName: "MethodType"
+                ),
+                BebopFieldReflection(
+                    name: "id",
+                    index: 6,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "decorators",
+                    index: 7,
+                    typeName: "[DecoratorUsage]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:MethodDescriptor)
+    // @@bebop_insertion_point(message_scope:MethodDescriptor)
 }
 
 /// Enum definition body.
@@ -1881,116 +1819,114 @@ public final class MethodDescriptor: BebopRecord, BebopReflectable, @unchecked S
 /// `BYTE`, `INT8`, `INT16`, `UINT16`, `INT32`, `UINT32`, `INT64`, `UINT64`.
 /// Member values are stored as uint64 and reinterpreted per `base_type`.
 public final class EnumDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var baseType: TypeKind?
+    public var baseType: TypeKind?
 
-  public var members: [EnumMemberDescriptor]?
+    public var members: [EnumMemberDescriptor]?
 
-  /// True when `@flags` is applied. Members are bit positions for OR.
-  public var isFlags: Bool?
+    /// True when `@flags` is applied. Members are bit positions for OR.
+    public var isFlags: Bool?
 
-  public init(
-    baseType: TypeKind? = nil, members: [EnumMemberDescriptor]? = nil, isFlags: Bool? = nil
-  ) {
-    self.baseType = baseType
-    self.members = members
-    self.isFlags = isFlags
-  }
-
-  public static func == (lhs: EnumDef, rhs: EnumDef) -> Bool {
-    return lhs.baseType == rhs.baseType && lhs.members == rhs.members && lhs.isFlags == rhs.isFlags
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(baseType)
-    hasher.combine(members)
-    hasher.combine(isFlags)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> EnumDef {
-    // @@bebop_insertion_point(decode_start:EnumDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var baseType: TypeKind? = nil
-    var members: [EnumMemberDescriptor]? = nil
-    var isFlags: Bool? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        baseType = try TypeKind.decode(from: &reader)
-      case 2:
-        members = try reader.readDynamicArray { _r in try EnumMemberDescriptor.decode(from: &_r) }
-      case 3:
-        isFlags = try reader.readBool()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(baseType: TypeKind? = nil, members: [EnumMemberDescriptor]? = nil, isFlags: Bool? = nil) {
+        self.baseType = baseType
+        self.members = members
+        self.isFlags = isFlags
     }
-    // @@bebop_insertion_point(decode_end:EnumDef)
-    return EnumDef(baseType: baseType, members: members, isFlags: isFlags)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:EnumDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = baseType {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: EnumDef, rhs: EnumDef) -> Bool {
+        lhs.baseType == rhs.baseType && lhs.members == rhs.members && lhs.isFlags == rhs.isFlags
     }
-    if let _v = members {
-      writer.writeTag(2)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(baseType)
+        hasher.combine(members)
+        hasher.combine(isFlags)
     }
-    if let _v = isFlags {
-      writer.writeTag(3)
-      writer.writeBool(_v)
+
+    public static func decode(from reader: inout BebopReader) throws -> EnumDef {
+        // @@bebop_insertion_point(decode_start:EnumDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var baseType: TypeKind? = nil
+        var members: [EnumMemberDescriptor]? = nil
+        var isFlags: Bool? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                baseType = try TypeKind.decode(from: &reader)
+            case 2:
+                members = try reader.readDynamicArray { _r in try EnumMemberDescriptor.decode(from: &_r) }
+            case 3:
+                isFlags = try reader.readBool()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:EnumDef)
+        return EnumDef(baseType: baseType, members: members, isFlags: isFlags)
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:EnumDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = baseType { size += 1 + _v.encodedSize }
-    if let _v = members { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if isFlags != nil { size += 1 + 1 }
-    return size
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:EnumDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = baseType {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = members {
+            writer.writeTag(2)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = isFlags {
+            writer.writeTag(3)
+            writer.writeBool(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:EnumDef)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case baseType = "base_type"
-    case members
-    case isFlags = "is_flags"
-  }
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = baseType { size += 1 + _v.encodedSize }
+        if let _v = members { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if isFlags != nil { size += 1 + 1 }
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "EnumDef",
-    fqn: "bebop.EnumDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "base_type",
-          index: 1,
-          typeName: "TypeKind"
-        ),
-        BebopFieldReflection(
-          name: "members",
-          index: 2,
-          typeName: "[EnumMemberDescriptor]"
-        ),
-        BebopFieldReflection(
-          name: "is_flags",
-          index: 3,
-          typeName: "Bool"
-        ),
-      ])
+    enum CodingKeys: String, CodingKey {
+        case baseType = "base_type"
+        case members
+        case isFlags = "is_flags"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "EnumDef",
+        fqn: "bebop.EnumDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "base_type",
+                    index: 1,
+                    typeName: "TypeKind"
+                ),
+                BebopFieldReflection(
+                    name: "members",
+                    index: 2,
+                    typeName: "[EnumMemberDescriptor]"
+                ),
+                BebopFieldReflection(
+                    name: "is_flags",
+                    index: 3,
+                    typeName: "Bool"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:EnumDef)
+    // @@bebop_insertion_point(message_scope:EnumDef)
 }
 
 /// Struct definition body.
@@ -1998,346 +1934,345 @@ public final class EnumDef: BebopRecord, BebopReflectable, @unchecked Sendable {
 /// no tags, no length prefix (for fixed-size structs). Variable-size structs
 /// get a u32 byte-length prefix.
 public final class StructDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var fields: [FieldDescriptor]?
+    public var fields: [FieldDescriptor]?
 
-  /// True when declared with `mut`. Mutable structs allow field reassignment.
-  public var isMutable: Bool?
+    /// True when declared with `mut`. Mutable structs allow field reassignment.
+    public var isMutable: Bool?
 
-  /// Total wire bytes when all fields are fixed-size. Zero when any field
-  /// is variable-size. Generators use this to pre-allocate buffers.
-  public var fixedSize: UInt32?
+    /// Total wire bytes when all fields are fixed-size. Zero when any field
+    /// is variable-size. Generators use this to pre-allocate buffers.
+    public var fixedSize: UInt32?
 
-  public init(fields: [FieldDescriptor]? = nil, isMutable: Bool? = nil, fixedSize: UInt32? = nil) {
-    self.fields = fields
-    self.isMutable = isMutable
-    self.fixedSize = fixedSize
-  }
-
-  public static func == (lhs: StructDef, rhs: StructDef) -> Bool {
-    return lhs.fields == rhs.fields && lhs.isMutable == rhs.isMutable
-      && lhs.fixedSize == rhs.fixedSize
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(fields)
-    hasher.combine(isMutable)
-    hasher.combine(fixedSize)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> StructDef {
-    // @@bebop_insertion_point(decode_start:StructDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var fields: [FieldDescriptor]? = nil
-    var isMutable: Bool? = nil
-    var fixedSize: UInt32? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
-      case 2:
-        isMutable = try reader.readBool()
-      case 3:
-        fixedSize = try reader.readUInt32()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(fields: [FieldDescriptor]? = nil, isMutable: Bool? = nil, fixedSize: UInt32? = nil) {
+        self.fields = fields
+        self.isMutable = isMutable
+        self.fixedSize = fixedSize
     }
-    // @@bebop_insertion_point(decode_end:StructDef)
-    return StructDef(fields: fields, isMutable: isMutable, fixedSize: fixedSize)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:StructDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = fields {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: StructDef, rhs: StructDef) -> Bool {
+        lhs.fields == rhs.fields && lhs.isMutable == rhs.isMutable && lhs.fixedSize == rhs.fixedSize
     }
-    if let _v = isMutable {
-      writer.writeTag(2)
-      writer.writeBool(_v)
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fields)
+        hasher.combine(isMutable)
+        hasher.combine(fixedSize)
     }
-    if let _v = fixedSize {
-      writer.writeTag(3)
-      writer.writeUInt32(_v)
+
+    public static func decode(from reader: inout BebopReader) throws -> StructDef {
+        // @@bebop_insertion_point(decode_start:StructDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var fields: [FieldDescriptor]? = nil
+        var isMutable: Bool? = nil
+        var fixedSize: UInt32? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
+            case 2:
+                isMutable = try reader.readBool()
+            case 3:
+                fixedSize = try reader.readUInt32()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:StructDef)
+        return StructDef(fields: fields, isMutable: isMutable, fixedSize: fixedSize)
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:StructDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = fields { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if isMutable != nil { size += 1 + 1 }
-    if fixedSize != nil { size += 1 + 4 }
-    return size
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:StructDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = fields {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = isMutable {
+            writer.writeTag(2)
+            writer.writeBool(_v)
+        }
+        if let _v = fixedSize {
+            writer.writeTag(3)
+            writer.writeUInt32(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:StructDef)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case fields
-    case isMutable = "is_mutable"
-    case fixedSize = "fixed_size"
-  }
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = fields { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if isMutable != nil { size += 1 + 1 }
+        if fixedSize != nil { size += 1 + 4 }
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "StructDef",
-    fqn: "bebop.StructDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "fields",
-          index: 1,
-          typeName: "[FieldDescriptor]"
-        ),
-        BebopFieldReflection(
-          name: "is_mutable",
-          index: 2,
-          typeName: "Bool"
-        ),
-        BebopFieldReflection(
-          name: "fixed_size",
-          index: 3,
-          typeName: "UInt32"
-        ),
-      ])
+    enum CodingKeys: String, CodingKey {
+        case fields
+        case isMutable = "is_mutable"
+        case fixedSize = "fixed_size"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "StructDef",
+        fqn: "bebop.StructDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "fields",
+                    index: 1,
+                    typeName: "[FieldDescriptor]"
+                ),
+                BebopFieldReflection(
+                    name: "is_mutable",
+                    index: 2,
+                    typeName: "Bool"
+                ),
+                BebopFieldReflection(
+                    name: "fixed_size",
+                    index: 3,
+                    typeName: "UInt32"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:StructDef)
+    // @@bebop_insertion_point(message_scope:StructDef)
 }
 
 /// Message definition body.
 /// Fields encode as tagged pairs (index, value), terminated by zero byte.
 /// Fields can be added or removed without breaking existing decoders.
 public final class MessageDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var fields: [FieldDescriptor]?
+    public var fields: [FieldDescriptor]?
 
-  public init(fields: [FieldDescriptor]? = nil) {
-    self.fields = fields
-  }
-
-  public static func == (lhs: MessageDef, rhs: MessageDef) -> Bool {
-    return lhs.fields == rhs.fields
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(fields)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> MessageDef {
-    // @@bebop_insertion_point(decode_start:MessageDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var fields: [FieldDescriptor]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(fields: [FieldDescriptor]? = nil) {
+        self.fields = fields
     }
-    // @@bebop_insertion_point(decode_end:MessageDef)
-    return MessageDef(fields: fields)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:MessageDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = fields {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: MessageDef, rhs: MessageDef) -> Bool {
+        lhs.fields == rhs.fields
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:MessageDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = fields { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fields)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case fields
-  }
+    public static func decode(from reader: inout BebopReader) throws -> MessageDef {
+        // @@bebop_insertion_point(decode_start:MessageDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var fields: [FieldDescriptor]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:MessageDef)
+        return MessageDef(fields: fields)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "MessageDef",
-    fqn: "bebop.MessageDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "fields",
-          index: 1,
-          typeName: "[FieldDescriptor]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:MessageDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = fields {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:MessageDef)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = fields { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case fields
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "MessageDef",
+        fqn: "bebop.MessageDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "fields",
+                    index: 1,
+                    typeName: "[FieldDescriptor]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:MessageDef)
+    // @@bebop_insertion_point(message_scope:MessageDef)
 }
 
 /// Union definition body.
 /// Wire encoding: u32 byte_length, discriminator byte, branch payload.
 /// Decoders read the length to skip unknown discriminators.
 public final class UnionDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var branches: [UnionBranchDescriptor]?
+    public var branches: [UnionBranchDescriptor]?
 
-  public init(branches: [UnionBranchDescriptor]? = nil) {
-    self.branches = branches
-  }
-
-  public static func == (lhs: UnionDef, rhs: UnionDef) -> Bool {
-    return lhs.branches == rhs.branches
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(branches)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> UnionDef {
-    // @@bebop_insertion_point(decode_start:UnionDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var branches: [UnionBranchDescriptor]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        branches = try reader.readDynamicArray { _r in try UnionBranchDescriptor.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(branches: [UnionBranchDescriptor]? = nil) {
+        self.branches = branches
     }
-    // @@bebop_insertion_point(decode_end:UnionDef)
-    return UnionDef(branches: branches)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:UnionDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = branches {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: UnionDef, rhs: UnionDef) -> Bool {
+        lhs.branches == rhs.branches
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:UnionDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = branches { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(branches)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case branches
-  }
+    public static func decode(from reader: inout BebopReader) throws -> UnionDef {
+        // @@bebop_insertion_point(decode_start:UnionDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var branches: [UnionBranchDescriptor]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                branches = try reader.readDynamicArray { _r in try UnionBranchDescriptor.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:UnionDef)
+        return UnionDef(branches: branches)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "UnionDef",
-    fqn: "bebop.UnionDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "branches",
-          index: 1,
-          typeName: "[UnionBranchDescriptor]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:UnionDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = branches {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:UnionDef)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = branches { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case branches
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "UnionDef",
+        fqn: "bebop.UnionDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "branches",
+                    index: 1,
+                    typeName: "[UnionBranchDescriptor]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:UnionDef)
+    // @@bebop_insertion_point(message_scope:UnionDef)
 }
 
 /// Service definition body.
 public final class ServiceDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var methods: [MethodDescriptor]?
+    public var methods: [MethodDescriptor]?
 
-  public init(methods: [MethodDescriptor]? = nil) {
-    self.methods = methods
-  }
-
-  public static func == (lhs: ServiceDef, rhs: ServiceDef) -> Bool {
-    return lhs.methods == rhs.methods
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(methods)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> ServiceDef {
-    // @@bebop_insertion_point(decode_start:ServiceDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var methods: [MethodDescriptor]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        methods = try reader.readDynamicArray { _r in try MethodDescriptor.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(methods: [MethodDescriptor]? = nil) {
+        self.methods = methods
     }
-    // @@bebop_insertion_point(decode_end:ServiceDef)
-    return ServiceDef(methods: methods)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:ServiceDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = methods {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: ServiceDef, rhs: ServiceDef) -> Bool {
+        lhs.methods == rhs.methods
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:ServiceDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = methods { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(methods)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case methods
-  }
+    public static func decode(from reader: inout BebopReader) throws -> ServiceDef {
+        // @@bebop_insertion_point(decode_start:ServiceDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var methods: [MethodDescriptor]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                methods = try reader.readDynamicArray { _r in try MethodDescriptor.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:ServiceDef)
+        return ServiceDef(methods: methods)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "ServiceDef",
-    fqn: "bebop.ServiceDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "methods",
-          index: 1,
-          typeName: "[MethodDescriptor]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:ServiceDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = methods {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:ServiceDef)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = methods { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case methods
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "ServiceDef",
+        fqn: "bebop.ServiceDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "methods",
+                    index: 1,
+                    typeName: "[MethodDescriptor]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:ServiceDef)
+    // @@bebop_insertion_point(message_scope:ServiceDef)
 }
 
 /// Const definition body.
@@ -2349,95 +2284,95 @@ public final class ServiceDef: BebopRecord, BebopReflectable, @unchecked Sendabl
 /// The LiteralValue's `raw_value` preserves `$(API_KEY)` while `string_value`
 /// holds the expanded result.
 public final class ConstDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var type: TypeDescriptor?
+    public var type: TypeDescriptor?
 
-  public var value: LiteralValue?
+    public var value: LiteralValue?
 
-  public init(type: TypeDescriptor? = nil, value: LiteralValue? = nil) {
-    self.type = type
-    self.value = value
-  }
-
-  public static func == (lhs: ConstDef, rhs: ConstDef) -> Bool {
-    return lhs.type == rhs.type && lhs.value == rhs.value
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(type)
-    hasher.combine(value)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> ConstDef {
-    // @@bebop_insertion_point(decode_start:ConstDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var type: TypeDescriptor? = nil
-    var value: LiteralValue? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        type = try TypeDescriptor.decode(from: &reader)
-      case 2:
-        value = try LiteralValue.decode(from: &reader)
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(type: TypeDescriptor? = nil, value: LiteralValue? = nil) {
+        self.type = type
+        self.value = value
     }
-    // @@bebop_insertion_point(decode_end:ConstDef)
-    return ConstDef(type: type, value: value)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:ConstDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = type {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: ConstDef, rhs: ConstDef) -> Bool {
+        lhs.type == rhs.type && lhs.value == rhs.value
     }
-    if let _v = value {
-      writer.writeTag(2)
-      _v.encode(to: &writer)
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(type)
+        hasher.combine(value)
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:ConstDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = type { size += 1 + _v.encodedSize }
-    if let _v = value { size += 1 + _v.encodedSize }
-    return size
-  }
+    public static func decode(from reader: inout BebopReader) throws -> ConstDef {
+        // @@bebop_insertion_point(decode_start:ConstDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var type: TypeDescriptor? = nil
+        var value: LiteralValue? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                type = try TypeDescriptor.decode(from: &reader)
+            case 2:
+                value = try LiteralValue.decode(from: &reader)
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:ConstDef)
+        return ConstDef(type: type, value: value)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case type
-    case value
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:ConstDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = type {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = value {
+            writer.writeTag(2)
+            _v.encode(to: &writer)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:ConstDef)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "ConstDef",
-    fqn: "bebop.ConstDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "type",
-          index: 1,
-          typeName: "TypeDescriptor"
-        ),
-        BebopFieldReflection(
-          name: "value",
-          index: 2,
-          typeName: "LiteralValue"
-        ),
-      ])
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = type { size += 1 + _v.encodedSize }
+        if let _v = value { size += 1 + _v.encodedSize }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case value
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "ConstDef",
+        fqn: "bebop.ConstDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "type",
+                    index: 1,
+                    typeName: "TypeDescriptor"
+                ),
+                BebopFieldReflection(
+                    name: "value",
+                    index: 2,
+                    typeName: "LiteralValue"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:ConstDef)
+    // @@bebop_insertion_point(message_scope:ConstDef)
 }
 
 /// Decorator parameter definition.
@@ -2450,344 +2385,328 @@ public final class ConstDef: BebopRecord, BebopReflectable, @unchecked Sendable 
 /// }
 /// ```
 public final class DecoratorParamDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var name: String?
+    public var name: String?
 
-  /// Description from the `///` comment preceding this param.
-  public var description: String?
+    /// Description from the `///` comment preceding this param.
+    public var description: String?
 
-  /// Must be a scalar TypeKind.
-  public var type: TypeKind?
+    /// Must be a scalar TypeKind.
+    public var type: TypeKind?
 
-  /// True for required (`!`) params, false for optional (`?`).
-  public var required: Bool?
+    /// True for required (`!`) params, false for optional (`?`).
+    public var required: Bool?
 
-  /// Default value for optional params. Absent for required params.
-  public var defaultValue: LiteralValue?
+    /// Default value for optional params. Absent for required params.
+    public var defaultValue: LiteralValue?
 
-  /// Allowed-value constraint from `in [...]`. When non-empty, arguments
-  /// must match one of these values.
-  public var allowedValues: [LiteralValue]?
+    /// Allowed-value constraint from `in [...]`. When non-empty, arguments
+    /// must match one of these values.
+    public var allowedValues: [LiteralValue]?
 
-  public init(
-    name: String? = nil, description: String? = nil, type: TypeKind? = nil, required: Bool? = nil,
-    defaultValue: LiteralValue? = nil, allowedValues: [LiteralValue]? = nil
-  ) {
-    self.name = name
-    self.description = description
-    self.type = type
-    self.required = required
-    self.defaultValue = defaultValue
-    self.allowedValues = allowedValues
-  }
-
-  public static func == (lhs: DecoratorParamDef, rhs: DecoratorParamDef) -> Bool {
-    return lhs.name == rhs.name && lhs.description == rhs.description && lhs.type == rhs.type
-      && lhs.required == rhs.required && lhs.defaultValue == rhs.defaultValue
-      && lhs.allowedValues == rhs.allowedValues
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(name)
-    hasher.combine(description)
-    hasher.combine(type)
-    hasher.combine(required)
-    hasher.combine(defaultValue)
-    hasher.combine(allowedValues)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> DecoratorParamDef {
-    // @@bebop_insertion_point(decode_start:DecoratorParamDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var name: String? = nil
-    var description: String? = nil
-    var type: TypeKind? = nil
-    var required: Bool? = nil
-    var defaultValue: LiteralValue? = nil
-    var allowedValues: [LiteralValue]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        name = try reader.readString()
-      case 2:
-        description = try reader.readString()
-      case 3:
-        type = try TypeKind.decode(from: &reader)
-      case 4:
-        required = try reader.readBool()
-      case 5:
-        defaultValue = try LiteralValue.decode(from: &reader)
-      case 6:
-        allowedValues = try reader.readDynamicArray { _r in try LiteralValue.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(name: String? = nil, description: String? = nil, type: TypeKind? = nil, required: Bool? = nil, defaultValue: LiteralValue? = nil, allowedValues: [LiteralValue]? = nil) {
+        self.name = name
+        self.description = description
+        self.type = type
+        self.required = required
+        self.defaultValue = defaultValue
+        self.allowedValues = allowedValues
     }
-    // @@bebop_insertion_point(decode_end:DecoratorParamDef)
-    return DecoratorParamDef(
-      name: name, description: description, type: type, required: required,
-      defaultValue: defaultValue, allowedValues: allowedValues)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DecoratorParamDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = name {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: DecoratorParamDef, rhs: DecoratorParamDef) -> Bool {
+        lhs.name == rhs.name && lhs.description == rhs.description && lhs.type == rhs.type && lhs.required == rhs.required && lhs.defaultValue == rhs.defaultValue && lhs.allowedValues == rhs.allowedValues
     }
-    if let _v = description {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = type {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = required {
-      writer.writeTag(4)
-      writer.writeBool(_v)
-    }
-    if let _v = defaultValue {
-      writer.writeTag(5)
-      _v.encode(to: &writer)
-    }
-    if let _v = allowedValues {
-      writer.writeTag(6)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:DecoratorParamDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = description { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = type { size += 1 + _v.encodedSize }
-    if required != nil { size += 1 + 1 }
-    if let _v = defaultValue { size += 1 + _v.encodedSize }
-    if let _v = allowedValues {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(description)
+        hasher.combine(type)
+        hasher.combine(required)
+        hasher.combine(defaultValue)
+        hasher.combine(allowedValues)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case description
-    case type
-    case required
-    case defaultValue = "default_value"
-    case allowedValues = "allowed_values"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DecoratorParamDef {
+        // @@bebop_insertion_point(decode_start:DecoratorParamDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var name: String? = nil
+        var description: String? = nil
+        var type: TypeKind? = nil
+        var required: Bool? = nil
+        var defaultValue: LiteralValue? = nil
+        var allowedValues: [LiteralValue]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                name = try reader.readString()
+            case 2:
+                description = try reader.readString()
+            case 3:
+                type = try TypeKind.decode(from: &reader)
+            case 4:
+                required = try reader.readBool()
+            case 5:
+                defaultValue = try LiteralValue.decode(from: &reader)
+            case 6:
+                allowedValues = try reader.readDynamicArray { _r in try LiteralValue.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:DecoratorParamDef)
+        return DecoratorParamDef(name: name, description: description, type: type, required: required, defaultValue: defaultValue, allowedValues: allowedValues)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DecoratorParamDef",
-    fqn: "bebop.DecoratorParamDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "description",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "type",
-          index: 3,
-          typeName: "TypeKind"
-        ),
-        BebopFieldReflection(
-          name: "required",
-          index: 4,
-          typeName: "Bool"
-        ),
-        BebopFieldReflection(
-          name: "default_value",
-          index: 5,
-          typeName: "LiteralValue"
-        ),
-        BebopFieldReflection(
-          name: "allowed_values",
-          index: 6,
-          typeName: "[LiteralValue]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DecoratorParamDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = name {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = description {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = type {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = required {
+            writer.writeTag(4)
+            writer.writeBool(_v)
+        }
+        if let _v = defaultValue {
+            writer.writeTag(5)
+            _v.encode(to: &writer)
+        }
+        if let _v = allowedValues {
+            writer.writeTag(6)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:DecoratorParamDef)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = description { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = type { size += 1 + _v.encodedSize }
+        if required != nil { size += 1 + 1 }
+        if let _v = defaultValue { size += 1 + _v.encodedSize }
+        if let _v = allowedValues { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case description
+        case type
+        case required
+        case defaultValue = "default_value"
+        case allowedValues = "allowed_values"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DecoratorParamDef",
+        fqn: "bebop.DecoratorParamDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "description",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "type",
+                    index: 3,
+                    typeName: "TypeKind"
+                ),
+                BebopFieldReflection(
+                    name: "required",
+                    index: 4,
+                    typeName: "Bool"
+                ),
+                BebopFieldReflection(
+                    name: "default_value",
+                    index: 5,
+                    typeName: "LiteralValue"
+                ),
+                BebopFieldReflection(
+                    name: "allowed_values",
+                    index: 6,
+                    typeName: "[LiteralValue]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:DecoratorParamDef)
+    // @@bebop_insertion_point(message_scope:DecoratorParamDef)
 }
 
 /// Decorator definition body.
 /// Describes the decorator contract: which elements it can target, what
 /// parameters it accepts, and optional Lua source for validate/export.
 public final class DecoratorDef: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Bitmask of DecoratorTarget values this decorator may apply to.
-  public var targets: DecoratorTarget?
+    /// Bitmask of DecoratorTarget values this decorator may apply to.
+    public var targets: DecoratorTarget?
 
-  /// When true, the decorator can appear multiple times on the same target.
-  public var allowMultiple: Bool?
+    /// When true, the decorator can appear multiple times on the same target.
+    public var allowMultiple: Bool?
 
-  public var params: [DecoratorParamDef]?
+    public var params: [DecoratorParamDef]?
 
-  /// Lua source for validate block. Runs at compile time to reject invalid
-  /// usages. Absent when the decorator has no validate block.
-  public var validateSource: String?
+    /// Lua source for validate block. Runs at compile time to reject invalid
+    /// usages. Absent when the decorator has no validate block.
+    public var validateSource: String?
 
-  /// Lua source for export block. Produces key-value metadata stored in
-  /// DecoratorUsage.export_data. Absent when no export block.
-  public var exportSource: String?
+    /// Lua source for export block. Produces key-value metadata stored in
+    /// DecoratorUsage.export_data. Absent when no export block.
+    public var exportSource: String?
 
-  public init(
-    targets: DecoratorTarget? = nil, allowMultiple: Bool? = nil, params: [DecoratorParamDef]? = nil,
-    validateSource: String? = nil, exportSource: String? = nil
-  ) {
-    self.targets = targets
-    self.allowMultiple = allowMultiple
-    self.params = params
-    self.validateSource = validateSource
-    self.exportSource = exportSource
-  }
-
-  public static func == (lhs: DecoratorDef, rhs: DecoratorDef) -> Bool {
-    return lhs.targets == rhs.targets && lhs.allowMultiple == rhs.allowMultiple
-      && lhs.params == rhs.params && lhs.validateSource == rhs.validateSource
-      && lhs.exportSource == rhs.exportSource
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(targets)
-    hasher.combine(allowMultiple)
-    hasher.combine(params)
-    hasher.combine(validateSource)
-    hasher.combine(exportSource)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> DecoratorDef {
-    // @@bebop_insertion_point(decode_start:DecoratorDef)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var targets: DecoratorTarget? = nil
-    var allowMultiple: Bool? = nil
-    var params: [DecoratorParamDef]? = nil
-    var validateSource: String? = nil
-    var exportSource: String? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        targets = try DecoratorTarget.decode(from: &reader)
-      case 2:
-        allowMultiple = try reader.readBool()
-      case 3:
-        params = try reader.readDynamicArray { _r in try DecoratorParamDef.decode(from: &_r) }
-      case 4:
-        validateSource = try reader.readString()
-      case 5:
-        exportSource = try reader.readString()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(targets: DecoratorTarget? = nil, allowMultiple: Bool? = nil, params: [DecoratorParamDef]? = nil, validateSource: String? = nil, exportSource: String? = nil) {
+        self.targets = targets
+        self.allowMultiple = allowMultiple
+        self.params = params
+        self.validateSource = validateSource
+        self.exportSource = exportSource
     }
-    // @@bebop_insertion_point(decode_end:DecoratorDef)
-    return DecoratorDef(
-      targets: targets, allowMultiple: allowMultiple, params: params,
-      validateSource: validateSource, exportSource: exportSource)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DecoratorDef)
-    let pos = writer.reserveMessageLength()
-    if let _v = targets {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: DecoratorDef, rhs: DecoratorDef) -> Bool {
+        lhs.targets == rhs.targets && lhs.allowMultiple == rhs.allowMultiple && lhs.params == rhs.params && lhs.validateSource == rhs.validateSource && lhs.exportSource == rhs.exportSource
     }
-    if let _v = allowMultiple {
-      writer.writeTag(2)
-      writer.writeBool(_v)
-    }
-    if let _v = params {
-      writer.writeTag(3)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = validateSource {
-      writer.writeTag(4)
-      writer.writeString(_v)
-    }
-    if let _v = exportSource {
-      writer.writeTag(5)
-      writer.writeString(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:DecoratorDef)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = targets { size += 1 + _v.encodedSize }
-    if allowMultiple != nil { size += 1 + 1 }
-    if let _v = params { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if let _v = validateSource { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = exportSource { size += 1 + (4 + _v.utf8.count + 1) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(targets)
+        hasher.combine(allowMultiple)
+        hasher.combine(params)
+        hasher.combine(validateSource)
+        hasher.combine(exportSource)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case targets
-    case allowMultiple = "allow_multiple"
-    case params
-    case validateSource = "validate_source"
-    case exportSource = "export_source"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DecoratorDef {
+        // @@bebop_insertion_point(decode_start:DecoratorDef)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var targets: DecoratorTarget? = nil
+        var allowMultiple: Bool? = nil
+        var params: [DecoratorParamDef]? = nil
+        var validateSource: String? = nil
+        var exportSource: String? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                targets = try DecoratorTarget.decode(from: &reader)
+            case 2:
+                allowMultiple = try reader.readBool()
+            case 3:
+                params = try reader.readDynamicArray { _r in try DecoratorParamDef.decode(from: &_r) }
+            case 4:
+                validateSource = try reader.readString()
+            case 5:
+                exportSource = try reader.readString()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:DecoratorDef)
+        return DecoratorDef(targets: targets, allowMultiple: allowMultiple, params: params, validateSource: validateSource, exportSource: exportSource)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DecoratorDef",
-    fqn: "bebop.DecoratorDef",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "targets",
-          index: 1,
-          typeName: "DecoratorTarget"
-        ),
-        BebopFieldReflection(
-          name: "allow_multiple",
-          index: 2,
-          typeName: "Bool"
-        ),
-        BebopFieldReflection(
-          name: "params",
-          index: 3,
-          typeName: "[DecoratorParamDef]"
-        ),
-        BebopFieldReflection(
-          name: "validate_source",
-          index: 4,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "export_source",
-          index: 5,
-          typeName: "String"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DecoratorDef)
+        let pos = writer.reserveMessageLength()
+        if let _v = targets {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = allowMultiple {
+            writer.writeTag(2)
+            writer.writeBool(_v)
+        }
+        if let _v = params {
+            writer.writeTag(3)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = validateSource {
+            writer.writeTag(4)
+            writer.writeString(_v)
+        }
+        if let _v = exportSource {
+            writer.writeTag(5)
+            writer.writeString(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:DecoratorDef)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = targets { size += 1 + _v.encodedSize }
+        if allowMultiple != nil { size += 1 + 1 }
+        if let _v = params { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = validateSource { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = exportSource { size += 1 + (4 + _v.utf8.count + 1) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case targets
+        case allowMultiple = "allow_multiple"
+        case params
+        case validateSource = "validate_source"
+        case exportSource = "export_source"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DecoratorDef",
+        fqn: "bebop.DecoratorDef",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "targets",
+                    index: 1,
+                    typeName: "DecoratorTarget"
+                ),
+                BebopFieldReflection(
+                    name: "allow_multiple",
+                    index: 2,
+                    typeName: "Bool"
+                ),
+                BebopFieldReflection(
+                    name: "params",
+                    index: 3,
+                    typeName: "[DecoratorParamDef]"
+                ),
+                BebopFieldReflection(
+                    name: "validate_source",
+                    index: 4,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "export_source",
+                    index: 5,
+                    typeName: "String"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:DecoratorDef)
+    // @@bebop_insertion_point(message_scope:DecoratorDef)
 }
 
 /// Named definition.
@@ -2799,529 +2718,504 @@ public final class DecoratorDef: BebopRecord, BebopReflectable, @unchecked Senda
 /// live in the `nested` array. Inline union branch definitions also appear
 /// there. Each nested definition has its own FQN encoding the full path.
 public final class DefinitionDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var kind: DefinitionKind?
+    public var kind: DefinitionKind?
 
-  /// Simple name as declared in source.
-  public var name: String?
+    /// Simple name as declared in source.
+    public var name: String?
 
-  /// Fully-qualified name including package and parent scopes.
-  public var fqn: String?
+    /// Fully-qualified name including package and parent scopes.
+    public var fqn: String?
 
-  /// Text from preceding `///` comments in source.
-  public var documentation: String?
+    /// Text from preceding `///` comments in source.
+    public var documentation: String?
 
-  public var visibility: Visibility?
+    public var visibility: Visibility?
 
-  public var decorators: [DecoratorUsage]?
+    public var decorators: [DecoratorUsage]?
 
-  /// Types declared inside this definition's body.
-  public var nested: [DefinitionDescriptor]?
+    /// Types declared inside this definition's body.
+    public var nested: [DefinitionDescriptor]?
 
-  public var enumDef: EnumDef?
+    public var enumDef: EnumDef?
 
-  public var structDef: StructDef?
+    public var structDef: StructDef?
 
-  public var messageDef: MessageDef?
+    public var messageDef: MessageDef?
 
-  public var unionDef: UnionDef?
+    public var unionDef: UnionDef?
 
-  public var serviceDef: ServiceDef?
+    public var serviceDef: ServiceDef?
 
-  public var constDef: ConstDef?
+    public var constDef: ConstDef?
 
-  public var decoratorDef: DecoratorDef?
+    public var decoratorDef: DecoratorDef?
 
-  public init(
-    kind: DefinitionKind? = nil, name: String? = nil, fqn: String? = nil,
-    documentation: String? = nil, visibility: Visibility? = nil,
-    decorators: [DecoratorUsage]? = nil, nested: [DefinitionDescriptor]? = nil,
-    enumDef: EnumDef? = nil, structDef: StructDef? = nil, messageDef: MessageDef? = nil,
-    unionDef: UnionDef? = nil, serviceDef: ServiceDef? = nil, constDef: ConstDef? = nil,
-    decoratorDef: DecoratorDef? = nil
-  ) {
-    self.kind = kind
-    self.name = name
-    self.fqn = fqn
-    self.documentation = documentation
-    self.visibility = visibility
-    self.decorators = decorators
-    self.nested = nested
-    self.enumDef = enumDef
-    self.structDef = structDef
-    self.messageDef = messageDef
-    self.unionDef = unionDef
-    self.serviceDef = serviceDef
-    self.constDef = constDef
-    self.decoratorDef = decoratorDef
-  }
-
-  public static func == (lhs: DefinitionDescriptor, rhs: DefinitionDescriptor) -> Bool {
-    return lhs.kind == rhs.kind && lhs.name == rhs.name && lhs.fqn == rhs.fqn
-      && lhs.documentation == rhs.documentation && lhs.visibility == rhs.visibility
-      && lhs.decorators == rhs.decorators && lhs.nested == rhs.nested && lhs.enumDef == rhs.enumDef
-      && lhs.structDef == rhs.structDef && lhs.messageDef == rhs.messageDef
-      && lhs.unionDef == rhs.unionDef && lhs.serviceDef == rhs.serviceDef
-      && lhs.constDef == rhs.constDef && lhs.decoratorDef == rhs.decoratorDef
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(kind)
-    hasher.combine(name)
-    hasher.combine(fqn)
-    hasher.combine(documentation)
-    hasher.combine(visibility)
-    hasher.combine(decorators)
-    hasher.combine(nested)
-    hasher.combine(enumDef)
-    hasher.combine(structDef)
-    hasher.combine(messageDef)
-    hasher.combine(unionDef)
-    hasher.combine(serviceDef)
-    hasher.combine(constDef)
-    hasher.combine(decoratorDef)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> DefinitionDescriptor {
-    // @@bebop_insertion_point(decode_start:DefinitionDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var kind: DefinitionKind? = nil
-    var name: String? = nil
-    var fqn: String? = nil
-    var documentation: String? = nil
-    var visibility: Visibility? = nil
-    var decorators: [DecoratorUsage]? = nil
-    var nested: [DefinitionDescriptor]? = nil
-    var enumDef: EnumDef? = nil
-    var structDef: StructDef? = nil
-    var messageDef: MessageDef? = nil
-    var unionDef: UnionDef? = nil
-    var serviceDef: ServiceDef? = nil
-    var constDef: ConstDef? = nil
-    var decoratorDef: DecoratorDef? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        kind = try DefinitionKind.decode(from: &reader)
-      case 2:
-        name = try reader.readString()
-      case 3:
-        fqn = try reader.readString()
-      case 4:
-        documentation = try reader.readString()
-      case 5:
-        visibility = try Visibility.decode(from: &reader)
-      case 6:
-        decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
-      case 7:
-        nested = try reader.readDynamicArray { _r in try DefinitionDescriptor.decode(from: &_r) }
-      case 8:
-        enumDef = try EnumDef.decode(from: &reader)
-      case 9:
-        structDef = try StructDef.decode(from: &reader)
-      case 10:
-        messageDef = try MessageDef.decode(from: &reader)
-      case 11:
-        unionDef = try UnionDef.decode(from: &reader)
-      case 12:
-        serviceDef = try ServiceDef.decode(from: &reader)
-      case 13:
-        constDef = try ConstDef.decode(from: &reader)
-      case 14:
-        decoratorDef = try DecoratorDef.decode(from: &reader)
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(kind: DefinitionKind? = nil, name: String? = nil, fqn: String? = nil, documentation: String? = nil, visibility: Visibility? = nil, decorators: [DecoratorUsage]? = nil, nested: [DefinitionDescriptor]? = nil, enumDef: EnumDef? = nil, structDef: StructDef? = nil, messageDef: MessageDef? = nil, unionDef: UnionDef? = nil, serviceDef: ServiceDef? = nil, constDef: ConstDef? = nil, decoratorDef: DecoratorDef? = nil) {
+        self.kind = kind
+        self.name = name
+        self.fqn = fqn
+        self.documentation = documentation
+        self.visibility = visibility
+        self.decorators = decorators
+        self.nested = nested
+        self.enumDef = enumDef
+        self.structDef = structDef
+        self.messageDef = messageDef
+        self.unionDef = unionDef
+        self.serviceDef = serviceDef
+        self.constDef = constDef
+        self.decoratorDef = decoratorDef
     }
-    // @@bebop_insertion_point(decode_end:DefinitionDescriptor)
-    return DefinitionDescriptor(
-      kind: kind, name: name, fqn: fqn, documentation: documentation, visibility: visibility,
-      decorators: decorators, nested: nested, enumDef: enumDef, structDef: structDef,
-      messageDef: messageDef, unionDef: unionDef, serviceDef: serviceDef, constDef: constDef,
-      decoratorDef: decoratorDef)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DefinitionDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = kind {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: DefinitionDescriptor, rhs: DefinitionDescriptor) -> Bool {
+        lhs.kind == rhs.kind && lhs.name == rhs.name && lhs.fqn == rhs.fqn && lhs.documentation == rhs.documentation && lhs.visibility == rhs.visibility && lhs.decorators == rhs.decorators && lhs.nested == rhs.nested && lhs.enumDef == rhs.enumDef && lhs.structDef == rhs.structDef && lhs.messageDef == rhs.messageDef && lhs.unionDef == rhs.unionDef && lhs.serviceDef == rhs.serviceDef && lhs.constDef == rhs.constDef && lhs.decoratorDef == rhs.decoratorDef
     }
-    if let _v = name {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = fqn {
-      writer.writeTag(3)
-      writer.writeString(_v)
-    }
-    if let _v = documentation {
-      writer.writeTag(4)
-      writer.writeString(_v)
-    }
-    if let _v = visibility {
-      writer.writeTag(5)
-      _v.encode(to: &writer)
-    }
-    if let _v = decorators {
-      writer.writeTag(6)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = nested {
-      writer.writeTag(7)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = enumDef {
-      writer.writeTag(8)
-      _v.encode(to: &writer)
-    }
-    if let _v = structDef {
-      writer.writeTag(9)
-      _v.encode(to: &writer)
-    }
-    if let _v = messageDef {
-      writer.writeTag(10)
-      _v.encode(to: &writer)
-    }
-    if let _v = unionDef {
-      writer.writeTag(11)
-      _v.encode(to: &writer)
-    }
-    if let _v = serviceDef {
-      writer.writeTag(12)
-      _v.encode(to: &writer)
-    }
-    if let _v = constDef {
-      writer.writeTag(13)
-      _v.encode(to: &writer)
-    }
-    if let _v = decoratorDef {
-      writer.writeTag(14)
-      _v.encode(to: &writer)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:DefinitionDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = kind { size += 1 + _v.encodedSize }
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = fqn { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = visibility { size += 1 + _v.encodedSize }
-    if let _v = decorators {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(name)
+        hasher.combine(fqn)
+        hasher.combine(documentation)
+        hasher.combine(visibility)
+        hasher.combine(decorators)
+        hasher.combine(nested)
+        hasher.combine(enumDef)
+        hasher.combine(structDef)
+        hasher.combine(messageDef)
+        hasher.combine(unionDef)
+        hasher.combine(serviceDef)
+        hasher.combine(constDef)
+        hasher.combine(decoratorDef)
     }
-    if let _v = nested { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if let _v = enumDef { size += 1 + _v.encodedSize }
-    if let _v = structDef { size += 1 + _v.encodedSize }
-    if let _v = messageDef { size += 1 + _v.encodedSize }
-    if let _v = unionDef { size += 1 + _v.encodedSize }
-    if let _v = serviceDef { size += 1 + _v.encodedSize }
-    if let _v = constDef { size += 1 + _v.encodedSize }
-    if let _v = decoratorDef { size += 1 + _v.encodedSize }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case kind
-    case name
-    case fqn
-    case documentation
-    case visibility
-    case decorators
-    case nested
-    case enumDef = "enum_def"
-    case structDef = "struct_def"
-    case messageDef = "message_def"
-    case unionDef = "union_def"
-    case serviceDef = "service_def"
-    case constDef = "const_def"
-    case decoratorDef = "decorator_def"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DefinitionDescriptor {
+        // @@bebop_insertion_point(decode_start:DefinitionDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var kind: DefinitionKind? = nil
+        var name: String? = nil
+        var fqn: String? = nil
+        var documentation: String? = nil
+        var visibility: Visibility? = nil
+        var decorators: [DecoratorUsage]? = nil
+        var nested: [DefinitionDescriptor]? = nil
+        var enumDef: EnumDef? = nil
+        var structDef: StructDef? = nil
+        var messageDef: MessageDef? = nil
+        var unionDef: UnionDef? = nil
+        var serviceDef: ServiceDef? = nil
+        var constDef: ConstDef? = nil
+        var decoratorDef: DecoratorDef? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                kind = try DefinitionKind.decode(from: &reader)
+            case 2:
+                name = try reader.readString()
+            case 3:
+                fqn = try reader.readString()
+            case 4:
+                documentation = try reader.readString()
+            case 5:
+                visibility = try Visibility.decode(from: &reader)
+            case 6:
+                decorators = try reader.readDynamicArray { _r in try DecoratorUsage.decode(from: &_r) }
+            case 7:
+                nested = try reader.readDynamicArray { _r in try DefinitionDescriptor.decode(from: &_r) }
+            case 8:
+                enumDef = try EnumDef.decode(from: &reader)
+            case 9:
+                structDef = try StructDef.decode(from: &reader)
+            case 10:
+                messageDef = try MessageDef.decode(from: &reader)
+            case 11:
+                unionDef = try UnionDef.decode(from: &reader)
+            case 12:
+                serviceDef = try ServiceDef.decode(from: &reader)
+            case 13:
+                constDef = try ConstDef.decode(from: &reader)
+            case 14:
+                decoratorDef = try DecoratorDef.decode(from: &reader)
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:DefinitionDescriptor)
+        return DefinitionDescriptor(kind: kind, name: name, fqn: fqn, documentation: documentation, visibility: visibility, decorators: decorators, nested: nested, enumDef: enumDef, structDef: structDef, messageDef: messageDef, unionDef: unionDef, serviceDef: serviceDef, constDef: constDef, decoratorDef: decoratorDef)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DefinitionDescriptor",
-    fqn: "bebop.DefinitionDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "kind",
-          index: 1,
-          typeName: "DefinitionKind"
-        ),
-        BebopFieldReflection(
-          name: "name",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "fqn",
-          index: 3,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "documentation",
-          index: 4,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "visibility",
-          index: 5,
-          typeName: "Visibility"
-        ),
-        BebopFieldReflection(
-          name: "decorators",
-          index: 6,
-          typeName: "[DecoratorUsage]"
-        ),
-        BebopFieldReflection(
-          name: "nested",
-          index: 7,
-          typeName: "[DefinitionDescriptor]"
-        ),
-        BebopFieldReflection(
-          name: "enum_def",
-          index: 8,
-          typeName: "EnumDef"
-        ),
-        BebopFieldReflection(
-          name: "struct_def",
-          index: 9,
-          typeName: "StructDef"
-        ),
-        BebopFieldReflection(
-          name: "message_def",
-          index: 10,
-          typeName: "MessageDef"
-        ),
-        BebopFieldReflection(
-          name: "union_def",
-          index: 11,
-          typeName: "UnionDef"
-        ),
-        BebopFieldReflection(
-          name: "service_def",
-          index: 12,
-          typeName: "ServiceDef"
-        ),
-        BebopFieldReflection(
-          name: "const_def",
-          index: 13,
-          typeName: "ConstDef"
-        ),
-        BebopFieldReflection(
-          name: "decorator_def",
-          index: 14,
-          typeName: "DecoratorDef"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DefinitionDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = kind {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = name {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = fqn {
+            writer.writeTag(3)
+            writer.writeString(_v)
+        }
+        if let _v = documentation {
+            writer.writeTag(4)
+            writer.writeString(_v)
+        }
+        if let _v = visibility {
+            writer.writeTag(5)
+            _v.encode(to: &writer)
+        }
+        if let _v = decorators {
+            writer.writeTag(6)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = nested {
+            writer.writeTag(7)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = enumDef {
+            writer.writeTag(8)
+            _v.encode(to: &writer)
+        }
+        if let _v = structDef {
+            writer.writeTag(9)
+            _v.encode(to: &writer)
+        }
+        if let _v = messageDef {
+            writer.writeTag(10)
+            _v.encode(to: &writer)
+        }
+        if let _v = unionDef {
+            writer.writeTag(11)
+            _v.encode(to: &writer)
+        }
+        if let _v = serviceDef {
+            writer.writeTag(12)
+            _v.encode(to: &writer)
+        }
+        if let _v = constDef {
+            writer.writeTag(13)
+            _v.encode(to: &writer)
+        }
+        if let _v = decoratorDef {
+            writer.writeTag(14)
+            _v.encode(to: &writer)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:DefinitionDescriptor)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = kind { size += 1 + _v.encodedSize }
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = fqn { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = documentation { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = visibility { size += 1 + _v.encodedSize }
+        if let _v = decorators { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = nested { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = enumDef { size += 1 + _v.encodedSize }
+        if let _v = structDef { size += 1 + _v.encodedSize }
+        if let _v = messageDef { size += 1 + _v.encodedSize }
+        if let _v = unionDef { size += 1 + _v.encodedSize }
+        if let _v = serviceDef { size += 1 + _v.encodedSize }
+        if let _v = constDef { size += 1 + _v.encodedSize }
+        if let _v = decoratorDef { size += 1 + _v.encodedSize }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case name
+        case fqn
+        case documentation
+        case visibility
+        case decorators
+        case nested
+        case enumDef = "enum_def"
+        case structDef = "struct_def"
+        case messageDef = "message_def"
+        case unionDef = "union_def"
+        case serviceDef = "service_def"
+        case constDef = "const_def"
+        case decoratorDef = "decorator_def"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DefinitionDescriptor",
+        fqn: "bebop.DefinitionDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "kind",
+                    index: 1,
+                    typeName: "DefinitionKind"
+                ),
+                BebopFieldReflection(
+                    name: "name",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "fqn",
+                    index: 3,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "documentation",
+                    index: 4,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "visibility",
+                    index: 5,
+                    typeName: "Visibility"
+                ),
+                BebopFieldReflection(
+                    name: "decorators",
+                    index: 6,
+                    typeName: "[DecoratorUsage]"
+                ),
+                BebopFieldReflection(
+                    name: "nested",
+                    index: 7,
+                    typeName: "[DefinitionDescriptor]"
+                ),
+                BebopFieldReflection(
+                    name: "enum_def",
+                    index: 8,
+                    typeName: "EnumDef"
+                ),
+                BebopFieldReflection(
+                    name: "struct_def",
+                    index: 9,
+                    typeName: "StructDef"
+                ),
+                BebopFieldReflection(
+                    name: "message_def",
+                    index: 10,
+                    typeName: "MessageDef"
+                ),
+                BebopFieldReflection(
+                    name: "union_def",
+                    index: 11,
+                    typeName: "UnionDef"
+                ),
+                BebopFieldReflection(
+                    name: "service_def",
+                    index: 12,
+                    typeName: "ServiceDef"
+                ),
+                BebopFieldReflection(
+                    name: "const_def",
+                    index: 13,
+                    typeName: "ConstDef"
+                ),
+                BebopFieldReflection(
+                    name: "decorator_def",
+                    index: 14,
+                    typeName: "DecoratorDef"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:DefinitionDescriptor)
+    // @@bebop_insertion_point(message_scope:DefinitionDescriptor)
 }
 
 /// Source location for a descriptor element.
 /// Maps descriptor elements to source positions and comments. Used for
 /// error reporting, documentation extraction, and IDE features.
 public final class Location: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Path into the descriptor tree. Encoded as pairs of (field_tag, index):
-  /// ```
-  /// [5, 0]       -> schema.definitions[0]
-  /// [5, 0, 1, 2] -> schema.definitions[0].fields[2]
-  /// [5, 1, 2, 0] -> schema.definitions[1].members[0]
-  /// ```
-  /// Field tags correspond to definition body field indices
-  /// (StructDef.fields = 1, EnumDef.members = 2, etc.).
-  public var path: [Int32]?
+    /// Path into the descriptor tree. Encoded as pairs of (field_tag, index):
+    /// ```
+    /// [5, 0]       -> schema.definitions[0]
+    /// [5, 0, 1, 2] -> schema.definitions[0].fields[2]
+    /// [5, 1, 2, 0] -> schema.definitions[1].members[0]
+    /// ```
+    /// Field tags correspond to definition body field indices
+    /// (StructDef.fields = 1, EnumDef.members = 2, etc.).
+    public var path: [Int32]?
 
-  /// Source span as `[start_line, start_col, end_line, end_col]`.
-  /// All values 1-based. Columns count characters, tabs advance to
-  /// next multiple of 4.
-  public var span: InlineArray<4, Int32>?
+    /// Source span as `[start_line, start_col, end_line, end_col]`.
+    /// All values 1-based. Columns count characters, tabs advance to
+    /// next multiple of 4.
+    public var span: InlineArray<4, Int32>?
 
-  /// Comments on adjacent preceding lines with no blank line separation.
-  public var leadingComments: String?
+    /// Comments on adjacent preceding lines with no blank line separation.
+    public var leadingComments: String?
 
-  /// Comment on the same line after the element or after an opening brace.
-  public var trailingComments: String?
+    /// Comment on the same line after the element or after an opening brace.
+    public var trailingComments: String?
 
-  /// Comment groups separated from the element by blank lines.
-  public var detachedComments: [String]?
+    /// Comment groups separated from the element by blank lines.
+    public var detachedComments: [String]?
 
-  public init(
-    path: [Int32]? = nil, span: InlineArray<4, Int32>? = nil, leadingComments: String? = nil,
-    trailingComments: String? = nil, detachedComments: [String]? = nil
-  ) {
-    self.path = path
-    self.span = span
-    self.leadingComments = leadingComments
-    self.trailingComments = trailingComments
-    self.detachedComments = detachedComments
-  }
-
-  public static func == (lhs: Location, rhs: Location) -> Bool {
-    return lhs.path == rhs.path && lhs.span == rhs.span
-      && lhs.leadingComments == rhs.leadingComments && lhs.trailingComments == rhs.trailingComments
-      && lhs.detachedComments == rhs.detachedComments
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(path)
-    hasher.combine(span)
-    hasher.combine(leadingComments)
-    hasher.combine(trailingComments)
-    hasher.combine(detachedComments)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> Location {
-    // @@bebop_insertion_point(decode_start:Location)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var path: [Int32]? = nil
-    var span: InlineArray<4, Int32>? = nil
-    var leadingComments: String? = nil
-    var trailingComments: String? = nil
-    var detachedComments: [String]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        path = try reader.readLengthPrefixedArray(of: Int32.self)
-      case 2:
-        span = (try reader.readInlineArray(of: Int32.self) as InlineArray<4, Int32>)
-      case 3:
-        leadingComments = try reader.readString()
-      case 4:
-        trailingComments = try reader.readString()
-      case 5:
-        detachedComments = try reader.readDynamicArray { _r in try _r.readString() }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(path: [Int32]? = nil, span: InlineArray<4, Int32>? = nil, leadingComments: String? = nil, trailingComments: String? = nil, detachedComments: [String]? = nil) {
+        self.path = path
+        self.span = span
+        self.leadingComments = leadingComments
+        self.trailingComments = trailingComments
+        self.detachedComments = detachedComments
     }
-    // @@bebop_insertion_point(decode_end:Location)
-    return Location(
-      path: path, span: span, leadingComments: leadingComments, trailingComments: trailingComments,
-      detachedComments: detachedComments)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:Location)
-    let pos = writer.reserveMessageLength()
-    if let _v = path {
-      writer.writeTag(1)
-      writer.writeLengthPrefixedArray(_v)
+    public static func == (lhs: Location, rhs: Location) -> Bool {
+        lhs.path == rhs.path && lhs.span == rhs.span && lhs.leadingComments == rhs.leadingComments && lhs.trailingComments == rhs.trailingComments && lhs.detachedComments == rhs.detachedComments
     }
-    if let _v = span {
-      writer.writeTag(2)
-      writer.writeInlineArray(_v)
-    }
-    if let _v = leadingComments {
-      writer.writeTag(3)
-      writer.writeString(_v)
-    }
-    if let _v = trailingComments {
-      writer.writeTag(4)
-      writer.writeString(_v)
-    }
-    if let _v = detachedComments {
-      writer.writeTag(5)
-      writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:Location)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = path { size += 1 + (4 + _v.count &* 4) }
-    if span != nil { size += 1 + 16 }
-    if let _v = leadingComments { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = trailingComments { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = detachedComments {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(span)
+        hasher.combine(leadingComments)
+        hasher.combine(trailingComments)
+        hasher.combine(detachedComments)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case path
-    case span
-    case leadingComments = "leading_comments"
-    case trailingComments = "trailing_comments"
-    case detachedComments = "detached_comments"
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(path, forKey: .path)
-    if let span = span {
-      var spanContainer = container.nestedUnkeyedContainer(forKey: .span)
-      for i in 0..<4 { try spanContainer.encode(span[i]) }
+    public static func decode(from reader: inout BebopReader) throws -> Location {
+        // @@bebop_insertion_point(decode_start:Location)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var path: [Int32]? = nil
+        var span: InlineArray<4, Int32>? = nil
+        var leadingComments: String? = nil
+        var trailingComments: String? = nil
+        var detachedComments: [String]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                path = try reader.readLengthPrefixedArray(of: Int32.self)
+            case 2:
+                span = try (reader.readInlineArray(of: Int32.self) as InlineArray<4, Int32>)
+            case 3:
+                leadingComments = try reader.readString()
+            case 4:
+                trailingComments = try reader.readString()
+            case 5:
+                detachedComments = try reader.readDynamicArray { _r in try _r.readString() }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:Location)
+        return Location(path: path, span: span, leadingComments: leadingComments, trailingComments: trailingComments, detachedComments: detachedComments)
     }
-    try container.encodeIfPresent(leadingComments, forKey: .leadingComments)
-    try container.encodeIfPresent(trailingComments, forKey: .trailingComments)
-    try container.encodeIfPresent(detachedComments, forKey: .detachedComments)
-  }
 
-  public required init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    path = try container.decodeIfPresent([Int32].self, forKey: .path)
-    if container.contains(.span) {
-      var spanContainer = try container.nestedUnkeyedContainer(forKey: .span)
-      span = try InlineArray<4, Int32> { _ in try spanContainer.decode(Int32.self) }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:Location)
+        let pos = writer.reserveMessageLength()
+        if let _v = path {
+            writer.writeTag(1)
+            writer.writeLengthPrefixedArray(_v)
+        }
+        if let _v = span {
+            writer.writeTag(2)
+            writer.writeInlineArray(_v)
+        }
+        if let _v = leadingComments {
+            writer.writeTag(3)
+            writer.writeString(_v)
+        }
+        if let _v = trailingComments {
+            writer.writeTag(4)
+            writer.writeString(_v)
+        }
+        if let _v = detachedComments {
+            writer.writeTag(5)
+            writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:Location)
     }
-    leadingComments = try container.decodeIfPresent(String.self, forKey: .leadingComments)
-    trailingComments = try container.decodeIfPresent(String.self, forKey: .trailingComments)
-    detachedComments = try container.decodeIfPresent([String].self, forKey: .detachedComments)
-  }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "Location",
-    fqn: "bebop.Location",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "path",
-          index: 1,
-          typeName: "[Int32]"
-        ),
-        BebopFieldReflection(
-          name: "span",
-          index: 2,
-          typeName: "InlineArray<4, Int32>"
-        ),
-        BebopFieldReflection(
-          name: "leading_comments",
-          index: 3,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "trailing_comments",
-          index: 4,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "detached_comments",
-          index: 5,
-          typeName: "[String]"
-        ),
-      ])
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = path { size += 1 + (4 + _v.count &* 4) }
+        if span != nil { size += 1 + 16 }
+        if let _v = leadingComments { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = trailingComments { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = detachedComments { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case span
+        case leadingComments = "leading_comments"
+        case trailingComments = "trailing_comments"
+        case detachedComments = "detached_comments"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(path, forKey: .path)
+        if let span {
+            var spanContainer = container.nestedUnkeyedContainer(forKey: .span)
+            for i in 0 ..< 4 {
+                try spanContainer.encode(span[i])
+            }
+        }
+        try container.encodeIfPresent(leadingComments, forKey: .leadingComments)
+        try container.encodeIfPresent(trailingComments, forKey: .trailingComments)
+        try container.encodeIfPresent(detachedComments, forKey: .detachedComments)
+    }
+
+    public required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try container.decodeIfPresent([Int32].self, forKey: .path)
+        if container.contains(.span) {
+            var spanContainer = try container.nestedUnkeyedContainer(forKey: .span)
+            span = try InlineArray<4, Int32> { _ in try spanContainer.decode(Int32.self) }
+        }
+        leadingComments = try container.decodeIfPresent(String.self, forKey: .leadingComments)
+        trailingComments = try container.decodeIfPresent(String.self, forKey: .trailingComments)
+        detachedComments = try container.decodeIfPresent([String].self, forKey: .detachedComments)
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "Location",
+        fqn: "bebop.Location",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "path",
+                    index: 1,
+                    typeName: "[Int32]"
+                ),
+                BebopFieldReflection(
+                    name: "span",
+                    index: 2,
+                    typeName: "InlineArray<4, Int32>"
+                ),
+                BebopFieldReflection(
+                    name: "leading_comments",
+                    index: 3,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "trailing_comments",
+                    index: 4,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "detached_comments",
+                    index: 5,
+                    typeName: "[String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:Location)
+    // @@bebop_insertion_point(message_scope:Location)
 }
 
 /// Source code info for a schema.
@@ -3329,77 +3223,77 @@ public final class Location: BebopRecord, BebopReflectable, @unchecked Sendable 
 /// enum members, union branches, and service methods. Not every element
 /// has a location.
 public final class SourceCodeInfo: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var locations: [Location]?
+    public var locations: [Location]?
 
-  public init(locations: [Location]? = nil) {
-    self.locations = locations
-  }
-
-  public static func == (lhs: SourceCodeInfo, rhs: SourceCodeInfo) -> Bool {
-    return lhs.locations == rhs.locations
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(locations)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> SourceCodeInfo {
-    // @@bebop_insertion_point(decode_start:SourceCodeInfo)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var locations: [Location]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        locations = try reader.readDynamicArray { _r in try Location.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(locations: [Location]? = nil) {
+        self.locations = locations
     }
-    // @@bebop_insertion_point(decode_end:SourceCodeInfo)
-    return SourceCodeInfo(locations: locations)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:SourceCodeInfo)
-    let pos = writer.reserveMessageLength()
-    if let _v = locations {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: SourceCodeInfo, rhs: SourceCodeInfo) -> Bool {
+        lhs.locations == rhs.locations
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:SourceCodeInfo)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = locations { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(locations)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case locations
-  }
+    public static func decode(from reader: inout BebopReader) throws -> SourceCodeInfo {
+        // @@bebop_insertion_point(decode_start:SourceCodeInfo)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var locations: [Location]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                locations = try reader.readDynamicArray { _r in try Location.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:SourceCodeInfo)
+        return SourceCodeInfo(locations: locations)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "SourceCodeInfo",
-    fqn: "bebop.SourceCodeInfo",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "locations",
-          index: 1,
-          typeName: "[Location]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:SourceCodeInfo)
+        let pos = writer.reserveMessageLength()
+        if let _v = locations {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:SourceCodeInfo)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = locations { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case locations
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "SourceCodeInfo",
+        fqn: "bebop.SourceCodeInfo",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "locations",
+                    index: 1,
+                    typeName: "[Location]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:SourceCodeInfo)
+    // @@bebop_insertion_point(message_scope:SourceCodeInfo)
 }
 
 /// Descriptor for a single .bop source file.
@@ -3407,184 +3301,172 @@ public final class SourceCodeInfo: BebopRecord, BebopReflectable, @unchecked Sen
 /// topologically sorted: every type appears after the types it depends on.
 /// Generators can emit types in array order without forward declarations.
 public final class SchemaDescriptor: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// File path as provided to the compiler.
-  public var path: String?
+    /// File path as provided to the compiler.
+    public var path: String?
 
-  /// Package declaration from source. Absent when no package is declared.
-  public var package: String?
+    /// Package declaration from source. Absent when no package is declared.
+    public var package: String?
 
-  public var edition: Edition?
+    public var edition: Edition?
 
-  /// Import paths in source declaration order.
-  public var imports: [String]?
+    /// Import paths in source declaration order.
+    public var imports: [String]?
 
-  /// All definitions in topological dependency order.
-  public var definitions: [DefinitionDescriptor]?
+    /// All definitions in topological dependency order.
+    public var definitions: [DefinitionDescriptor]?
 
-  /// Source code info. Only present when requested during compilation.
-  public var sourceCodeInfo: SourceCodeInfo?
+    /// Source code info. Only present when requested during compilation.
+    public var sourceCodeInfo: SourceCodeInfo?
 
-  public init(
-    path: String? = nil, package: String? = nil, edition: Edition? = nil, imports: [String]? = nil,
-    definitions: [DefinitionDescriptor]? = nil, sourceCodeInfo: SourceCodeInfo? = nil
-  ) {
-    self.path = path
-    self.package = package
-    self.edition = edition
-    self.imports = imports
-    self.definitions = definitions
-    self.sourceCodeInfo = sourceCodeInfo
-  }
+    public init(path: String? = nil, package: String? = nil, edition: Edition? = nil, imports: [String]? = nil, definitions: [DefinitionDescriptor]? = nil, sourceCodeInfo: SourceCodeInfo? = nil) {
+        self.path = path
+        self.package = package
+        self.edition = edition
+        self.imports = imports
+        self.definitions = definitions
+        self.sourceCodeInfo = sourceCodeInfo
+    }
 
-  public static func == (lhs: SchemaDescriptor, rhs: SchemaDescriptor) -> Bool {
-    return lhs.path == rhs.path && lhs.package == rhs.package && lhs.edition == rhs.edition
-      && lhs.imports == rhs.imports && lhs.definitions == rhs.definitions
-      && lhs.sourceCodeInfo == rhs.sourceCodeInfo
-  }
+    public static func == (lhs: SchemaDescriptor, rhs: SchemaDescriptor) -> Bool {
+        lhs.path == rhs.path && lhs.package == rhs.package && lhs.edition == rhs.edition && lhs.imports == rhs.imports && lhs.definitions == rhs.definitions && lhs.sourceCodeInfo == rhs.sourceCodeInfo
+    }
 
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(path)
-    hasher.combine(package)
-    hasher.combine(edition)
-    hasher.combine(imports)
-    hasher.combine(definitions)
-    hasher.combine(sourceCodeInfo)
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(package)
+        hasher.combine(edition)
+        hasher.combine(imports)
+        hasher.combine(definitions)
+        hasher.combine(sourceCodeInfo)
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> SchemaDescriptor {
-    // @@bebop_insertion_point(decode_start:SchemaDescriptor)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var path: String? = nil
-    var package: String? = nil
-    var edition: Edition? = nil
-    var imports: [String]? = nil
-    var definitions: [DefinitionDescriptor]? = nil
-    var sourceCodeInfo: SourceCodeInfo? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        path = try reader.readString()
-      case 2:
-        package = try reader.readString()
-      case 3:
-        edition = try Edition.decode(from: &reader)
-      case 4:
-        imports = try reader.readDynamicArray { _r in try _r.readString() }
-      case 5:
-        definitions = try reader.readDynamicArray { _r in try DefinitionDescriptor.decode(from: &_r)
+    public static func decode(from reader: inout BebopReader) throws -> SchemaDescriptor {
+        // @@bebop_insertion_point(decode_start:SchemaDescriptor)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var path: String? = nil
+        var package: String? = nil
+        var edition: Edition? = nil
+        var imports: [String]? = nil
+        var definitions: [DefinitionDescriptor]? = nil
+        var sourceCodeInfo: SourceCodeInfo? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                path = try reader.readString()
+            case 2:
+                package = try reader.readString()
+            case 3:
+                edition = try Edition.decode(from: &reader)
+            case 4:
+                imports = try reader.readDynamicArray { _r in try _r.readString() }
+            case 5:
+                definitions = try reader.readDynamicArray { _r in try DefinitionDescriptor.decode(from: &_r) }
+            case 6:
+                sourceCodeInfo = try SourceCodeInfo.decode(from: &reader)
+            default:
+                try reader.skip(end - reader.position)
+            }
         }
-      case 6:
-        sourceCodeInfo = try SourceCodeInfo.decode(from: &reader)
-      default:
-        try reader.skip(end - reader.position)
-      }
+        // @@bebop_insertion_point(decode_end:SchemaDescriptor)
+        return SchemaDescriptor(path: path, package: package, edition: edition, imports: imports, definitions: definitions, sourceCodeInfo: sourceCodeInfo)
     }
-    // @@bebop_insertion_point(decode_end:SchemaDescriptor)
-    return SchemaDescriptor(
-      path: path, package: package, edition: edition, imports: imports, definitions: definitions,
-      sourceCodeInfo: sourceCodeInfo)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:SchemaDescriptor)
-    let pos = writer.reserveMessageLength()
-    if let _v = path {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:SchemaDescriptor)
+        let pos = writer.reserveMessageLength()
+        if let _v = path {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = package {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = edition {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = imports {
+            writer.writeTag(4)
+            writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
+        }
+        if let _v = definitions {
+            writer.writeTag(5)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = sourceCodeInfo {
+            writer.writeTag(6)
+            _v.encode(to: &writer)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:SchemaDescriptor)
     }
-    if let _v = package {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = edition {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = imports {
-      writer.writeTag(4)
-      writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
-    }
-    if let _v = definitions {
-      writer.writeTag(5)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = sourceCodeInfo {
-      writer.writeTag(6)
-      _v.encode(to: &writer)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:SchemaDescriptor)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = path { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = package { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = edition { size += 1 + _v.encodedSize }
-    if let _v = imports {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) })
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = path { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = package { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = edition { size += 1 + _v.encodedSize }
+        if let _v = imports { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) }) }
+        if let _v = definitions { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = sourceCodeInfo { size += 1 + _v.encodedSize }
+        return size
     }
-    if let _v = definitions {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case package
+        case edition
+        case imports
+        case definitions
+        case sourceCodeInfo = "source_code_info"
     }
-    if let _v = sourceCodeInfo { size += 1 + _v.encodedSize }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case path
-    case package
-    case edition
-    case imports
-    case definitions
-    case sourceCodeInfo = "source_code_info"
-  }
-
-  public static let bebopReflection = BebopTypeReflection(
-    name: "SchemaDescriptor",
-    fqn: "bebop.SchemaDescriptor",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "path",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "package",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "edition",
-          index: 3,
-          typeName: "Edition"
-        ),
-        BebopFieldReflection(
-          name: "imports",
-          index: 4,
-          typeName: "[String]"
-        ),
-        BebopFieldReflection(
-          name: "definitions",
-          index: 5,
-          typeName: "[DefinitionDescriptor]"
-        ),
-        BebopFieldReflection(
-          name: "source_code_info",
-          index: 6,
-          typeName: "SourceCodeInfo"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "SchemaDescriptor",
+        fqn: "bebop.SchemaDescriptor",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "path",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "package",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "edition",
+                    index: 3,
+                    typeName: "Edition"
+                ),
+                BebopFieldReflection(
+                    name: "imports",
+                    index: 4,
+                    typeName: "[String]"
+                ),
+                BebopFieldReflection(
+                    name: "definitions",
+                    index: 5,
+                    typeName: "[DefinitionDescriptor]"
+                ),
+                BebopFieldReflection(
+                    name: "source_code_info",
+                    index: 6,
+                    typeName: "SourceCodeInfo"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:SchemaDescriptor)
+    // @@bebop_insertion_point(message_scope:SchemaDescriptor)
 }
 
 /// Root container for compiled schemas.
@@ -3593,77 +3475,77 @@ public final class SchemaDescriptor: BebopRecord, BebopReflectable, @unchecked S
 /// Processing schemas[0..N] in order encounters dependencies before
 /// they are referenced.
 public final class DescriptorSet: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var schemas: [SchemaDescriptor]?
+    public var schemas: [SchemaDescriptor]?
 
-  public init(schemas: [SchemaDescriptor]? = nil) {
-    self.schemas = schemas
-  }
-
-  public static func == (lhs: DescriptorSet, rhs: DescriptorSet) -> Bool {
-    return lhs.schemas == rhs.schemas
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(schemas)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> DescriptorSet {
-    // @@bebop_insertion_point(decode_start:DescriptorSet)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var schemas: [SchemaDescriptor]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        schemas = try reader.readDynamicArray { _r in try SchemaDescriptor.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(schemas: [SchemaDescriptor]? = nil) {
+        self.schemas = schemas
     }
-    // @@bebop_insertion_point(decode_end:DescriptorSet)
-    return DescriptorSet(schemas: schemas)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DescriptorSet)
-    let pos = writer.reserveMessageLength()
-    if let _v = schemas {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+    public static func == (lhs: DescriptorSet, rhs: DescriptorSet) -> Bool {
+        lhs.schemas == rhs.schemas
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:DescriptorSet)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = schemas { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(schemas)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case schemas
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DescriptorSet {
+        // @@bebop_insertion_point(decode_start:DescriptorSet)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var schemas: [SchemaDescriptor]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                schemas = try reader.readDynamicArray { _r in try SchemaDescriptor.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:DescriptorSet)
+        return DescriptorSet(schemas: schemas)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DescriptorSet",
-    fqn: "bebop.DescriptorSet",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "schemas",
-          index: 1,
-          typeName: "[SchemaDescriptor]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DescriptorSet)
+        let pos = writer.reserveMessageLength()
+        if let _v = schemas {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:DescriptorSet)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = schemas { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schemas
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DescriptorSet",
+        fqn: "bebop.DescriptorSet",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "schemas",
+                    index: 1,
+                    typeName: "[SchemaDescriptor]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:DescriptorSet)
+    // @@bebop_insertion_point(message_scope:DescriptorSet)
 }
 
 // @@bebop_insertion_point(eof)

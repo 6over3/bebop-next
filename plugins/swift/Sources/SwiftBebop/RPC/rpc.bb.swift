@@ -18,1509 +18,1443 @@
 
 /// Codes 0-16 align with gRPC. 17-255 are application-defined.
 public struct StatusCode: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let ok = StatusCode(rawValue: 0)
+    public static let ok = StatusCode(rawValue: 0)
 
-  public static let cancelled = StatusCode(rawValue: 1)
+    public static let cancelled = StatusCode(rawValue: 1)
 
-  public static let unknown = StatusCode(rawValue: 2)
+    public static let unknown = StatusCode(rawValue: 2)
 
-  public static let invalidArgument = StatusCode(rawValue: 3)
+    public static let invalidArgument = StatusCode(rawValue: 3)
 
-  public static let deadlineExceeded = StatusCode(rawValue: 4)
+    public static let deadlineExceeded = StatusCode(rawValue: 4)
 
-  public static let notFound = StatusCode(rawValue: 5)
+    public static let notFound = StatusCode(rawValue: 5)
 
-  public static let permissionDenied = StatusCode(rawValue: 7)
+    public static let permissionDenied = StatusCode(rawValue: 7)
 
-  public static let resourceExhausted = StatusCode(rawValue: 8)
+    public static let resourceExhausted = StatusCode(rawValue: 8)
 
-  public static let unimplemented = StatusCode(rawValue: 12)
+    public static let unimplemented = StatusCode(rawValue: 12)
 
-  public static let `internal` = StatusCode(rawValue: 13)
+    public static let `internal` = StatusCode(rawValue: 13)
 
-  public static let unavailable = StatusCode(rawValue: 14)
+    public static let unavailable = StatusCode(rawValue: 14)
 
-  public static let unauthenticated = StatusCode(rawValue: 16)
+    public static let unauthenticated = StatusCode(rawValue: 16)
 
-  public static func decode(from reader: inout BebopReader) throws -> StatusCode {
-    return StatusCode(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> StatusCode {
+        try StatusCode(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "StatusCode",
-    fqn: "bebop.StatusCode",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "OK", value: 0),
-          (name: "CANCELLED", value: 1),
-          (name: "UNKNOWN", value: 2),
-          (name: "INVALID_ARGUMENT", value: 3),
-          (name: "DEADLINE_EXCEEDED", value: 4),
-          (name: "NOT_FOUND", value: 5),
-          (name: "PERMISSION_DENIED", value: 7),
-          (name: "RESOURCE_EXHAUSTED", value: 8),
-          (name: "UNIMPLEMENTED", value: 12),
-          (name: "INTERNAL", value: 13),
-          (name: "UNAVAILABLE", value: 14),
-          (name: "UNAUTHENTICATED", value: 16),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "StatusCode",
+        fqn: "bebop.StatusCode",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "OK", value: 0),
+                    (name: "CANCELLED", value: 1),
+                    (name: "UNKNOWN", value: 2),
+                    (name: "INVALID_ARGUMENT", value: 3),
+                    (name: "DEADLINE_EXCEEDED", value: 4),
+                    (name: "NOT_FOUND", value: 5),
+                    (name: "PERMISSION_DENIED", value: 7),
+                    (name: "RESOURCE_EXHAUSTED", value: 8),
+                    (name: "UNIMPLEMENTED", value: 12),
+                    (name: "INTERNAL", value: 13),
+                    (name: "UNAVAILABLE", value: 14),
+                    (name: "UNAUTHENTICATED", value: 16),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:StatusCode)
+    // @@bebop_insertion_point(enum_scope:StatusCode)
 }
 
 public struct FrameFlags: OptionSet, Sendable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  /// Last frame in this direction.
-  public static let endStream = FrameFlags(rawValue: 1)
+    /// Last frame in this direction.
+    public static let endStream = FrameFlags(rawValue: 1)
 
-  /// Payload is an RpcError.
-  public static let error = FrameFlags(rawValue: 2)
+    /// Payload is an RpcError.
+    public static let error = FrameFlags(rawValue: 2)
 
-  /// Payload is compressed. Algorithm negotiated via metadata.
-  public static let compressed = FrameFlags(rawValue: 4)
+    /// Payload is compressed. Algorithm negotiated via metadata.
+    public static let compressed = FrameFlags(rawValue: 4)
 
-  /// Payload is a TrailingMetadata.
-  public static let trailer = FrameFlags(rawValue: 8)
+    /// Payload is a TrailingMetadata.
+    public static let trailer = FrameFlags(rawValue: 8)
 
-  /// 8-byte LE uint64 cursor follows the payload.
-  public static let cursor = FrameFlags(rawValue: 16)
+    /// 8-byte LE uint64 cursor follows the payload.
+    public static let cursor = FrameFlags(rawValue: 16)
 
-  public static func decode(from reader: inout BebopReader) throws -> FrameFlags {
-    return FrameFlags(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FrameFlags {
+        try FrameFlags(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    self.rawValue = try container.decode(UInt8.self)
-  }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        rawValue = try container.decode(UInt8.self)
+    }
 
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FrameFlags",
-    fqn: "bebop.FrameFlags",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "NONE", value: 0),
-          (name: "END_STREAM", value: 1),
-          (name: "ERROR", value: 2),
-          (name: "COMPRESSED", value: 4),
-          (name: "TRAILER", value: 8),
-          (name: "CURSOR", value: 16),
-        ],
-        isFlags: true
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FrameFlags",
+        fqn: "bebop.FrameFlags",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "NONE", value: 0),
+                    (name: "END_STREAM", value: 1),
+                    (name: "ERROR", value: 2),
+                    (name: "COMPRESSED", value: 4),
+                    (name: "TRAILER", value: 8),
+                    (name: "CURSOR", value: 16),
+                ],
+                isFlags: true
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:FrameFlags)
+    // @@bebop_insertion_point(enum_scope:FrameFlags)
 }
 
 public struct MethodType: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
-  public let rawValue: UInt8
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let unary = MethodType(rawValue: 0)
+    public static let unary = MethodType(rawValue: 0)
 
-  public static let serverStream = MethodType(rawValue: 1)
+    public static let serverStream = MethodType(rawValue: 1)
 
-  public static let clientStream = MethodType(rawValue: 2)
+    public static let clientStream = MethodType(rawValue: 2)
 
-  public static let duplexStream = MethodType(rawValue: 3)
+    public static let duplexStream = MethodType(rawValue: 3)
 
-  public static func decode(from reader: inout BebopReader) throws -> MethodType {
-    return MethodType(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> MethodType {
+        try MethodType(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "MethodType",
-    fqn: "bebop.MethodType",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "UNARY", value: 0),
-          (name: "SERVER_STREAM", value: 1),
-          (name: "CLIENT_STREAM", value: 2),
-          (name: "DUPLEX_STREAM", value: 3),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "MethodType",
+        fqn: "bebop.MethodType",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "UNARY", value: 0),
+                    (name: "SERVER_STREAM", value: 1),
+                    (name: "CLIENT_STREAM", value: 2),
+                    (name: "DUPLEX_STREAM", value: 3),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:MethodType)
+    // @@bebop_insertion_point(enum_scope:MethodType)
 }
 
 /// 9 bytes, fixed layout, no tags. Precedes every payload on the wire.
 public struct FrameHeader: BebopRecord, BebopReflectable {
-  /// Payload byte count.
-  public let length: UInt32
+    /// Payload byte count.
+    public let length: UInt32
 
-  public let flags: FrameFlags
+    public let flags: FrameFlags
 
-  /// 0 when the transport already isolates calls (HTTP/2, separate connections).
-  public let streamId: UInt32
+    /// 0 when the transport already isolates calls (HTTP/2, separate connections).
+    public let streamId: UInt32
 
-  enum CodingKeys: String, CodingKey {
-    case length
-    case flags
-    case streamId = "stream_id"
-  }
+    enum CodingKeys: String, CodingKey {
+        case length
+        case flags
+        case streamId = "stream_id"
+    }
 
-  public init(length: UInt32, flags: FrameFlags, streamId: UInt32) {
-    self.length = length
-    self.flags = flags
-    self.streamId = streamId
-  }
+    public init(length: UInt32, flags: FrameFlags, streamId: UInt32) {
+        self.length = length
+        self.flags = flags
+        self.streamId = streamId
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> FrameHeader {
-    // @@bebop_insertion_point(decode_start:FrameHeader)
-    let length = try reader.readUInt32()
-    let flags = try FrameFlags.decode(from: &reader)
-    let streamId = try reader.readUInt32()
-    // @@bebop_insertion_point(decode_end:FrameHeader)
-    return FrameHeader(length: length, flags: flags, streamId: streamId)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FrameHeader {
+        // @@bebop_insertion_point(decode_start:FrameHeader)
+        let length = try reader.readUInt32()
+        let flags = try FrameFlags.decode(from: &reader)
+        let streamId = try reader.readUInt32()
+        // @@bebop_insertion_point(decode_end:FrameHeader)
+        return FrameHeader(length: length, flags: flags, streamId: streamId)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FrameHeader)
-    writer.writeUInt32(length)
-    flags.encode(to: &writer)
-    writer.writeUInt32(streamId)
-    // @@bebop_insertion_point(encode_end:FrameHeader)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FrameHeader)
+        writer.writeUInt32(length)
+        flags.encode(to: &writer)
+        writer.writeUInt32(streamId)
+        // @@bebop_insertion_point(encode_end:FrameHeader)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += 4
-    size += flags.encodedSize
-    size += 4
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += 4
+        size += flags.encodedSize
+        size += 4
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FrameHeader",
-    fqn: "bebop.FrameHeader",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "length",
-          index: 0,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "flags",
-          index: 0,
-          typeName: "FrameFlags"
-        ),
-        BebopFieldReflection(
-          name: "stream_id",
-          index: 0,
-          typeName: "UInt32"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FrameHeader",
+        fqn: "bebop.FrameHeader",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "length",
+                    index: 0,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "flags",
+                    index: 0,
+                    typeName: "FrameFlags"
+                ),
+                BebopFieldReflection(
+                    name: "stream_id",
+                    index: 0,
+                    typeName: "UInt32"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:FrameHeader)
+    // @@bebop_insertion_point(struct_scope:FrameHeader)
 }
 
 /// Sent once at the start of a binary transport call. On HTTP, these
 /// fields map to URL path, headers, and the bebop-deadline header.
 public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// MurmurHash3 of /ServiceName/MethodName.
-  public var methodId: UInt32?
+    /// MurmurHash3 of /ServiceName/MethodName.
+    public var methodId: UInt32?
 
-  /// Absolute timestamp. Omit for no deadline.
-  public var deadline: BebopTimestamp?
+    /// Absolute timestamp. Omit for no deadline.
+    public var deadline: BebopTimestamp?
 
-  /// Keys: ASCII lowercase, digits, hyphens, underscores.
-  /// Keys starting with "bebop-" are reserved.
-  public var metadata: [String: String]?
+    /// Keys: ASCII lowercase, digits, hyphens, underscores.
+    /// Keys starting with "bebop-" are reserved.
+    public var metadata: [String: String]?
 
-  /// Stream resume position. 0 = start from beginning.
-  public var cursor: UInt64?
+    /// Stream resume position. 0 = start from beginning.
+    public var cursor: UInt64?
 
-  public init(
-    methodId: UInt32? = nil, deadline: BebopTimestamp? = nil, metadata: [String: String]? = nil,
-    cursor: UInt64? = nil
-  ) {
-    self.methodId = methodId
-    self.deadline = deadline
-    self.metadata = metadata
-    self.cursor = cursor
-  }
-
-  public static func == (lhs: CallHeader, rhs: CallHeader) -> Bool {
-    return lhs.methodId == rhs.methodId && lhs.deadline == rhs.deadline
-      && lhs.metadata == rhs.metadata && lhs.cursor == rhs.cursor
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(methodId)
-    hasher.combine(deadline)
-    hasher.combine(metadata)
-    hasher.combine(cursor)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> CallHeader {
-    // @@bebop_insertion_point(decode_start:CallHeader)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var methodId: UInt32? = nil
-    var deadline: BebopTimestamp? = nil
-    var metadata: [String: String]? = nil
-    var cursor: UInt64? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        methodId = try reader.readUInt32()
-      case 2:
-        deadline = try reader.readTimestamp()
-      case 3:
-        metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-      case 4:
-        cursor = try reader.readUInt64()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(methodId: UInt32? = nil, deadline: BebopTimestamp? = nil, metadata: [String: String]? = nil, cursor: UInt64? = nil) {
+        self.methodId = methodId
+        self.deadline = deadline
+        self.metadata = metadata
+        self.cursor = cursor
     }
-    // @@bebop_insertion_point(decode_end:CallHeader)
-    return CallHeader(methodId: methodId, deadline: deadline, metadata: metadata, cursor: cursor)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:CallHeader)
-    let pos = writer.reserveMessageLength()
-    if let _v = methodId {
-      writer.writeTag(1)
-      writer.writeUInt32(_v)
+    public static func == (lhs: CallHeader, rhs: CallHeader) -> Bool {
+        lhs.methodId == rhs.methodId && lhs.deadline == rhs.deadline && lhs.metadata == rhs.metadata && lhs.cursor == rhs.cursor
     }
-    if let _v = deadline {
-      writer.writeTag(2)
-      writer.writeTimestamp(_v)
-    }
-    if let _v = metadata {
-      writer.writeTag(3)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _w.writeString(_v)
-      }
-    }
-    if let _v = cursor {
-      writer.writeTag(4)
-      writer.writeUInt64(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:CallHeader)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if methodId != nil { size += 1 + 4 }
-    if deadline != nil { size += 1 + 16 }
-    if let _v = metadata {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-          })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(methodId)
+        hasher.combine(deadline)
+        hasher.combine(metadata)
+        hasher.combine(cursor)
     }
-    if cursor != nil { size += 1 + 8 }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case methodId = "method_id"
-    case deadline
-    case metadata
-    case cursor
-  }
+    public static func decode(from reader: inout BebopReader) throws -> CallHeader {
+        // @@bebop_insertion_point(decode_start:CallHeader)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var methodId: UInt32? = nil
+        var deadline: BebopTimestamp? = nil
+        var metadata: [String: String]? = nil
+        var cursor: UInt64? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                methodId = try reader.readUInt32()
+            case 2:
+                deadline = try reader.readTimestamp()
+            case 3:
+                metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+            case 4:
+                cursor = try reader.readUInt64()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:CallHeader)
+        return CallHeader(methodId: methodId, deadline: deadline, metadata: metadata, cursor: cursor)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "CallHeader",
-    fqn: "bebop.CallHeader",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "method_id",
-          index: 1,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "deadline",
-          index: 2,
-          typeName: "BebopTimestamp"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 3,
-          typeName: "[String: String]"
-        ),
-        BebopFieldReflection(
-          name: "cursor",
-          index: 4,
-          typeName: "UInt64"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:CallHeader)
+        let pos = writer.reserveMessageLength()
+        if let _v = methodId {
+            writer.writeTag(1)
+            writer.writeUInt32(_v)
+        }
+        if let _v = deadline {
+            writer.writeTag(2)
+            writer.writeTimestamp(_v)
+        }
+        if let _v = metadata {
+            writer.writeTag(3)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _w.writeString(_v)
+            }
+        }
+        if let _v = cursor {
+            writer.writeTag(4)
+            writer.writeUInt64(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:CallHeader)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if methodId != nil { size += 1 + 4 }
+        if deadline != nil { size += 1 + 16 }
+        if let _v = metadata { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        if cursor != nil { size += 1 + 8 }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case methodId = "method_id"
+        case deadline
+        case metadata
+        case cursor
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "CallHeader",
+        fqn: "bebop.CallHeader",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "method_id",
+                    index: 1,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "deadline",
+                    index: 2,
+                    typeName: "BebopTimestamp"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 3,
+                    typeName: "[String: String]"
+                ),
+                BebopFieldReflection(
+                    name: "cursor",
+                    index: 4,
+                    typeName: "UInt64"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:CallHeader)
+    // @@bebop_insertion_point(message_scope:CallHeader)
 }
 
 /// Payload of an ERROR frame. On error, response metadata goes here
 /// instead of in a separate TrailingMetadata frame.
 public final class RpcError: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var code: StatusCode?
+    public var code: StatusCode?
 
-  public var detail: String?
+    public var detail: String?
 
-  public var metadata: [String: String]?
+    public var metadata: [String: String]?
 
-  public init(code: StatusCode? = nil, detail: String? = nil, metadata: [String: String]? = nil) {
-    self.code = code
-    self.detail = detail
-    self.metadata = metadata
-  }
-
-  public static func == (lhs: RpcError, rhs: RpcError) -> Bool {
-    return lhs.code == rhs.code && lhs.detail == rhs.detail && lhs.metadata == rhs.metadata
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(code)
-    hasher.combine(detail)
-    hasher.combine(metadata)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> RpcError {
-    // @@bebop_insertion_point(decode_start:RpcError)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var code: StatusCode? = nil
-    var detail: String? = nil
-    var metadata: [String: String]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        code = try StatusCode.decode(from: &reader)
-      case 2:
-        detail = try reader.readString()
-      case 3:
-        metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(code: StatusCode? = nil, detail: String? = nil, metadata: [String: String]? = nil) {
+        self.code = code
+        self.detail = detail
+        self.metadata = metadata
     }
-    // @@bebop_insertion_point(decode_end:RpcError)
-    return RpcError(code: code, detail: detail, metadata: metadata)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:RpcError)
-    let pos = writer.reserveMessageLength()
-    if let _v = code {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: RpcError, rhs: RpcError) -> Bool {
+        lhs.code == rhs.code && lhs.detail == rhs.detail && lhs.metadata == rhs.metadata
     }
-    if let _v = detail {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = metadata {
-      writer.writeTag(3)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _w.writeString(_v)
-      }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:RpcError)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = code { size += 1 + _v.encodedSize }
-    if let _v = detail { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = metadata {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-          })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(code)
+        hasher.combine(detail)
+        hasher.combine(metadata)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case code
-    case detail
-    case metadata
-  }
+    public static func decode(from reader: inout BebopReader) throws -> RpcError {
+        // @@bebop_insertion_point(decode_start:RpcError)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var code: StatusCode? = nil
+        var detail: String? = nil
+        var metadata: [String: String]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                code = try StatusCode.decode(from: &reader)
+            case 2:
+                detail = try reader.readString()
+            case 3:
+                metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:RpcError)
+        return RpcError(code: code, detail: detail, metadata: metadata)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "RpcError",
-    fqn: "bebop.RpcError",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "code",
-          index: 1,
-          typeName: "StatusCode"
-        ),
-        BebopFieldReflection(
-          name: "detail",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 3,
-          typeName: "[String: String]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:RpcError)
+        let pos = writer.reserveMessageLength()
+        if let _v = code {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = detail {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = metadata {
+            writer.writeTag(3)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _w.writeString(_v)
+            }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:RpcError)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = code { size += 1 + _v.encodedSize }
+        if let _v = detail { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = metadata { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case detail
+        case metadata
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "RpcError",
+        fqn: "bebop.RpcError",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "code",
+                    index: 1,
+                    typeName: "StatusCode"
+                ),
+                BebopFieldReflection(
+                    name: "detail",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 3,
+                    typeName: "[String: String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:RpcError)
+    // @@bebop_insertion_point(message_scope:RpcError)
 }
 
 /// Payload of a TRAILER frame. Sent after the last response data frame.
 public final class TrailingMetadata: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var metadata: [String: String]?
+    public var metadata: [String: String]?
 
-  public init(metadata: [String: String]? = nil) {
-    self.metadata = metadata
-  }
-
-  public static func == (lhs: TrailingMetadata, rhs: TrailingMetadata) -> Bool {
-    return lhs.metadata == rhs.metadata
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(metadata)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> TrailingMetadata {
-    // @@bebop_insertion_point(decode_start:TrailingMetadata)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var metadata: [String: String]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(metadata: [String: String]? = nil) {
+        self.metadata = metadata
     }
-    // @@bebop_insertion_point(decode_end:TrailingMetadata)
-    return TrailingMetadata(metadata: metadata)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:TrailingMetadata)
-    let pos = writer.reserveMessageLength()
-    if let _v = metadata {
-      writer.writeTag(1)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _w.writeString(_v)
-      }
+    public static func == (lhs: TrailingMetadata, rhs: TrailingMetadata) -> Bool {
+        lhs.metadata == rhs.metadata
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:TrailingMetadata)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = metadata {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-          })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(metadata)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case metadata
-  }
+    public static func decode(from reader: inout BebopReader) throws -> TrailingMetadata {
+        // @@bebop_insertion_point(decode_start:TrailingMetadata)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var metadata: [String: String]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:TrailingMetadata)
+        return TrailingMetadata(metadata: metadata)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "TrailingMetadata",
-    fqn: "bebop.TrailingMetadata",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "metadata",
-          index: 1,
-          typeName: "[String: String]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:TrailingMetadata)
+        let pos = writer.reserveMessageLength()
+        if let _v = metadata {
+            writer.writeTag(1)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _w.writeString(_v)
+            }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:TrailingMetadata)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = metadata { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case metadata
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "TrailingMetadata",
+        fqn: "bebop.TrailingMetadata",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 1,
+                    typeName: "[String: String]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:TrailingMetadata)
+    // @@bebop_insertion_point(message_scope:TrailingMetadata)
 }
 
 public struct MethodInfo: BebopRecord, BebopReflectable {
-  public let name: String
+    public let name: String
 
-  public let methodId: UInt32
+    public let methodId: UInt32
 
-  public let methodType: MethodType
+    public let methodType: MethodType
 
-  /// e.g. "type.bebop.sh/myapp.HelloRequest"
-  public let requestTypeUrl: String
+    /// e.g. "type.bebop.sh/myapp.HelloRequest"
+    public let requestTypeUrl: String
 
-  /// e.g. "type.bebop.sh/myapp.HelloResponse"
-  public let responseTypeUrl: String
+    /// e.g. "type.bebop.sh/myapp.HelloResponse"
+    public let responseTypeUrl: String
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case methodId = "method_id"
-    case methodType = "method_type"
-    case requestTypeUrl = "request_type_url"
-    case responseTypeUrl = "response_type_url"
-  }
+    enum CodingKeys: String, CodingKey {
+        case name
+        case methodId = "method_id"
+        case methodType = "method_type"
+        case requestTypeUrl = "request_type_url"
+        case responseTypeUrl = "response_type_url"
+    }
 
-  public init(
-    name: String, methodId: UInt32, methodType: MethodType, requestTypeUrl: String,
-    responseTypeUrl: String
-  ) {
-    self.name = name
-    self.methodId = methodId
-    self.methodType = methodType
-    self.requestTypeUrl = requestTypeUrl
-    self.responseTypeUrl = responseTypeUrl
-  }
+    public init(name: String, methodId: UInt32, methodType: MethodType, requestTypeUrl: String, responseTypeUrl: String) {
+        self.name = name
+        self.methodId = methodId
+        self.methodType = methodType
+        self.requestTypeUrl = requestTypeUrl
+        self.responseTypeUrl = responseTypeUrl
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> MethodInfo {
-    // @@bebop_insertion_point(decode_start:MethodInfo)
-    let name = try reader.readString()
-    let methodId = try reader.readUInt32()
-    let methodType = try MethodType.decode(from: &reader)
-    let requestTypeUrl = try reader.readString()
-    let responseTypeUrl = try reader.readString()
-    // @@bebop_insertion_point(decode_end:MethodInfo)
-    return MethodInfo(
-      name: name, methodId: methodId, methodType: methodType, requestTypeUrl: requestTypeUrl,
-      responseTypeUrl: responseTypeUrl)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> MethodInfo {
+        // @@bebop_insertion_point(decode_start:MethodInfo)
+        let name = try reader.readString()
+        let methodId = try reader.readUInt32()
+        let methodType = try MethodType.decode(from: &reader)
+        let requestTypeUrl = try reader.readString()
+        let responseTypeUrl = try reader.readString()
+        // @@bebop_insertion_point(decode_end:MethodInfo)
+        return MethodInfo(name: name, methodId: methodId, methodType: methodType, requestTypeUrl: requestTypeUrl, responseTypeUrl: responseTypeUrl)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:MethodInfo)
-    writer.writeString(name)
-    writer.writeUInt32(methodId)
-    methodType.encode(to: &writer)
-    writer.writeString(requestTypeUrl)
-    writer.writeString(responseTypeUrl)
-    // @@bebop_insertion_point(encode_end:MethodInfo)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:MethodInfo)
+        writer.writeString(name)
+        writer.writeUInt32(methodId)
+        methodType.encode(to: &writer)
+        writer.writeString(requestTypeUrl)
+        writer.writeString(responseTypeUrl)
+        // @@bebop_insertion_point(encode_end:MethodInfo)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + name.utf8.count + 1)
-    size += 4
-    size += methodType.encodedSize
-    size += (4 + requestTypeUrl.utf8.count + 1)
-    size += (4 + responseTypeUrl.utf8.count + 1)
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + name.utf8.count + 1)
+        size += 4
+        size += methodType.encodedSize
+        size += (4 + requestTypeUrl.utf8.count + 1)
+        size += (4 + responseTypeUrl.utf8.count + 1)
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "MethodInfo",
-    fqn: "bebop.MethodInfo",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 0,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "method_id",
-          index: 0,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "method_type",
-          index: 0,
-          typeName: "MethodType"
-        ),
-        BebopFieldReflection(
-          name: "request_type_url",
-          index: 0,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "response_type_url",
-          index: 0,
-          typeName: "String"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "MethodInfo",
+        fqn: "bebop.MethodInfo",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 0,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "method_id",
+                    index: 0,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "method_type",
+                    index: 0,
+                    typeName: "MethodType"
+                ),
+                BebopFieldReflection(
+                    name: "request_type_url",
+                    index: 0,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "response_type_url",
+                    index: 0,
+                    typeName: "String"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:MethodInfo)
+    // @@bebop_insertion_point(struct_scope:MethodInfo)
 }
 
 public struct ServiceInfo: BebopRecord, BebopReflectable {
-  public let name: String
+    public let name: String
 
-  public let methods: [MethodInfo]
+    public let methods: [MethodInfo]
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case methods
-  }
+    enum CodingKeys: String, CodingKey {
+        case name
+        case methods
+    }
 
-  public init(name: String, methods: [MethodInfo]) {
-    self.name = name
-    self.methods = methods
-  }
+    public init(name: String, methods: [MethodInfo]) {
+        self.name = name
+        self.methods = methods
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> ServiceInfo {
-    // @@bebop_insertion_point(decode_start:ServiceInfo)
-    let name = try reader.readString()
-    let methods = try reader.readDynamicArray { _r in try MethodInfo.decode(from: &_r) }
-    // @@bebop_insertion_point(decode_end:ServiceInfo)
-    return ServiceInfo(name: name, methods: methods)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> ServiceInfo {
+        // @@bebop_insertion_point(decode_start:ServiceInfo)
+        let name = try reader.readString()
+        let methods = try reader.readDynamicArray { _r in try MethodInfo.decode(from: &_r) }
+        // @@bebop_insertion_point(decode_end:ServiceInfo)
+        return ServiceInfo(name: name, methods: methods)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:ServiceInfo)
-    writer.writeString(name)
-    writer.writeDynamicArray(methods) { _w, _el in _el.encode(to: &_w) }
-    // @@bebop_insertion_point(encode_end:ServiceInfo)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:ServiceInfo)
+        writer.writeString(name)
+        writer.writeDynamicArray(methods) { _w, _el in _el.encode(to: &_w) }
+        // @@bebop_insertion_point(encode_end:ServiceInfo)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + name.utf8.count + 1)
-    size += (4 + methods.reduce(0) { _acc, _el in _acc + _el.encodedSize })
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + name.utf8.count + 1)
+        size += (4 + methods.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "ServiceInfo",
-    fqn: "bebop.ServiceInfo",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 0,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "methods",
-          index: 0,
-          typeName: "[MethodInfo]"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "ServiceInfo",
+        fqn: "bebop.ServiceInfo",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 0,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "methods",
+                    index: 0,
+                    typeName: "[MethodInfo]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:ServiceInfo)
+    // @@bebop_insertion_point(struct_scope:ServiceInfo)
 }
 
 /// Method ID 0. Request: bebop.Empty. Servers that don't support
 /// discovery return UNIMPLEMENTED.
 public struct DiscoveryResponse: BebopRecord, BebopReflectable {
-  public let services: [ServiceInfo]
+    public let services: [ServiceInfo]
 
-  enum CodingKeys: String, CodingKey {
-    case services
-  }
+    enum CodingKeys: String, CodingKey {
+        case services
+    }
 
-  public init(services: [ServiceInfo]) {
-    self.services = services
-  }
+    public init(services: [ServiceInfo]) {
+        self.services = services
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> DiscoveryResponse {
-    // @@bebop_insertion_point(decode_start:DiscoveryResponse)
-    let services = try reader.readDynamicArray { _r in try ServiceInfo.decode(from: &_r) }
-    // @@bebop_insertion_point(decode_end:DiscoveryResponse)
-    return DiscoveryResponse(services: services)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DiscoveryResponse {
+        // @@bebop_insertion_point(decode_start:DiscoveryResponse)
+        let services = try reader.readDynamicArray { _r in try ServiceInfo.decode(from: &_r) }
+        // @@bebop_insertion_point(decode_end:DiscoveryResponse)
+        return DiscoveryResponse(services: services)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:DiscoveryResponse)
-    writer.writeDynamicArray(services) { _w, _el in _el.encode(to: &_w) }
-    // @@bebop_insertion_point(encode_end:DiscoveryResponse)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:DiscoveryResponse)
+        writer.writeDynamicArray(services) { _w, _el in _el.encode(to: &_w) }
+        // @@bebop_insertion_point(encode_end:DiscoveryResponse)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + services.reduce(0) { _acc, _el in _acc + _el.encodedSize })
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + services.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DiscoveryResponse",
-    fqn: "bebop.DiscoveryResponse",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "services",
-          index: 0,
-          typeName: "[ServiceInfo]"
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DiscoveryResponse",
+        fqn: "bebop.DiscoveryResponse",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "services",
+                    index: 0,
+                    typeName: "[ServiceInfo]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:DiscoveryResponse)
+    // @@bebop_insertion_point(struct_scope:DiscoveryResponse)
 }
 
 /// When input_from >= 0, the server pipes the first payload from the
 /// referenced call's result as this call's request bytes (payload field
 /// is ignored). When input_from is -1, payload is used directly.
 public struct BatchCall: BebopRecord, BebopReflectable {
-  /// Zero-indexed, unique within the batch.
-  public let callId: Int32
+    /// Zero-indexed, unique within the batch.
+    public let callId: Int32
 
-  /// MurmurHash3 of /ServiceName/MethodName.
-  public let methodId: UInt32
+    /// MurmurHash3 of /ServiceName/MethodName.
+    public let methodId: UInt32
 
-  /// Wire-encoded request. Ignored when input_from >= 0.
-  public let payload: [UInt8]
+    /// Wire-encoded request. Ignored when input_from >= 0.
+    public let payload: [UInt8]
 
-  /// Forward result of this call_id as input. -1 = use payload.
-  public let inputFrom: Int32
+    /// Forward result of this call_id as input. -1 = use payload.
+    public let inputFrom: Int32
 
-  enum CodingKeys: String, CodingKey {
-    case callId = "call_id"
-    case methodId = "method_id"
-    case payload
-    case inputFrom = "input_from"
-  }
+    enum CodingKeys: String, CodingKey {
+        case callId = "call_id"
+        case methodId = "method_id"
+        case payload
+        case inputFrom = "input_from"
+    }
 
-  public init(callId: Int32, methodId: UInt32, payload: [UInt8], inputFrom: Int32) {
-    self.callId = callId
-    self.methodId = methodId
-    self.payload = payload
-    self.inputFrom = inputFrom
-  }
+    public init(callId: Int32, methodId: UInt32, payload: [UInt8], inputFrom: Int32) {
+        self.callId = callId
+        self.methodId = methodId
+        self.payload = payload
+        self.inputFrom = inputFrom
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> BatchCall {
-    // @@bebop_insertion_point(decode_start:BatchCall)
-    let callId = try reader.readInt32()
-    let methodId = try reader.readUInt32()
-    let payload = try reader.readLengthPrefixedArray(of: UInt8.self)
-    let inputFrom = try reader.readInt32()
-    // @@bebop_insertion_point(decode_end:BatchCall)
-    return BatchCall(callId: callId, methodId: methodId, payload: payload, inputFrom: inputFrom)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> BatchCall {
+        // @@bebop_insertion_point(decode_start:BatchCall)
+        let callId = try reader.readInt32()
+        let methodId = try reader.readUInt32()
+        let payload = try reader.readLengthPrefixedArray(of: UInt8.self)
+        let inputFrom = try reader.readInt32()
+        // @@bebop_insertion_point(decode_end:BatchCall)
+        return BatchCall(callId: callId, methodId: methodId, payload: payload, inputFrom: inputFrom)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchCall)
-    writer.writeInt32(callId)
-    writer.writeUInt32(methodId)
-    writer.writeLengthPrefixedArray(payload)
-    writer.writeInt32(inputFrom)
-    // @@bebop_insertion_point(encode_end:BatchCall)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchCall)
+        writer.writeInt32(callId)
+        writer.writeUInt32(methodId)
+        writer.writeLengthPrefixedArray(payload)
+        writer.writeInt32(inputFrom)
+        // @@bebop_insertion_point(encode_end:BatchCall)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += 4
-    size += 4
-    size += (4 + payload.count &* 1)
-    size += 4
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += 4
+        size += 4
+        size += (4 + payload.count &* 1)
+        size += 4
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchCall",
-    fqn: "bebop.BatchCall",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "call_id",
-          index: 0,
-          typeName: "Int32"
-        ),
-        BebopFieldReflection(
-          name: "method_id",
-          index: 0,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "payload",
-          index: 0,
-          typeName: "[UInt8]"
-        ),
-        BebopFieldReflection(
-          name: "input_from",
-          index: 0,
-          typeName: "Int32"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchCall",
+        fqn: "bebop.BatchCall",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "call_id",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+                BebopFieldReflection(
+                    name: "method_id",
+                    index: 0,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "payload",
+                    index: 0,
+                    typeName: "[UInt8]"
+                ),
+                BebopFieldReflection(
+                    name: "input_from",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:BatchCall)
+    // @@bebop_insertion_point(struct_scope:BatchCall)
 }
 
 /// Method ID 1. The server parallelizes independent calls and resolves
 /// input_from dependencies between layers. Only unary and server-stream
 /// methods are supported; client-stream and duplex return INVALID_ARGUMENT.
 public struct BatchRequest: BebopRecord, BebopReflectable {
-  public let calls: [BatchCall]
+    public let calls: [BatchCall]
 
-  /// Applied to every call in the batch.
-  public let metadata: [String: String]
+    /// Applied to every call in the batch.
+    public let metadata: [String: String]
 
-  enum CodingKeys: String, CodingKey {
-    case calls
-    case metadata
-  }
-
-  public init(calls: [BatchCall], metadata: [String: String] = [:]) {
-    self.calls = calls
-    self.metadata = metadata
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> BatchRequest {
-    // @@bebop_insertion_point(decode_start:BatchRequest)
-    let calls = try reader.readDynamicArray { _r in try BatchCall.decode(from: &_r) }
-    let metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-    // @@bebop_insertion_point(decode_end:BatchRequest)
-    return BatchRequest(calls: calls, metadata: metadata)
-  }
-
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchRequest)
-    writer.writeDynamicArray(calls) { _w, _el in _el.encode(to: &_w) }
-    writer.writeDynamicMap(metadata) { _w, _k, _v in
-      _w.writeString(_k)
-      _w.writeString(_v)
+    enum CodingKeys: String, CodingKey {
+        case calls
+        case metadata
     }
-    // @@bebop_insertion_point(encode_end:BatchRequest)
-  }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + calls.reduce(0) { _acc, _el in _acc + _el.encodedSize })
-    size +=
-      (4
-        + metadata.reduce(0) { _acc, _kv in
-          let (_k, _v) = _kv
-          return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-        })
-    return size
-  }
+    public init(calls: [BatchCall], metadata: [String: String] = [:]) {
+        self.calls = calls
+        self.metadata = metadata
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchRequest",
-    fqn: "bebop.BatchRequest",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "calls",
-          index: 0,
-          typeName: "[BatchCall]"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 0,
-          typeName: "[String: String]"
-        ),
-      ])
+    public static func decode(from reader: inout BebopReader) throws -> BatchRequest {
+        // @@bebop_insertion_point(decode_start:BatchRequest)
+        let calls = try reader.readDynamicArray { _r in try BatchCall.decode(from: &_r) }
+        let metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+        // @@bebop_insertion_point(decode_end:BatchRequest)
+        return BatchRequest(calls: calls, metadata: metadata)
+    }
+
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchRequest)
+        writer.writeDynamicArray(calls) { _w, _el in _el.encode(to: &_w) }
+        writer.writeDynamicMap(metadata) { _w, _k, _v in _w.writeString(_k)
+            _w.writeString(_v)
+        }
+        // @@bebop_insertion_point(encode_end:BatchRequest)
+    }
+
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + calls.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+        size += (4 + metadata.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) })
+        return size
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchRequest",
+        fqn: "bebop.BatchRequest",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "calls",
+                    index: 0,
+                    typeName: "[BatchCall]"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 0,
+                    typeName: "[String: String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:BatchRequest)
+    // @@bebop_insertion_point(struct_scope:BatchRequest)
 }
 
 /// One element per unary response. All buffered elements for server-stream.
 public struct BatchSuccess: BebopRecord, BebopReflectable {
-  public let payloads: [[UInt8]]
+    public let payloads: [[UInt8]]
 
-  public let metadata: [String: String]
+    public let metadata: [String: String]
 
-  enum CodingKeys: String, CodingKey {
-    case payloads
-    case metadata
-  }
-
-  public init(payloads: [[UInt8]], metadata: [String: String] = [:]) {
-    self.payloads = payloads
-    self.metadata = metadata
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> BatchSuccess {
-    // @@bebop_insertion_point(decode_start:BatchSuccess)
-    let payloads = try reader.readDynamicArray { _r in
-      try _r.readLengthPrefixedArray(of: UInt8.self)
+    enum CodingKeys: String, CodingKey {
+        case payloads
+        case metadata
     }
-    let metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-    // @@bebop_insertion_point(decode_end:BatchSuccess)
-    return BatchSuccess(payloads: payloads, metadata: metadata)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchSuccess)
-    writer.writeDynamicArray(payloads) { _w, _el in _w.writeLengthPrefixedArray(_el) }
-    writer.writeDynamicMap(metadata) { _w, _k, _v in
-      _w.writeString(_k)
-      _w.writeString(_v)
+    public init(payloads: [[UInt8]], metadata: [String: String] = [:]) {
+        self.payloads = payloads
+        self.metadata = metadata
     }
-    // @@bebop_insertion_point(encode_end:BatchSuccess)
-  }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + payloads.reduce(0) { _acc, _el in _acc + (4 + _el.count &* 1) })
-    size +=
-      (4
-        + metadata.reduce(0) { _acc, _kv in
-          let (_k, _v) = _kv
-          return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-        })
-    return size
-  }
+    public static func decode(from reader: inout BebopReader) throws -> BatchSuccess {
+        // @@bebop_insertion_point(decode_start:BatchSuccess)
+        let payloads = try reader.readDynamicArray { _r in try _r.readLengthPrefixedArray(of: UInt8.self) }
+        let metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+        // @@bebop_insertion_point(decode_end:BatchSuccess)
+        return BatchSuccess(payloads: payloads, metadata: metadata)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchSuccess",
-    fqn: "bebop.BatchSuccess",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "payloads",
-          index: 0,
-          typeName: "[[UInt8]]"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 0,
-          typeName: "[String: String]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchSuccess)
+        writer.writeDynamicArray(payloads) { _w, _el in _w.writeLengthPrefixedArray(_el) }
+        writer.writeDynamicMap(metadata) { _w, _k, _v in _w.writeString(_k)
+            _w.writeString(_v)
+        }
+        // @@bebop_insertion_point(encode_end:BatchSuccess)
+    }
+
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + payloads.reduce(0) { _acc, _el in _acc + (4 + _el.count &* 1) })
+        size += (4 + metadata.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) })
+        return size
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchSuccess",
+        fqn: "bebop.BatchSuccess",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "payloads",
+                    index: 0,
+                    typeName: "[[UInt8]]"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 0,
+                    typeName: "[String: String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:BatchSuccess)
+    // @@bebop_insertion_point(struct_scope:BatchSuccess)
 }
 
-public enum BatchOutcome: BebopRecord, BebopReflectable {
-  case unknown(discriminator: UInt8, data: [UInt8])
+public enum BatchOutcome: BebopRecord, BebopReflectable, Codable {
+    case unknown(discriminator: UInt8, data: [UInt8])
 
-  case success(BatchSuccess)
+    case success(BatchSuccess)
 
-  case error(RpcError)
+    case error(RpcError)
 
-  public static func decode(from reader: inout BebopReader) throws -> BatchOutcome {
-    // @@bebop_insertion_point(decode_start:BatchOutcome)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    let disc = try reader.readByte()
-    switch disc {
-    case 1:
-      return .success(try BatchSuccess.decode(from: &reader))
-    case 2:
-      return .error(try RpcError.decode(from: &reader))
-    // @@bebop_insertion_point(decode_switch:BatchOutcome)
-    default:
-      let remaining = end - reader.position
-      let data = try reader.readBytes(remaining)
-      return .unknown(discriminator: disc, data: data)
+    public static func decode(from reader: inout BebopReader) throws -> BatchOutcome {
+        // @@bebop_insertion_point(decode_start:BatchOutcome)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        let disc = try reader.readByte()
+        switch disc {
+        case 1:
+            return try .success(BatchSuccess.decode(from: &reader))
+        case 2:
+            return try .error(RpcError.decode(from: &reader))
+        // @@bebop_insertion_point(decode_switch:BatchOutcome)
+        default:
+            let remaining = end - reader.position
+            let data = try reader.readBytes(remaining)
+            return .unknown(discriminator: disc, data: data)
+        }
+        // @@bebop_insertion_point(decode_end:BatchOutcome)
     }
-    // @@bebop_insertion_point(decode_end:BatchOutcome)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchOutcome)
-    let pos = writer.reserveMessageLength()
-    switch self {
-    case .success(let _v):
-      writer.writeByte(1)
-      _v.encode(to: &writer)
-    case .error(let _v):
-      writer.writeByte(2)
-      _v.encode(to: &writer)
-    // @@bebop_insertion_point(encode_switch:BatchOutcome)
-    case .unknown(let disc, let data):
-      writer.writeByte(disc)
-      writer.writeBytes(data)
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchOutcome)
+        let pos = writer.reserveMessageLength()
+        switch self {
+        case let .success(_v):
+            writer.writeByte(1)
+            _v.encode(to: &writer)
+        case let .error(_v):
+            writer.writeByte(2)
+            _v.encode(to: &writer)
+        // @@bebop_insertion_point(encode_switch:BatchOutcome)
+        case let .unknown(disc, data):
+            writer.writeByte(disc)
+            writer.writeBytes(data)
+        }
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:BatchOutcome)
     }
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:BatchOutcome)
-  }
 
-  public var encodedSize: Int {
-    switch self {
-    case .success(let _v):
-      return 4 + 1 + _v.encodedSize
-    case .error(let _v):
-      return 4 + 1 + _v.encodedSize
-    case .unknown(_, let data):
-      return 4 + 1 + data.count
+    public var encodedSize: Int {
+        switch self {
+        case let .success(_v):
+            4 + 1 + _v.encodedSize
+        case let .error(_v):
+            4 + 1 + _v.encodedSize
+        case let .unknown(_, data):
+            4 + 1 + data.count
+        }
     }
-  }
 
-  enum CodingKeys: String, CodingKey { case discriminator, value }
+    enum CodingKeys: String, CodingKey { case discriminator, value }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let disc = try container.decode(UInt8.self, forKey: .discriminator)
-    switch disc {
-    case 1:
-      self = .success(try container.decode(BatchSuccess.self, forKey: .value))
-    case 2:
-      self = .error(try container.decode(RpcError.self, forKey: .value))
-    default:
-      let data = try container.decode([UInt8].self, forKey: .value)
-      self = .unknown(discriminator: disc, data: data)
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let disc = try container.decode(UInt8.self, forKey: .discriminator)
+        switch disc {
+        case 1:
+            self = try .success(container.decode(BatchSuccess.self, forKey: .value))
+        case 2:
+            self = try .error(container.decode(RpcError.self, forKey: .value))
+        default:
+            let data = try container.decode([UInt8].self, forKey: .value)
+            self = .unknown(discriminator: disc, data: data)
+        }
     }
-  }
 
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .success(let _v):
-      try container.encode(UInt8(1), forKey: .discriminator)
-      try container.encode(_v, forKey: .value)
-    case .error(let _v):
-      try container.encode(UInt8(2), forKey: .discriminator)
-      try container.encode(_v, forKey: .value)
-    case .unknown(let disc, let data):
-      try container.encode(disc, forKey: .discriminator)
-      try container.encode(data, forKey: .value)
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .success(_v):
+            try container.encode(UInt8(1), forKey: .discriminator)
+            try container.encode(_v, forKey: .value)
+        case let .error(_v):
+            try container.encode(UInt8(2), forKey: .discriminator)
+            try container.encode(_v, forKey: .value)
+        case let .unknown(disc, data):
+            try container.encode(disc, forKey: .discriminator)
+            try container.encode(data, forKey: .value)
+        }
     }
-  }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchOutcome",
-    fqn: "bebop.BatchOutcome",
-    kind: .union,
-    detail: .union(
-      UnionReflection(branches: [
-        (discriminator: 1, name: "success", typeName: "BatchSuccess"),
-        (discriminator: 2, name: "error", typeName: "RpcError"),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchOutcome",
+        fqn: "bebop.BatchOutcome",
+        kind: .union,
+        detail: .union(
+            UnionReflection(branches: [
+                (discriminator: 1, name: "success", typeName: "BatchSuccess"),
+                (discriminator: 2, name: "error", typeName: "RpcError"),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(union_scope:BatchOutcome)
+    // @@bebop_insertion_point(union_scope:BatchOutcome)
 }
 
 /// Results in the same order as calls in the request.
 public struct BatchResult: BebopRecord, BebopReflectable {
-  public let callId: Int32
+    public let callId: Int32
 
-  public let outcome: BatchOutcome
+    public let outcome: BatchOutcome
 
-  enum CodingKeys: String, CodingKey {
-    case callId = "call_id"
-    case outcome
-  }
+    enum CodingKeys: String, CodingKey {
+        case callId = "call_id"
+        case outcome
+    }
 
-  public init(callId: Int32, outcome: BatchOutcome) {
-    self.callId = callId
-    self.outcome = outcome
-  }
+    public init(callId: Int32, outcome: BatchOutcome) {
+        self.callId = callId
+        self.outcome = outcome
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> BatchResult {
-    // @@bebop_insertion_point(decode_start:BatchResult)
-    let callId = try reader.readInt32()
-    let outcome = try BatchOutcome.decode(from: &reader)
-    // @@bebop_insertion_point(decode_end:BatchResult)
-    return BatchResult(callId: callId, outcome: outcome)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> BatchResult {
+        // @@bebop_insertion_point(decode_start:BatchResult)
+        let callId = try reader.readInt32()
+        let outcome = try BatchOutcome.decode(from: &reader)
+        // @@bebop_insertion_point(decode_end:BatchResult)
+        return BatchResult(callId: callId, outcome: outcome)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchResult)
-    writer.writeInt32(callId)
-    outcome.encode(to: &writer)
-    // @@bebop_insertion_point(encode_end:BatchResult)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchResult)
+        writer.writeInt32(callId)
+        outcome.encode(to: &writer)
+        // @@bebop_insertion_point(encode_end:BatchResult)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += 4
-    size += outcome.encodedSize
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += 4
+        size += outcome.encodedSize
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchResult",
-    fqn: "bebop.BatchResult",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "call_id",
-          index: 0,
-          typeName: "Int32"
-        ),
-        BebopFieldReflection(
-          name: "outcome",
-          index: 0,
-          typeName: "BatchOutcome"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchResult",
+        fqn: "bebop.BatchResult",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "call_id",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+                BebopFieldReflection(
+                    name: "outcome",
+                    index: 0,
+                    typeName: "BatchOutcome"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:BatchResult)
+    // @@bebop_insertion_point(struct_scope:BatchResult)
 }
 
 /// If a call fails, dependent calls (via input_from) also fail.
 public struct BatchResponse: BebopRecord, BebopReflectable {
-  public let results: [BatchResult]
+    public let results: [BatchResult]
 
-  enum CodingKeys: String, CodingKey {
-    case results
-  }
+    enum CodingKeys: String, CodingKey {
+        case results
+    }
 
-  public init(results: [BatchResult]) {
-    self.results = results
-  }
+    public init(results: [BatchResult]) {
+        self.results = results
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> BatchResponse {
-    // @@bebop_insertion_point(decode_start:BatchResponse)
-    let results = try reader.readDynamicArray { _r in try BatchResult.decode(from: &_r) }
-    // @@bebop_insertion_point(decode_end:BatchResponse)
-    return BatchResponse(results: results)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> BatchResponse {
+        // @@bebop_insertion_point(decode_start:BatchResponse)
+        let results = try reader.readDynamicArray { _r in try BatchResult.decode(from: &_r) }
+        // @@bebop_insertion_point(decode_end:BatchResponse)
+        return BatchResponse(results: results)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:BatchResponse)
-    writer.writeDynamicArray(results) { _w, _el in _el.encode(to: &_w) }
-    // @@bebop_insertion_point(encode_end:BatchResponse)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:BatchResponse)
+        writer.writeDynamicArray(results) { _w, _el in _el.encode(to: &_w) }
+        // @@bebop_insertion_point(encode_end:BatchResponse)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + results.reduce(0) { _acc, _el in _acc + _el.encodedSize })
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + results.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "BatchResponse",
-    fqn: "bebop.BatchResponse",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "results",
-          index: 0,
-          typeName: "[BatchResult]"
+    public static let bebopReflection = BebopTypeReflection(
+        name: "BatchResponse",
+        fqn: "bebop.BatchResponse",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "results",
+                    index: 0,
+                    typeName: "[BatchResult]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:BatchResponse)
+    // @@bebop_insertion_point(struct_scope:BatchResponse)
 }
 
 /// Method ID 2 request. Wraps any unary or batch call for async execution.
 /// The server runs the inner call in the background and returns a handle
 /// immediately. Use FutureResolveRequest (method 3) to receive results.
 public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// MurmurHash3 of /ServiceName/MethodName for the inner call.
-  public var methodId: UInt32?
+    /// MurmurHash3 of /ServiceName/MethodName for the inner call.
+    public var methodId: UInt32?
 
-  /// Wire-encoded request for the inner call.
-  public var payload: [UInt8]?
+    /// Wire-encoded request for the inner call.
+    public var payload: [UInt8]?
 
-  /// Client-assigned dedup key. If a pending or completed future with the
-  /// same key exists, the server returns its handle instead of dispatching
-  /// again. Omit for no deduplication.
-  public var idempotencyKey: BebopUUID?
+    /// Client-assigned dedup key. If a pending or completed future with the
+    /// same key exists, the server returns its handle instead of dispatching
+    /// again. Omit for no deduplication.
+    public var idempotencyKey: BebopUUID?
 
-  /// Metadata forwarded to the inner call's RpcContext.
-  public var metadata: [String: String]?
+    /// Metadata forwarded to the inner call's RpcContext.
+    public var metadata: [String: String]?
 
-  /// Absolute deadline for the inner call. Omit for no deadline.
-  public var deadline: BebopTimestamp?
+    /// Absolute deadline for the inner call. Omit for no deadline.
+    public var deadline: BebopTimestamp?
 
-  /// When true, the server discards the result after delivering it to
-  /// active resolve streams. Rehydration is unavailable. Omit or false
-  /// for default retention.
-  public var discardResult: Bool?
+    /// When true, the server discards the result after delivering it to
+    /// active resolve streams. Rehydration is unavailable. Omit or false
+    /// for default retention.
+    public var discardResult: Bool?
 
-  public init(
-    methodId: UInt32? = nil, payload: [UInt8]? = nil, idempotencyKey: BebopUUID? = nil,
-    metadata: [String: String]? = nil, deadline: BebopTimestamp? = nil, discardResult: Bool? = nil
-  ) {
-    self.methodId = methodId
-    self.payload = payload
-    self.idempotencyKey = idempotencyKey
-    self.metadata = metadata
-    self.deadline = deadline
-    self.discardResult = discardResult
-  }
-
-  public static func == (lhs: FutureDispatchRequest, rhs: FutureDispatchRequest) -> Bool {
-    return lhs.methodId == rhs.methodId && lhs.payload == rhs.payload
-      && lhs.idempotencyKey == rhs.idempotencyKey && lhs.metadata == rhs.metadata
-      && lhs.deadline == rhs.deadline && lhs.discardResult == rhs.discardResult
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(methodId)
-    hasher.combine(payload)
-    hasher.combine(idempotencyKey)
-    hasher.combine(metadata)
-    hasher.combine(deadline)
-    hasher.combine(discardResult)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> FutureDispatchRequest {
-    // @@bebop_insertion_point(decode_start:FutureDispatchRequest)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var methodId: UInt32? = nil
-    var payload: [UInt8]? = nil
-    var idempotencyKey: BebopUUID? = nil
-    var metadata: [String: String]? = nil
-    var deadline: BebopTimestamp? = nil
-    var discardResult: Bool? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        methodId = try reader.readUInt32()
-      case 2:
-        payload = try reader.readLengthPrefixedArray(of: UInt8.self)
-      case 3:
-        idempotencyKey = try reader.readUUID()
-      case 4:
-        metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-      case 5:
-        deadline = try reader.readTimestamp()
-      case 6:
-        discardResult = try reader.readBool()
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(methodId: UInt32? = nil, payload: [UInt8]? = nil, idempotencyKey: BebopUUID? = nil, metadata: [String: String]? = nil, deadline: BebopTimestamp? = nil, discardResult: Bool? = nil) {
+        self.methodId = methodId
+        self.payload = payload
+        self.idempotencyKey = idempotencyKey
+        self.metadata = metadata
+        self.deadline = deadline
+        self.discardResult = discardResult
     }
-    // @@bebop_insertion_point(decode_end:FutureDispatchRequest)
-    return FutureDispatchRequest(
-      methodId: methodId, payload: payload, idempotencyKey: idempotencyKey, metadata: metadata,
-      deadline: deadline, discardResult: discardResult)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureDispatchRequest)
-    let pos = writer.reserveMessageLength()
-    if let _v = methodId {
-      writer.writeTag(1)
-      writer.writeUInt32(_v)
+    public static func == (lhs: FutureDispatchRequest, rhs: FutureDispatchRequest) -> Bool {
+        lhs.methodId == rhs.methodId && lhs.payload == rhs.payload && lhs.idempotencyKey == rhs.idempotencyKey && lhs.metadata == rhs.metadata && lhs.deadline == rhs.deadline && lhs.discardResult == rhs.discardResult
     }
-    if let _v = payload {
-      writer.writeTag(2)
-      writer.writeLengthPrefixedArray(_v)
-    }
-    if let _v = idempotencyKey {
-      writer.writeTag(3)
-      writer.writeUUID(_v)
-    }
-    if let _v = metadata {
-      writer.writeTag(4)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _w.writeString(_v)
-      }
-    }
-    if let _v = deadline {
-      writer.writeTag(5)
-      writer.writeTimestamp(_v)
-    }
-    if let _v = discardResult {
-      writer.writeTag(6)
-      writer.writeBool(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:FutureDispatchRequest)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if methodId != nil { size += 1 + 4 }
-    if let _v = payload { size += 1 + (4 + _v.count &* 1) }
-    if idempotencyKey != nil { size += 1 + 16 }
-    if let _v = metadata {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-          })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(methodId)
+        hasher.combine(payload)
+        hasher.combine(idempotencyKey)
+        hasher.combine(metadata)
+        hasher.combine(deadline)
+        hasher.combine(discardResult)
     }
-    if deadline != nil { size += 1 + 16 }
-    if discardResult != nil { size += 1 + 1 }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case methodId = "method_id"
-    case payload
-    case idempotencyKey = "idempotency_key"
-    case metadata
-    case deadline
-    case discardResult = "discard_result"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FutureDispatchRequest {
+        // @@bebop_insertion_point(decode_start:FutureDispatchRequest)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var methodId: UInt32? = nil
+        var payload: [UInt8]? = nil
+        var idempotencyKey: BebopUUID? = nil
+        var metadata: [String: String]? = nil
+        var deadline: BebopTimestamp? = nil
+        var discardResult: Bool? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                methodId = try reader.readUInt32()
+            case 2:
+                payload = try reader.readLengthPrefixedArray(of: UInt8.self)
+            case 3:
+                idempotencyKey = try reader.readUUID()
+            case 4:
+                metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+            case 5:
+                deadline = try reader.readTimestamp()
+            case 6:
+                discardResult = try reader.readBool()
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:FutureDispatchRequest)
+        return FutureDispatchRequest(methodId: methodId, payload: payload, idempotencyKey: idempotencyKey, metadata: metadata, deadline: deadline, discardResult: discardResult)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureDispatchRequest",
-    fqn: "bebop.FutureDispatchRequest",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "method_id",
-          index: 1,
-          typeName: "UInt32"
-        ),
-        BebopFieldReflection(
-          name: "payload",
-          index: 2,
-          typeName: "[UInt8]"
-        ),
-        BebopFieldReflection(
-          name: "idempotency_key",
-          index: 3,
-          typeName: "BebopUUID"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 4,
-          typeName: "[String: String]"
-        ),
-        BebopFieldReflection(
-          name: "deadline",
-          index: 5,
-          typeName: "BebopTimestamp"
-        ),
-        BebopFieldReflection(
-          name: "discard_result",
-          index: 6,
-          typeName: "Bool"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureDispatchRequest)
+        let pos = writer.reserveMessageLength()
+        if let _v = methodId {
+            writer.writeTag(1)
+            writer.writeUInt32(_v)
+        }
+        if let _v = payload {
+            writer.writeTag(2)
+            writer.writeLengthPrefixedArray(_v)
+        }
+        if let _v = idempotencyKey {
+            writer.writeTag(3)
+            writer.writeUUID(_v)
+        }
+        if let _v = metadata {
+            writer.writeTag(4)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _w.writeString(_v)
+            }
+        }
+        if let _v = deadline {
+            writer.writeTag(5)
+            writer.writeTimestamp(_v)
+        }
+        if let _v = discardResult {
+            writer.writeTag(6)
+            writer.writeBool(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:FutureDispatchRequest)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if methodId != nil { size += 1 + 4 }
+        if let _v = payload { size += 1 + (4 + _v.count &* 1) }
+        if idempotencyKey != nil { size += 1 + 16 }
+        if let _v = metadata { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        if deadline != nil { size += 1 + 16 }
+        if discardResult != nil { size += 1 + 1 }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case methodId = "method_id"
+        case payload
+        case idempotencyKey = "idempotency_key"
+        case metadata
+        case deadline
+        case discardResult = "discard_result"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureDispatchRequest",
+        fqn: "bebop.FutureDispatchRequest",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "method_id",
+                    index: 1,
+                    typeName: "UInt32"
+                ),
+                BebopFieldReflection(
+                    name: "payload",
+                    index: 2,
+                    typeName: "[UInt8]"
+                ),
+                BebopFieldReflection(
+                    name: "idempotency_key",
+                    index: 3,
+                    typeName: "BebopUUID"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 4,
+                    typeName: "[String: String]"
+                ),
+                BebopFieldReflection(
+                    name: "deadline",
+                    index: 5,
+                    typeName: "BebopTimestamp"
+                ),
+                BebopFieldReflection(
+                    name: "discard_result",
+                    index: 6,
+                    typeName: "Bool"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:FutureDispatchRequest)
+    // @@bebop_insertion_point(message_scope:FutureDispatchRequest)
 }
 
 /// Method ID 2 response. Returned immediately after dispatch.
 public struct FutureHandle: BebopRecord, BebopReflectable {
-  /// Server-generated, unguessable identifier for the dispatched future.
-  public let id: BebopUUID
+    /// Server-generated, unguessable identifier for the dispatched future.
+    public let id: BebopUUID
 
-  enum CodingKeys: String, CodingKey {
-    case id
-  }
+    enum CodingKeys: String, CodingKey {
+        case id
+    }
 
-  public init(id: BebopUUID) {
-    self.id = id
-  }
+    public init(id: BebopUUID) {
+        self.id = id
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> FutureHandle {
-    // @@bebop_insertion_point(decode_start:FutureHandle)
-    let id = try reader.readUUID()
-    // @@bebop_insertion_point(decode_end:FutureHandle)
-    return FutureHandle(id: id)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FutureHandle {
+        // @@bebop_insertion_point(decode_start:FutureHandle)
+        let id = try reader.readUUID()
+        // @@bebop_insertion_point(decode_end:FutureHandle)
+        return FutureHandle(id: id)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureHandle)
-    writer.writeUUID(id)
-    // @@bebop_insertion_point(encode_end:FutureHandle)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureHandle)
+        writer.writeUUID(id)
+        // @@bebop_insertion_point(encode_end:FutureHandle)
+    }
 
-  public var encodedSize: Int { 16 }
+    public var encodedSize: Int { 16 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureHandle",
-    fqn: "bebop.FutureHandle",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "id",
-          index: 0,
-          typeName: "BebopUUID"
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureHandle",
+        fqn: "bebop.FutureHandle",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "id",
+                    index: 0,
+                    typeName: "BebopUUID"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:FutureHandle)
+    // @@bebop_insertion_point(struct_scope:FutureHandle)
 }
 
 /// Method ID 3 request. Opens a server-stream that pushes FutureResult
@@ -1528,315 +1462,309 @@ public struct FutureHandle: BebopRecord, BebopReflectable {
 /// the server pushes any already-completed results first, then continues
 /// pushing as remaining futures finish.
 public final class FutureResolveRequest: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Future IDs to subscribe to. Omit to receive all futures for this session.
-  public var ids: [BebopUUID]?
+    /// Future IDs to subscribe to. Omit to receive all futures for this session.
+    public var ids: [BebopUUID]?
 
-  public init(ids: [BebopUUID]? = nil) {
-    self.ids = ids
-  }
-
-  public static func == (lhs: FutureResolveRequest, rhs: FutureResolveRequest) -> Bool {
-    return lhs.ids == rhs.ids
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(ids)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> FutureResolveRequest {
-    // @@bebop_insertion_point(decode_start:FutureResolveRequest)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var ids: [BebopUUID]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        ids = try reader.readLengthPrefixedArray(of: BebopUUID.self)
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(ids: [BebopUUID]? = nil) {
+        self.ids = ids
     }
-    // @@bebop_insertion_point(decode_end:FutureResolveRequest)
-    return FutureResolveRequest(ids: ids)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureResolveRequest)
-    let pos = writer.reserveMessageLength()
-    if let _v = ids {
-      writer.writeTag(1)
-      writer.writeLengthPrefixedArray(_v)
+    public static func == (lhs: FutureResolveRequest, rhs: FutureResolveRequest) -> Bool {
+        lhs.ids == rhs.ids
     }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:FutureResolveRequest)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = ids { size += 1 + (4 + _v.count &* 16) }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ids)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case ids
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FutureResolveRequest {
+        // @@bebop_insertion_point(decode_start:FutureResolveRequest)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var ids: [BebopUUID]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                ids = try reader.readLengthPrefixedArray(of: BebopUUID.self)
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:FutureResolveRequest)
+        return FutureResolveRequest(ids: ids)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureResolveRequest",
-    fqn: "bebop.FutureResolveRequest",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "ids",
-          index: 1,
-          typeName: "[BebopUUID]"
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureResolveRequest)
+        let pos = writer.reserveMessageLength()
+        if let _v = ids {
+            writer.writeTag(1)
+            writer.writeLengthPrefixedArray(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:FutureResolveRequest)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = ids { size += 1 + (4 + _v.count &* 16) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case ids
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureResolveRequest",
+        fqn: "bebop.FutureResolveRequest",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "ids",
+                    index: 1,
+                    typeName: "[BebopUUID]"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:FutureResolveRequest)
+    // @@bebop_insertion_point(message_scope:FutureResolveRequest)
 }
 
 /// Payload of a successfully completed future.
 public struct FutureSuccess: BebopRecord, BebopReflectable {
-  /// Wire-encoded response from the inner call.
-  public let payload: [UInt8]
+    /// Wire-encoded response from the inner call.
+    public let payload: [UInt8]
 
-  /// Response metadata set by the inner call's handler.
-  public let metadata: [String: String]
+    /// Response metadata set by the inner call's handler.
+    public let metadata: [String: String]
 
-  enum CodingKeys: String, CodingKey {
-    case payload
-    case metadata
-  }
-
-  public init(payload: [UInt8], metadata: [String: String] = [:]) {
-    self.payload = payload
-    self.metadata = metadata
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> FutureSuccess {
-    // @@bebop_insertion_point(decode_start:FutureSuccess)
-    let payload = try reader.readLengthPrefixedArray(of: UInt8.self)
-    let metadata = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-    // @@bebop_insertion_point(decode_end:FutureSuccess)
-    return FutureSuccess(payload: payload, metadata: metadata)
-  }
-
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureSuccess)
-    writer.writeLengthPrefixedArray(payload)
-    writer.writeDynamicMap(metadata) { _w, _k, _v in
-      _w.writeString(_k)
-      _w.writeString(_v)
+    enum CodingKeys: String, CodingKey {
+        case payload
+        case metadata
     }
-    // @@bebop_insertion_point(encode_end:FutureSuccess)
-  }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += (4 + payload.count &* 1)
-    size +=
-      (4
-        + metadata.reduce(0) { _acc, _kv in
-          let (_k, _v) = _kv
-          return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-        })
-    return size
-  }
+    public init(payload: [UInt8], metadata: [String: String] = [:]) {
+        self.payload = payload
+        self.metadata = metadata
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureSuccess",
-    fqn: "bebop.FutureSuccess",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "payload",
-          index: 0,
-          typeName: "[UInt8]"
-        ),
-        BebopFieldReflection(
-          name: "metadata",
-          index: 0,
-          typeName: "[String: String]"
-        ),
-      ])
+    public static func decode(from reader: inout BebopReader) throws -> FutureSuccess {
+        // @@bebop_insertion_point(decode_start:FutureSuccess)
+        let payload = try reader.readLengthPrefixedArray(of: UInt8.self)
+        let metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+        // @@bebop_insertion_point(decode_end:FutureSuccess)
+        return FutureSuccess(payload: payload, metadata: metadata)
+    }
+
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureSuccess)
+        writer.writeLengthPrefixedArray(payload)
+        writer.writeDynamicMap(metadata) { _w, _k, _v in _w.writeString(_k)
+            _w.writeString(_v)
+        }
+        // @@bebop_insertion_point(encode_end:FutureSuccess)
+    }
+
+    public var encodedSize: Int {
+        var size = 0
+        size += (4 + payload.count &* 1)
+        size += (4 + metadata.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) })
+        return size
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureSuccess",
+        fqn: "bebop.FutureSuccess",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "payload",
+                    index: 0,
+                    typeName: "[UInt8]"
+                ),
+                BebopFieldReflection(
+                    name: "metadata",
+                    index: 0,
+                    typeName: "[String: String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:FutureSuccess)
+    // @@bebop_insertion_point(struct_scope:FutureSuccess)
 }
 
 /// Terminal state of a dispatched future.
-public enum FutureOutcome: BebopRecord, BebopReflectable {
-  case unknown(discriminator: UInt8, data: [UInt8])
+public enum FutureOutcome: BebopRecord, BebopReflectable, Codable {
+    case unknown(discriminator: UInt8, data: [UInt8])
 
-  case success(FutureSuccess)
+    case success(FutureSuccess)
 
-  case error(RpcError)
+    case error(RpcError)
 
-  public static func decode(from reader: inout BebopReader) throws -> FutureOutcome {
-    // @@bebop_insertion_point(decode_start:FutureOutcome)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    let disc = try reader.readByte()
-    switch disc {
-    case 1:
-      return .success(try FutureSuccess.decode(from: &reader))
-    case 2:
-      return .error(try RpcError.decode(from: &reader))
-    // @@bebop_insertion_point(decode_switch:FutureOutcome)
-    default:
-      let remaining = end - reader.position
-      let data = try reader.readBytes(remaining)
-      return .unknown(discriminator: disc, data: data)
+    public static func decode(from reader: inout BebopReader) throws -> FutureOutcome {
+        // @@bebop_insertion_point(decode_start:FutureOutcome)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        let disc = try reader.readByte()
+        switch disc {
+        case 1:
+            return try .success(FutureSuccess.decode(from: &reader))
+        case 2:
+            return try .error(RpcError.decode(from: &reader))
+        // @@bebop_insertion_point(decode_switch:FutureOutcome)
+        default:
+            let remaining = end - reader.position
+            let data = try reader.readBytes(remaining)
+            return .unknown(discriminator: disc, data: data)
+        }
+        // @@bebop_insertion_point(decode_end:FutureOutcome)
     }
-    // @@bebop_insertion_point(decode_end:FutureOutcome)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureOutcome)
-    let pos = writer.reserveMessageLength()
-    switch self {
-    case .success(let _v):
-      writer.writeByte(1)
-      _v.encode(to: &writer)
-    case .error(let _v):
-      writer.writeByte(2)
-      _v.encode(to: &writer)
-    // @@bebop_insertion_point(encode_switch:FutureOutcome)
-    case .unknown(let disc, let data):
-      writer.writeByte(disc)
-      writer.writeBytes(data)
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureOutcome)
+        let pos = writer.reserveMessageLength()
+        switch self {
+        case let .success(_v):
+            writer.writeByte(1)
+            _v.encode(to: &writer)
+        case let .error(_v):
+            writer.writeByte(2)
+            _v.encode(to: &writer)
+        // @@bebop_insertion_point(encode_switch:FutureOutcome)
+        case let .unknown(disc, data):
+            writer.writeByte(disc)
+            writer.writeBytes(data)
+        }
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:FutureOutcome)
     }
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:FutureOutcome)
-  }
 
-  public var encodedSize: Int {
-    switch self {
-    case .success(let _v):
-      return 4 + 1 + _v.encodedSize
-    case .error(let _v):
-      return 4 + 1 + _v.encodedSize
-    case .unknown(_, let data):
-      return 4 + 1 + data.count
+    public var encodedSize: Int {
+        switch self {
+        case let .success(_v):
+            4 + 1 + _v.encodedSize
+        case let .error(_v):
+            4 + 1 + _v.encodedSize
+        case let .unknown(_, data):
+            4 + 1 + data.count
+        }
     }
-  }
 
-  enum CodingKeys: String, CodingKey { case discriminator, value }
+    enum CodingKeys: String, CodingKey { case discriminator, value }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let disc = try container.decode(UInt8.self, forKey: .discriminator)
-    switch disc {
-    case 1:
-      self = .success(try container.decode(FutureSuccess.self, forKey: .value))
-    case 2:
-      self = .error(try container.decode(RpcError.self, forKey: .value))
-    default:
-      let data = try container.decode([UInt8].self, forKey: .value)
-      self = .unknown(discriminator: disc, data: data)
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let disc = try container.decode(UInt8.self, forKey: .discriminator)
+        switch disc {
+        case 1:
+            self = try .success(container.decode(FutureSuccess.self, forKey: .value))
+        case 2:
+            self = try .error(container.decode(RpcError.self, forKey: .value))
+        default:
+            let data = try container.decode([UInt8].self, forKey: .value)
+            self = .unknown(discriminator: disc, data: data)
+        }
     }
-  }
 
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .success(let _v):
-      try container.encode(UInt8(1), forKey: .discriminator)
-      try container.encode(_v, forKey: .value)
-    case .error(let _v):
-      try container.encode(UInt8(2), forKey: .discriminator)
-      try container.encode(_v, forKey: .value)
-    case .unknown(let disc, let data):
-      try container.encode(disc, forKey: .discriminator)
-      try container.encode(data, forKey: .value)
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .success(_v):
+            try container.encode(UInt8(1), forKey: .discriminator)
+            try container.encode(_v, forKey: .value)
+        case let .error(_v):
+            try container.encode(UInt8(2), forKey: .discriminator)
+            try container.encode(_v, forKey: .value)
+        case let .unknown(disc, data):
+            try container.encode(disc, forKey: .discriminator)
+            try container.encode(data, forKey: .value)
+        }
     }
-  }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureOutcome",
-    fqn: "bebop.FutureOutcome",
-    kind: .union,
-    detail: .union(
-      UnionReflection(branches: [
-        (discriminator: 1, name: "success", typeName: "FutureSuccess"),
-        (discriminator: 2, name: "error", typeName: "RpcError"),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureOutcome",
+        fqn: "bebop.FutureOutcome",
+        kind: .union,
+        detail: .union(
+            UnionReflection(branches: [
+                (discriminator: 1, name: "success", typeName: "FutureSuccess"),
+                (discriminator: 2, name: "error", typeName: "RpcError"),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(union_scope:FutureOutcome)
+    // @@bebop_insertion_point(union_scope:FutureOutcome)
 }
 
 /// Pushed on the Resolve stream (method 3) as each future completes.
 public struct FutureResult: BebopRecord, BebopReflectable {
-  /// The future this result belongs to.
-  public let id: BebopUUID
+    /// The future this result belongs to.
+    public let id: BebopUUID
 
-  /// Terminal outcome — success with payload or error.
-  public let outcome: FutureOutcome
+    /// Terminal outcome — success with payload or error.
+    public let outcome: FutureOutcome
 
-  enum CodingKeys: String, CodingKey {
-    case id
-    case outcome
-  }
+    enum CodingKeys: String, CodingKey {
+        case id
+        case outcome
+    }
 
-  public init(id: BebopUUID, outcome: FutureOutcome) {
-    self.id = id
-    self.outcome = outcome
-  }
+    public init(id: BebopUUID, outcome: FutureOutcome) {
+        self.id = id
+        self.outcome = outcome
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> FutureResult {
-    // @@bebop_insertion_point(decode_start:FutureResult)
-    let id = try reader.readUUID()
-    let outcome = try FutureOutcome.decode(from: &reader)
-    // @@bebop_insertion_point(decode_end:FutureResult)
-    return FutureResult(id: id, outcome: outcome)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FutureResult {
+        // @@bebop_insertion_point(decode_start:FutureResult)
+        let id = try reader.readUUID()
+        let outcome = try FutureOutcome.decode(from: &reader)
+        // @@bebop_insertion_point(decode_end:FutureResult)
+        return FutureResult(id: id, outcome: outcome)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureResult)
-    writer.writeUUID(id)
-    outcome.encode(to: &writer)
-    // @@bebop_insertion_point(encode_end:FutureResult)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureResult)
+        writer.writeUUID(id)
+        outcome.encode(to: &writer)
+        // @@bebop_insertion_point(encode_end:FutureResult)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += 16
-    size += outcome.encodedSize
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += 16
+        size += outcome.encodedSize
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureResult",
-    fqn: "bebop.FutureResult",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "id",
-          index: 0,
-          typeName: "BebopUUID"
-        ),
-        BebopFieldReflection(
-          name: "outcome",
-          index: 0,
-          typeName: "FutureOutcome"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureResult",
+        fqn: "bebop.FutureResult",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "id",
+                    index: 0,
+                    typeName: "BebopUUID"
+                ),
+                BebopFieldReflection(
+                    name: "outcome",
+                    index: 0,
+                    typeName: "FutureOutcome"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:FutureResult)
+    // @@bebop_insertion_point(struct_scope:FutureResult)
 }
 
 /// Method ID 4 request. Best-effort cancellation of a dispatched future.
@@ -1844,48 +1772,48 @@ public struct FutureResult: BebopRecord, BebopReflectable {
 /// Returns bebop.Empty on success. Returns NOT_FOUND if the future ID
 /// is unknown.
 public struct FutureCancelRequest: BebopRecord, BebopReflectable {
-  /// The future to cancel.
-  public let id: BebopUUID
+    /// The future to cancel.
+    public let id: BebopUUID
 
-  enum CodingKeys: String, CodingKey {
-    case id
-  }
+    enum CodingKeys: String, CodingKey {
+        case id
+    }
 
-  public init(id: BebopUUID) {
-    self.id = id
-  }
+    public init(id: BebopUUID) {
+        self.id = id
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> FutureCancelRequest {
-    // @@bebop_insertion_point(decode_start:FutureCancelRequest)
-    let id = try reader.readUUID()
-    // @@bebop_insertion_point(decode_end:FutureCancelRequest)
-    return FutureCancelRequest(id: id)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> FutureCancelRequest {
+        // @@bebop_insertion_point(decode_start:FutureCancelRequest)
+        let id = try reader.readUUID()
+        // @@bebop_insertion_point(decode_end:FutureCancelRequest)
+        return FutureCancelRequest(id: id)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:FutureCancelRequest)
-    writer.writeUUID(id)
-    // @@bebop_insertion_point(encode_end:FutureCancelRequest)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:FutureCancelRequest)
+        writer.writeUUID(id)
+        // @@bebop_insertion_point(encode_end:FutureCancelRequest)
+    }
 
-  public var encodedSize: Int { 16 }
+    public var encodedSize: Int { 16 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "FutureCancelRequest",
-    fqn: "bebop.FutureCancelRequest",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "id",
-          index: 0,
-          typeName: "BebopUUID"
+    public static let bebopReflection = BebopTypeReflection(
+        name: "FutureCancelRequest",
+        fqn: "bebop.FutureCancelRequest",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "id",
+                    index: 0,
+                    typeName: "BebopUUID"
+                ),
+            ])
         )
-      ])
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:FutureCancelRequest)
+    // @@bebop_insertion_point(struct_scope:FutureCancelRequest)
 }
 
 // @@bebop_insertion_point(eof)

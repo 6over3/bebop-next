@@ -33,6 +33,15 @@ cp "$TMPDIR/plugin/descriptor.bb.swift" "$SWIFT_DIR/Sources/BebopPlugin/Generate
 cp "$TMPDIR/plugin/plugin.bb.swift" "$SWIFT_DIR/Sources/BebopPlugin/Generated/"
 
 
+echo "Generating json.bb.swift..."
+"$BEBOPC" build \
+  "$SCHEMAS/bebop/json.bop" \
+  -I "$SCHEMAS" \
+  --plugin=swift="$PLUGIN" \
+  --swift_out="$TMPDIR/json" \
+  -q 2>/dev/null
+sed '/^import SwiftBebop$/d' "$TMPDIR/json/json.bb.swift" > "$SWIFT_DIR/Sources/SwiftBebop/json.bb.swift"
+
 echo "Generating rpc.bb.swift..."
 "$BEBOPC" build \
   "$SCHEMAS/bebop/rpc.bop" \

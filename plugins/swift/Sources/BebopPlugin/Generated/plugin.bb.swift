@@ -18,128 +18,134 @@ import SwiftBebop
 
 // @@bebop_insertion_point(imports)
 
-private func == <let N: Int, Element: Equatable>(
-  lhs: InlineArray<N, Element>, rhs: InlineArray<N, Element>
+private func == < let N: Int, Element: Equatable > (
+    lhs: InlineArray<N, Element>, rhs: InlineArray<N, Element>
 ) -> Bool {
-  for i in 0..<N { if lhs[i] != rhs[i] { return false } }
-  return true
+    for i in 0 ..< N {
+        if lhs[i] != rhs[i] { return false }
+    }
+    return true
 }
 
-private func == <let N: Int, Element: Equatable>(
-  lhs: InlineArray<N, Element>?, rhs: InlineArray<N, Element>?
+private func == < let N: Int, Element: Equatable > (
+    lhs: InlineArray<N, Element>?, rhs: InlineArray<N, Element>?
 ) -> Bool {
-  switch (lhs, rhs) {
-  case (.none, .none): return true
-  case (.some(let l), .some(let r)): return l == r
-  default: return false
-  }
+    switch (lhs, rhs) {
+    case (.none, .none): true
+    case let (.some(l), .some(r)): l == r
+    default: false
+    }
 }
 
 extension Hasher {
-  fileprivate mutating func combine<let N: Int, Element: Hashable>(
-    _ value: InlineArray<N, Element>
-  ) {
-    for i in 0..<N { combine(value[i]) }
-  }
-
-  fileprivate mutating func combine<let N: Int, Element: Hashable>(
-    _ value: InlineArray<N, Element>?
-  ) {
-    switch value {
-    case .none: combine(false)
-    case .some(let v):
-      combine(true)
-      for i in 0..<N { combine(v[i]) }
+    fileprivate mutating func combine< let N: Int, Element: Hashable > (
+        _ value: InlineArray<N, Element>
+    ) {
+        for i in 0 ..< N {
+            combine(value[i])
+        }
     }
-  }
+
+    fileprivate mutating func combine< let N: Int, Element: Hashable > (
+        _ value: InlineArray<N, Element>?
+    ) {
+        switch value {
+        case .none: combine(false)
+        case let .some(v):
+            combine(true)
+            for i in 0 ..< N {
+                combine(v[i])
+            }
+        }
+    }
 }
 
 /// Compiler version.
 /// Follows semantic versioning. The `suffix` field distinguishes pre-release
 /// versions (`alpha.1`, `beta.2`, `rc.1`). Empty suffix is a stable release.
 public struct Version: BebopRecord, BebopReflectable {
-  public let major: Int32
+    public let major: Int32
 
-  public let minor: Int32
+    public let minor: Int32
 
-  public let patch: Int32
+    public let patch: Int32
 
-  /// Pre-release suffix (`alpha.1`, `rc.2`). Empty for stable releases.
-  public let suffix: String
+    /// Pre-release suffix (`alpha.1`, `rc.2`). Empty for stable releases.
+    public let suffix: String
 
-  enum CodingKeys: String, CodingKey {
-    case major
-    case minor
-    case patch
-    case suffix
-  }
+    enum CodingKeys: String, CodingKey {
+        case major
+        case minor
+        case patch
+        case suffix
+    }
 
-  public init(major: Int32, minor: Int32, patch: Int32, suffix: String) {
-    self.major = major
-    self.minor = minor
-    self.patch = patch
-    self.suffix = suffix
-  }
+    public init(major: Int32, minor: Int32, patch: Int32, suffix: String) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+        self.suffix = suffix
+    }
 
-  public static func decode(from reader: inout BebopReader) throws -> Version {
-    // @@bebop_insertion_point(decode_start:Version)
-    let major = try reader.readInt32()
-    let minor = try reader.readInt32()
-    let patch = try reader.readInt32()
-    let suffix = try reader.readString()
-    // @@bebop_insertion_point(decode_end:Version)
-    return Version(major: major, minor: minor, patch: patch, suffix: suffix)
-  }
+    public static func decode(from reader: inout BebopReader) throws -> Version {
+        // @@bebop_insertion_point(decode_start:Version)
+        let major = try reader.readInt32()
+        let minor = try reader.readInt32()
+        let patch = try reader.readInt32()
+        let suffix = try reader.readString()
+        // @@bebop_insertion_point(decode_end:Version)
+        return Version(major: major, minor: minor, patch: patch, suffix: suffix)
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:Version)
-    writer.writeInt32(major)
-    writer.writeInt32(minor)
-    writer.writeInt32(patch)
-    writer.writeString(suffix)
-    // @@bebop_insertion_point(encode_end:Version)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:Version)
+        writer.writeInt32(major)
+        writer.writeInt32(minor)
+        writer.writeInt32(patch)
+        writer.writeString(suffix)
+        // @@bebop_insertion_point(encode_end:Version)
+    }
 
-  public var encodedSize: Int {
-    var size = 0
-    size += 4
-    size += 4
-    size += 4
-    size += (4 + suffix.utf8.count + 1)
-    return size
-  }
+    public var encodedSize: Int {
+        var size = 0
+        size += 4
+        size += 4
+        size += 4
+        size += (4 + suffix.utf8.count + 1)
+        return size
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "Version",
-    fqn: "bebop.Version",
-    kind: .struct,
-    detail: .struct(
-      StructReflection(fields: [
-        BebopFieldReflection(
-          name: "major",
-          index: 0,
-          typeName: "Int32"
-        ),
-        BebopFieldReflection(
-          name: "minor",
-          index: 0,
-          typeName: "Int32"
-        ),
-        BebopFieldReflection(
-          name: "patch",
-          index: 0,
-          typeName: "Int32"
-        ),
-        BebopFieldReflection(
-          name: "suffix",
-          index: 0,
-          typeName: "String"
-        ),
-      ])
+    public static let bebopReflection = BebopTypeReflection(
+        name: "Version",
+        fqn: "bebop.Version",
+        kind: .struct,
+        detail: .struct(
+            StructReflection(fields: [
+                BebopFieldReflection(
+                    name: "major",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+                BebopFieldReflection(
+                    name: "minor",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+                BebopFieldReflection(
+                    name: "patch",
+                    index: 0,
+                    typeName: "Int32"
+                ),
+                BebopFieldReflection(
+                    name: "suffix",
+                    index: 0,
+                    typeName: "String"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(struct_scope:Version)
+    // @@bebop_insertion_point(struct_scope:Version)
 }
 
 /// Input to a code generator plugin.
@@ -147,565 +153,537 @@ public struct Version: BebopRecord, BebopReflectable {
 /// Generate code only for files in `files_to_generate`, using the full
 /// `schemas` array for type resolution.
 public final class CodeGeneratorRequest: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// The .bop files to generate code for (explicitly listed on command line).
-  /// Each file's descriptor is included in `schemas`.
-  public var filesToGenerate: [String]?
+    /// The .bop files to generate code for (explicitly listed on command line).
+    /// Each file's descriptor is included in `schemas`.
+    public var filesToGenerate: [String]?
 
-  /// Generator-specific parameter from `--${NAME}_opt=PARAM` or embedded
-  /// in the output path. Format is plugin-defined (commonly key=value pairs).
-  public var parameter: String?
+    /// Generator-specific parameter from `--${NAME}_opt=PARAM` or embedded
+    /// in the output path. Format is plugin-defined (commonly key=value pairs).
+    public var parameter: String?
 
-  /// Version of the compiler invoking the plugin. Use to detect
-  /// incompatibilities or enable version-specific behavior.
-  public var compilerVersion: Version?
+    /// Version of the compiler invoking the plugin. Use to detect
+    /// incompatibilities or enable version-specific behavior.
+    public var compilerVersion: Version?
 
-  /// SchemaDescriptors for all files in `files_to_generate` plus their
-  /// imports. Schemas appear in topological order: dependencies before
-  /// dependents. Type FQNs are fully resolved.
-  /// Iterate schemas, check if `schema.path` is in `files_to_generate`,
-  /// and generate code only for those files. The rest are for type resolution.
-  public var schemas: [SchemaDescriptor]?
+    /// SchemaDescriptors for all files in `files_to_generate` plus their
+    /// imports. Schemas appear in topological order: dependencies before
+    /// dependents. Type FQNs are fully resolved.
+    /// Iterate schemas, check if `schema.path` is in `files_to_generate`,
+    /// and generate code only for those files. The rest are for type resolution.
+    public var schemas: [SchemaDescriptor]?
 
-  /// Host compiler options passed to bebopc. Use to adjust output based
-  /// on global settings.
-  public var hostOptions: [String: String]?
+    /// Host compiler options passed to bebopc. Use to adjust output based
+    /// on global settings.
+    public var hostOptions: [String: String]?
 
-  public init(
-    filesToGenerate: [String]? = nil, parameter: String? = nil, compilerVersion: Version? = nil,
-    schemas: [SchemaDescriptor]? = nil, hostOptions: [String: String]? = nil
-  ) {
-    self.filesToGenerate = filesToGenerate
-    self.parameter = parameter
-    self.compilerVersion = compilerVersion
-    self.schemas = schemas
-    self.hostOptions = hostOptions
-  }
-
-  public static func == (lhs: CodeGeneratorRequest, rhs: CodeGeneratorRequest) -> Bool {
-    return lhs.filesToGenerate == rhs.filesToGenerate && lhs.parameter == rhs.parameter
-      && lhs.compilerVersion == rhs.compilerVersion && lhs.schemas == rhs.schemas
-      && lhs.hostOptions == rhs.hostOptions
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(filesToGenerate)
-    hasher.combine(parameter)
-    hasher.combine(compilerVersion)
-    hasher.combine(schemas)
-    hasher.combine(hostOptions)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> CodeGeneratorRequest {
-    // @@bebop_insertion_point(decode_start:CodeGeneratorRequest)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var filesToGenerate: [String]? = nil
-    var parameter: String? = nil
-    var compilerVersion: Version? = nil
-    var schemas: [SchemaDescriptor]? = nil
-    var hostOptions: [String: String]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        filesToGenerate = try reader.readDynamicArray { _r in try _r.readString() }
-      case 2:
-        parameter = try reader.readString()
-      case 3:
-        compilerVersion = try Version.decode(from: &reader)
-      case 4:
-        schemas = try reader.readDynamicArray { _r in try SchemaDescriptor.decode(from: &_r) }
-      case 5:
-        hostOptions = try reader.readDynamicMap { _r in (try _r.readString(), try _r.readString()) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(filesToGenerate: [String]? = nil, parameter: String? = nil, compilerVersion: Version? = nil, schemas: [SchemaDescriptor]? = nil, hostOptions: [String: String]? = nil) {
+        self.filesToGenerate = filesToGenerate
+        self.parameter = parameter
+        self.compilerVersion = compilerVersion
+        self.schemas = schemas
+        self.hostOptions = hostOptions
     }
-    // @@bebop_insertion_point(decode_end:CodeGeneratorRequest)
-    return CodeGeneratorRequest(
-      filesToGenerate: filesToGenerate, parameter: parameter, compilerVersion: compilerVersion,
-      schemas: schemas, hostOptions: hostOptions)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:CodeGeneratorRequest)
-    let pos = writer.reserveMessageLength()
-    if let _v = filesToGenerate {
-      writer.writeTag(1)
-      writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
+    public static func == (lhs: CodeGeneratorRequest, rhs: CodeGeneratorRequest) -> Bool {
+        lhs.filesToGenerate == rhs.filesToGenerate && lhs.parameter == rhs.parameter && lhs.compilerVersion == rhs.compilerVersion && lhs.schemas == rhs.schemas && lhs.hostOptions == rhs.hostOptions
     }
-    if let _v = parameter {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = compilerVersion {
-      writer.writeTag(3)
-      _v.encode(to: &writer)
-    }
-    if let _v = schemas {
-      writer.writeTag(4)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = hostOptions {
-      writer.writeTag(5)
-      writer.writeDynamicMap(_v) { _w, _k, _v in
-        _w.writeString(_k)
-        _w.writeString(_v)
-      }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:CodeGeneratorRequest)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = filesToGenerate {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(filesToGenerate)
+        hasher.combine(parameter)
+        hasher.combine(compilerVersion)
+        hasher.combine(schemas)
+        hasher.combine(hostOptions)
     }
-    if let _v = parameter { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = compilerVersion { size += 1 + _v.encodedSize }
-    if let _v = schemas { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if let _v = hostOptions {
-      size +=
-        1
-        + (4
-          + _v.reduce(0) { _acc, _kv in
-            let (_k, _v) = _kv
-            return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1)
-          })
+
+    public static func decode(from reader: inout BebopReader) throws -> CodeGeneratorRequest {
+        // @@bebop_insertion_point(decode_start:CodeGeneratorRequest)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var filesToGenerate: [String]? = nil
+        var parameter: String? = nil
+        var compilerVersion: Version? = nil
+        var schemas: [SchemaDescriptor]? = nil
+        var hostOptions: [String: String]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                filesToGenerate = try reader.readDynamicArray { _r in try _r.readString() }
+            case 2:
+                parameter = try reader.readString()
+            case 3:
+                compilerVersion = try Version.decode(from: &reader)
+            case 4:
+                schemas = try reader.readDynamicArray { _r in try SchemaDescriptor.decode(from: &_r) }
+            case 5:
+                hostOptions = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:CodeGeneratorRequest)
+        return CodeGeneratorRequest(filesToGenerate: filesToGenerate, parameter: parameter, compilerVersion: compilerVersion, schemas: schemas, hostOptions: hostOptions)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case filesToGenerate = "files_to_generate"
-    case parameter
-    case compilerVersion = "compiler_version"
-    case schemas
-    case hostOptions = "host_options"
-  }
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:CodeGeneratorRequest)
+        let pos = writer.reserveMessageLength()
+        if let _v = filesToGenerate {
+            writer.writeTag(1)
+            writer.writeDynamicArray(_v) { _w, _el in _w.writeString(_el) }
+        }
+        if let _v = parameter {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = compilerVersion {
+            writer.writeTag(3)
+            _v.encode(to: &writer)
+        }
+        if let _v = schemas {
+            writer.writeTag(4)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = hostOptions {
+            writer.writeTag(5)
+            writer.writeDynamicMap(_v) { _w, _k, _v in _w.writeString(_k)
+                _w.writeString(_v)
+            }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:CodeGeneratorRequest)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "CodeGeneratorRequest",
-    fqn: "bebop.CodeGeneratorRequest",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "files_to_generate",
-          index: 1,
-          typeName: "[String]"
-        ),
-        BebopFieldReflection(
-          name: "parameter",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "compiler_version",
-          index: 3,
-          typeName: "Version"
-        ),
-        BebopFieldReflection(
-          name: "schemas",
-          index: 4,
-          typeName: "[SchemaDescriptor]"
-        ),
-        BebopFieldReflection(
-          name: "host_options",
-          index: 5,
-          typeName: "[String: String]"
-        ),
-      ])
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = filesToGenerate { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + (4 + _el.utf8.count + 1) }) }
+        if let _v = parameter { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = compilerVersion { size += 1 + _v.encodedSize }
+        if let _v = schemas { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = hostOptions { size += 1 + (4 + _v.reduce(0) { _acc, _kv in let (_k, _v) = _kv; return _acc + (4 + _k.utf8.count + 1) + (4 + _v.utf8.count + 1) }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case filesToGenerate = "files_to_generate"
+        case parameter
+        case compilerVersion = "compiler_version"
+        case schemas
+        case hostOptions = "host_options"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "CodeGeneratorRequest",
+        fqn: "bebop.CodeGeneratorRequest",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "files_to_generate",
+                    index: 1,
+                    typeName: "[String]"
+                ),
+                BebopFieldReflection(
+                    name: "parameter",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "compiler_version",
+                    index: 3,
+                    typeName: "Version"
+                ),
+                BebopFieldReflection(
+                    name: "schemas",
+                    index: 4,
+                    typeName: "[SchemaDescriptor]"
+                ),
+                BebopFieldReflection(
+                    name: "host_options",
+                    index: 5,
+                    typeName: "[String: String]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:CodeGeneratorRequest)
+    // @@bebop_insertion_point(message_scope:CodeGeneratorRequest)
 }
 
 /// Severity level for plugin diagnostics.
-public struct DiagnosticSeverity: RawRepresentable, Sendable, Hashable, BebopRecord,
-  BebopReflectable
-{
-  public let rawValue: UInt8
+public struct DiagnosticSeverity: RawRepresentable, Sendable, Hashable, BebopRecord, BebopReflectable {
+    public let rawValue: UInt8
 
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
 
-  public static let error = DiagnosticSeverity(rawValue: 0)
+    public static let error = DiagnosticSeverity(rawValue: 0)
 
-  public static let warning = DiagnosticSeverity(rawValue: 1)
+    public static let warning = DiagnosticSeverity(rawValue: 1)
 
-  public static let info = DiagnosticSeverity(rawValue: 2)
+    public static let info = DiagnosticSeverity(rawValue: 2)
 
-  public static let hint = DiagnosticSeverity(rawValue: 3)
+    public static let hint = DiagnosticSeverity(rawValue: 3)
 
-  public static func decode(from reader: inout BebopReader) throws -> DiagnosticSeverity {
-    return DiagnosticSeverity(rawValue: try reader.readByte())
-  }
+    public static func decode(from reader: inout BebopReader) throws -> DiagnosticSeverity {
+        try DiagnosticSeverity(rawValue: reader.readByte())
+    }
 
-  public func encode(to writer: inout BebopWriter) {
-    writer.writeByte(rawValue)
-  }
+    public func encode(to writer: inout BebopWriter) {
+        writer.writeByte(rawValue)
+    }
 
-  public var encodedSize: Int { 1 }
+    public var encodedSize: Int { 1 }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "DiagnosticSeverity",
-    fqn: "bebop.DiagnosticSeverity",
-    kind: .enum,
-    detail: .enum(
-      EnumReflection(
-        members: [
-          (name: "ERROR", value: 0),
-          (name: "WARNING", value: 1),
-          (name: "INFO", value: 2),
-          (name: "HINT", value: 3),
-        ],
-        isFlags: false
-      )
+    public static let bebopReflection = BebopTypeReflection(
+        name: "DiagnosticSeverity",
+        fqn: "bebop.DiagnosticSeverity",
+        kind: .enum,
+        detail: .enum(
+            EnumReflection(
+                members: [
+                    (name: "ERROR", value: 0),
+                    (name: "WARNING", value: 1),
+                    (name: "INFO", value: 2),
+                    (name: "HINT", value: 3),
+                ],
+                isFlags: false
+            )
+        )
     )
-  )
 
-  // @@bebop_insertion_point(enum_scope:DiagnosticSeverity)
+    // @@bebop_insertion_point(enum_scope:DiagnosticSeverity)
 }
 
 /// Diagnostic message from a plugin.
 /// Report errors, warnings, and info about schemas being processed.
 /// Displayed to the user alongside the plugin's name.
 public final class Diagnostic: BebopRecord, BebopReflectable, @unchecked Sendable {
-  public var severity: DiagnosticSeverity?
+    public var severity: DiagnosticSeverity?
 
-  /// Human-readable diagnostic text.
-  public var text: String?
+    /// Human-readable diagnostic text.
+    public var text: String?
 
-  /// Optional hint for fixing the issue.
-  public var hint: String?
+    /// Optional hint for fixing the issue.
+    public var hint: String?
 
-  /// Source file path this diagnostic relates to.
-  public var file: String?
+    /// Source file path this diagnostic relates to.
+    public var file: String?
 
-  /// Source location as `[start_line, start_col, end_line, end_col]`.
-  /// 1-based. Absent if not applicable.
-  public var span: InlineArray<4, Int32>?
+    /// Source location as `[start_line, start_col, end_line, end_col]`.
+    /// 1-based. Absent if not applicable.
+    public var span: InlineArray<4, Int32>?
 
-  public init(
-    severity: DiagnosticSeverity? = nil, text: String? = nil, hint: String? = nil,
-    file: String? = nil, span: InlineArray<4, Int32>? = nil
-  ) {
-    self.severity = severity
-    self.text = text
-    self.hint = hint
-    self.file = file
-    self.span = span
-  }
-
-  public static func == (lhs: Diagnostic, rhs: Diagnostic) -> Bool {
-    return lhs.severity == rhs.severity && lhs.text == rhs.text && lhs.hint == rhs.hint
-      && lhs.file == rhs.file && lhs.span == rhs.span
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(severity)
-    hasher.combine(text)
-    hasher.combine(hint)
-    hasher.combine(file)
-    hasher.combine(span)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> Diagnostic {
-    // @@bebop_insertion_point(decode_start:Diagnostic)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var severity: DiagnosticSeverity? = nil
-    var text: String? = nil
-    var hint: String? = nil
-    var file: String? = nil
-    var span: InlineArray<4, Int32>? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        severity = try DiagnosticSeverity.decode(from: &reader)
-      case 2:
-        text = try reader.readString()
-      case 3:
-        hint = try reader.readString()
-      case 4:
-        file = try reader.readString()
-      case 5:
-        span = (try reader.readInlineArray(of: Int32.self) as InlineArray<4, Int32>)
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(severity: DiagnosticSeverity? = nil, text: String? = nil, hint: String? = nil, file: String? = nil, span: InlineArray<4, Int32>? = nil) {
+        self.severity = severity
+        self.text = text
+        self.hint = hint
+        self.file = file
+        self.span = span
     }
-    // @@bebop_insertion_point(decode_end:Diagnostic)
-    return Diagnostic(severity: severity, text: text, hint: hint, file: file, span: span)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:Diagnostic)
-    let pos = writer.reserveMessageLength()
-    if let _v = severity {
-      writer.writeTag(1)
-      _v.encode(to: &writer)
+    public static func == (lhs: Diagnostic, rhs: Diagnostic) -> Bool {
+        lhs.severity == rhs.severity && lhs.text == rhs.text && lhs.hint == rhs.hint && lhs.file == rhs.file && lhs.span == rhs.span
     }
-    if let _v = text {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = hint {
-      writer.writeTag(3)
-      writer.writeString(_v)
-    }
-    if let _v = file {
-      writer.writeTag(4)
-      writer.writeString(_v)
-    }
-    if let _v = span {
-      writer.writeTag(5)
-      writer.writeInlineArray(_v)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:Diagnostic)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = severity { size += 1 + _v.encodedSize }
-    if let _v = text { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = hint { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = file { size += 1 + (4 + _v.utf8.count + 1) }
-    if span != nil { size += 1 + 16 }
-    return size
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case severity
-    case text
-    case hint
-    case file
-    case span
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(severity, forKey: .severity)
-    try container.encodeIfPresent(text, forKey: .text)
-    try container.encodeIfPresent(hint, forKey: .hint)
-    try container.encodeIfPresent(file, forKey: .file)
-    if let span = span {
-      var spanContainer = container.nestedUnkeyedContainer(forKey: .span)
-      for i in 0..<4 { try spanContainer.encode(span[i]) }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(severity)
+        hasher.combine(text)
+        hasher.combine(hint)
+        hasher.combine(file)
+        hasher.combine(span)
     }
-  }
 
-  public required init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    severity = try container.decodeIfPresent(DiagnosticSeverity.self, forKey: .severity)
-    text = try container.decodeIfPresent(String.self, forKey: .text)
-    hint = try container.decodeIfPresent(String.self, forKey: .hint)
-    file = try container.decodeIfPresent(String.self, forKey: .file)
-    if container.contains(.span) {
-      var spanContainer = try container.nestedUnkeyedContainer(forKey: .span)
-      span = try InlineArray<4, Int32> { _ in try spanContainer.decode(Int32.self) }
+    public static func decode(from reader: inout BebopReader) throws -> Diagnostic {
+        // @@bebop_insertion_point(decode_start:Diagnostic)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var severity: DiagnosticSeverity? = nil
+        var text: String? = nil
+        var hint: String? = nil
+        var file: String? = nil
+        var span: InlineArray<4, Int32>? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                severity = try DiagnosticSeverity.decode(from: &reader)
+            case 2:
+                text = try reader.readString()
+            case 3:
+                hint = try reader.readString()
+            case 4:
+                file = try reader.readString()
+            case 5:
+                span = try (reader.readInlineArray(of: Int32.self) as InlineArray<4, Int32>)
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:Diagnostic)
+        return Diagnostic(severity: severity, text: text, hint: hint, file: file, span: span)
     }
-  }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "Diagnostic",
-    fqn: "bebop.Diagnostic",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "severity",
-          index: 1,
-          typeName: "DiagnosticSeverity"
-        ),
-        BebopFieldReflection(
-          name: "text",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "hint",
-          index: 3,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "file",
-          index: 4,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "span",
-          index: 5,
-          typeName: "InlineArray<4, Int32>"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:Diagnostic)
+        let pos = writer.reserveMessageLength()
+        if let _v = severity {
+            writer.writeTag(1)
+            _v.encode(to: &writer)
+        }
+        if let _v = text {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = hint {
+            writer.writeTag(3)
+            writer.writeString(_v)
+        }
+        if let _v = file {
+            writer.writeTag(4)
+            writer.writeString(_v)
+        }
+        if let _v = span {
+            writer.writeTag(5)
+            writer.writeInlineArray(_v)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:Diagnostic)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = severity { size += 1 + _v.encodedSize }
+        if let _v = text { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = hint { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = file { size += 1 + (4 + _v.utf8.count + 1) }
+        if span != nil { size += 1 + 16 }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case severity
+        case text
+        case hint
+        case file
+        case span
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(severity, forKey: .severity)
+        try container.encodeIfPresent(text, forKey: .text)
+        try container.encodeIfPresent(hint, forKey: .hint)
+        try container.encodeIfPresent(file, forKey: .file)
+        if let span {
+            var spanContainer = container.nestedUnkeyedContainer(forKey: .span)
+            for i in 0 ..< 4 {
+                try spanContainer.encode(span[i])
+            }
+        }
+    }
+
+    public required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        severity = try container.decodeIfPresent(DiagnosticSeverity.self, forKey: .severity)
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        hint = try container.decodeIfPresent(String.self, forKey: .hint)
+        file = try container.decodeIfPresent(String.self, forKey: .file)
+        if container.contains(.span) {
+            var spanContainer = try container.nestedUnkeyedContainer(forKey: .span)
+            span = try InlineArray<4, Int32> { _ in try spanContainer.decode(Int32.self) }
+        }
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "Diagnostic",
+        fqn: "bebop.Diagnostic",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "severity",
+                    index: 1,
+                    typeName: "DiagnosticSeverity"
+                ),
+                BebopFieldReflection(
+                    name: "text",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "hint",
+                    index: 3,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "file",
+                    index: 4,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "span",
+                    index: 5,
+                    typeName: "InlineArray<4, Int32>"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:Diagnostic)
+    // @@bebop_insertion_point(message_scope:Diagnostic)
 }
 
 /// A generated file.
 /// Either a complete new file or an insertion into an existing file at a
 /// marked insertion point.
 public final class GeneratedFile: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Output path relative to output directory. No `..` components or
-  /// leading `/`. Use `/` as separator on all platforms.
-  /// When `insertion_point` is set, names the file to insert into (must
-  /// be generated by a prior plugin in the same invocation).
-  /// When omitted, content appends to the previous file. Allows generators
-  /// to stream large files in chunks.
-  public var name: String?
+    /// Output path relative to output directory. No `..` components or
+    /// leading `/`. Use `/` as separator on all platforms.
+    /// When `insertion_point` is set, names the file to insert into (must
+    /// be generated by a prior plugin in the same invocation).
+    /// When omitted, content appends to the previous file. Allows generators
+    /// to stream large files in chunks.
+    public var name: String?
 
-  /// Insertion point name for extending another plugin's output.
-  /// Target file must contain:
-  /// ```
-  /// // @@bebopc_insertion_point(NAME)
-  /// ```
-  /// Content inserts above this marker. Multiple insertions to the same
-  /// point appear in plugin execution order.
-  /// When set, `name` must also be set to identify the target file.
-  public var insertionPoint: String?
+    /// Insertion point name for extending another plugin's output.
+    /// Target file must contain:
+    /// ```
+    /// // @@bebopc_insertion_point(NAME)
+    /// ```
+    /// Content inserts above this marker. Multiple insertions to the same
+    /// point appear in plugin execution order.
+    /// When set, `name` must also be set to identify the target file.
+    public var insertionPoint: String?
 
-  /// File contents (complete file or insertion fragment).
-  /// For insertions, typically includes a trailing newline.
-  public var content: String?
+    /// File contents (complete file or insertion fragment).
+    /// For insertions, typically includes a trailing newline.
+    public var content: String?
 
-  /// Source mapping connecting generated code to source schemas.
-  /// Optional; enables IDE features like go-to-definition.
-  public var generatedCodeInfo: SourceCodeInfo?
+    /// Source mapping connecting generated code to source schemas.
+    /// Optional; enables IDE features like go-to-definition.
+    public var generatedCodeInfo: SourceCodeInfo?
 
-  public init(
-    name: String? = nil, insertionPoint: String? = nil, content: String? = nil,
-    generatedCodeInfo: SourceCodeInfo? = nil
-  ) {
-    self.name = name
-    self.insertionPoint = insertionPoint
-    self.content = content
-    self.generatedCodeInfo = generatedCodeInfo
-  }
-
-  public static func == (lhs: GeneratedFile, rhs: GeneratedFile) -> Bool {
-    return lhs.name == rhs.name && lhs.insertionPoint == rhs.insertionPoint
-      && lhs.content == rhs.content && lhs.generatedCodeInfo == rhs.generatedCodeInfo
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(name)
-    hasher.combine(insertionPoint)
-    hasher.combine(content)
-    hasher.combine(generatedCodeInfo)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> GeneratedFile {
-    // @@bebop_insertion_point(decode_start:GeneratedFile)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var name: String? = nil
-    var insertionPoint: String? = nil
-    var content: String? = nil
-    var generatedCodeInfo: SourceCodeInfo? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        name = try reader.readString()
-      case 2:
-        insertionPoint = try reader.readString()
-      case 3:
-        content = try reader.readString()
-      case 4:
-        generatedCodeInfo = try SourceCodeInfo.decode(from: &reader)
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(name: String? = nil, insertionPoint: String? = nil, content: String? = nil, generatedCodeInfo: SourceCodeInfo? = nil) {
+        self.name = name
+        self.insertionPoint = insertionPoint
+        self.content = content
+        self.generatedCodeInfo = generatedCodeInfo
     }
-    // @@bebop_insertion_point(decode_end:GeneratedFile)
-    return GeneratedFile(
-      name: name, insertionPoint: insertionPoint, content: content,
-      generatedCodeInfo: generatedCodeInfo)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:GeneratedFile)
-    let pos = writer.reserveMessageLength()
-    if let _v = name {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: GeneratedFile, rhs: GeneratedFile) -> Bool {
+        lhs.name == rhs.name && lhs.insertionPoint == rhs.insertionPoint && lhs.content == rhs.content && lhs.generatedCodeInfo == rhs.generatedCodeInfo
     }
-    if let _v = insertionPoint {
-      writer.writeTag(2)
-      writer.writeString(_v)
-    }
-    if let _v = content {
-      writer.writeTag(3)
-      writer.writeString(_v)
-    }
-    if let _v = generatedCodeInfo {
-      writer.writeTag(4)
-      _v.encode(to: &writer)
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:GeneratedFile)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = insertionPoint { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = content { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = generatedCodeInfo { size += 1 + _v.encodedSize }
-    return size
-  }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(insertionPoint)
+        hasher.combine(content)
+        hasher.combine(generatedCodeInfo)
+    }
 
-  enum CodingKeys: String, CodingKey {
-    case name
-    case insertionPoint = "insertion_point"
-    case content
-    case generatedCodeInfo = "generated_code_info"
-  }
+    public static func decode(from reader: inout BebopReader) throws -> GeneratedFile {
+        // @@bebop_insertion_point(decode_start:GeneratedFile)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var name: String? = nil
+        var insertionPoint: String? = nil
+        var content: String? = nil
+        var generatedCodeInfo: SourceCodeInfo? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                name = try reader.readString()
+            case 2:
+                insertionPoint = try reader.readString()
+            case 3:
+                content = try reader.readString()
+            case 4:
+                generatedCodeInfo = try SourceCodeInfo.decode(from: &reader)
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:GeneratedFile)
+        return GeneratedFile(name: name, insertionPoint: insertionPoint, content: content, generatedCodeInfo: generatedCodeInfo)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "GeneratedFile",
-    fqn: "bebop.GeneratedFile",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "name",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "insertion_point",
-          index: 2,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "content",
-          index: 3,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "generated_code_info",
-          index: 4,
-          typeName: "SourceCodeInfo"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:GeneratedFile)
+        let pos = writer.reserveMessageLength()
+        if let _v = name {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = insertionPoint {
+            writer.writeTag(2)
+            writer.writeString(_v)
+        }
+        if let _v = content {
+            writer.writeTag(3)
+            writer.writeString(_v)
+        }
+        if let _v = generatedCodeInfo {
+            writer.writeTag(4)
+            _v.encode(to: &writer)
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:GeneratedFile)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = name { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = insertionPoint { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = content { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = generatedCodeInfo { size += 1 + _v.encodedSize }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case insertionPoint = "insertion_point"
+        case content
+        case generatedCodeInfo = "generated_code_info"
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "GeneratedFile",
+        fqn: "bebop.GeneratedFile",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "name",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "insertion_point",
+                    index: 2,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "content",
+                    index: 3,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "generated_code_info",
+                    index: 4,
+                    typeName: "SourceCodeInfo"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:GeneratedFile)
+    // @@bebop_insertion_point(message_scope:GeneratedFile)
 }
 
 /// Output from a code generator plugin.
@@ -719,125 +697,122 @@ public final class GeneratedFile: BebopRecord, BebopReflectable, @unchecked Send
 /// environment problem. The `error` field indicates problems in .bop files
 /// that prevent correct code generation.
 public final class CodeGeneratorResponse: BebopRecord, BebopReflectable, @unchecked Sendable {
-  /// Error message. If non-empty, code generation failed.
-  /// Set for schema problems that prevent generating correct code. Exit
-  /// with status zero.
-  /// For plugin bugs or environment problems (can't read input, out of
-  /// memory), write to stderr and exit non-zero instead.
-  public var error: String?
+    /// Error message. If non-empty, code generation failed.
+    /// Set for schema problems that prevent generating correct code. Exit
+    /// with status zero.
+    /// For plugin bugs or environment problems (can't read input, out of
+    /// memory), write to stderr and exit non-zero instead.
+    public var error: String?
 
-  /// Generated files to write to the output directory.
-  /// Written in array order. Later files with `insertion_point` can
-  /// extend earlier files in the same response.
-  public var files: [GeneratedFile]?
+    /// Generated files to write to the output directory.
+    /// Written in array order. Later files with `insertion_point` can
+    /// extend earlier files in the same response.
+    public var files: [GeneratedFile]?
 
-  /// Diagnostics to report. Displayed even on success (for warnings/info).
-  public var diagnostics: [Diagnostic]?
+    /// Diagnostics to report. Displayed even on success (for warnings/info).
+    public var diagnostics: [Diagnostic]?
 
-  public init(error: String? = nil, files: [GeneratedFile]? = nil, diagnostics: [Diagnostic]? = nil)
-  {
-    self.error = error
-    self.files = files
-    self.diagnostics = diagnostics
-  }
-
-  public static func == (lhs: CodeGeneratorResponse, rhs: CodeGeneratorResponse) -> Bool {
-    return lhs.error == rhs.error && lhs.files == rhs.files && lhs.diagnostics == rhs.diagnostics
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(error)
-    hasher.combine(files)
-    hasher.combine(diagnostics)
-  }
-
-  public static func decode(from reader: inout BebopReader) throws -> CodeGeneratorResponse {
-    // @@bebop_insertion_point(decode_start:CodeGeneratorResponse)
-    let length = try reader.readMessageLength()
-    let end = reader.position + Int(length)
-    var error: String? = nil
-    var files: [GeneratedFile]? = nil
-    var diagnostics: [Diagnostic]? = nil
-    while reader.position < end {
-      let tag = try reader.readTag()
-      if tag == 0 { break }
-      switch tag {
-      case 1:
-        error = try reader.readString()
-      case 2:
-        files = try reader.readDynamicArray { _r in try GeneratedFile.decode(from: &_r) }
-      case 3:
-        diagnostics = try reader.readDynamicArray { _r in try Diagnostic.decode(from: &_r) }
-      default:
-        try reader.skip(end - reader.position)
-      }
+    public init(error: String? = nil, files: [GeneratedFile]? = nil, diagnostics: [Diagnostic]? = nil) {
+        self.error = error
+        self.files = files
+        self.diagnostics = diagnostics
     }
-    // @@bebop_insertion_point(decode_end:CodeGeneratorResponse)
-    return CodeGeneratorResponse(error: error, files: files, diagnostics: diagnostics)
-  }
 
-  public func encode(to writer: inout BebopWriter) {
-    // @@bebop_insertion_point(encode_start:CodeGeneratorResponse)
-    let pos = writer.reserveMessageLength()
-    if let _v = error {
-      writer.writeTag(1)
-      writer.writeString(_v)
+    public static func == (lhs: CodeGeneratorResponse, rhs: CodeGeneratorResponse) -> Bool {
+        lhs.error == rhs.error && lhs.files == rhs.files && lhs.diagnostics == rhs.diagnostics
     }
-    if let _v = files {
-      writer.writeTag(2)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    if let _v = diagnostics {
-      writer.writeTag(3)
-      writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
-    }
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
-    // @@bebop_insertion_point(encode_end:CodeGeneratorResponse)
-  }
 
-  public var encodedSize: Int {
-    var size = 5
-    if let _v = error { size += 1 + (4 + _v.utf8.count + 1) }
-    if let _v = files { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
-    if let _v = diagnostics {
-      size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize })
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(error)
+        hasher.combine(files)
+        hasher.combine(diagnostics)
     }
-    return size
-  }
 
-  enum CodingKeys: String, CodingKey {
-    case error
-    case files
-    case diagnostics
-  }
+    public static func decode(from reader: inout BebopReader) throws -> CodeGeneratorResponse {
+        // @@bebop_insertion_point(decode_start:CodeGeneratorResponse)
+        let length = try reader.readMessageLength()
+        let end = reader.position + Int(length)
+        var error: String? = nil
+        var files: [GeneratedFile]? = nil
+        var diagnostics: [Diagnostic]? = nil
+        while reader.position < end {
+            let tag = try reader.readTag()
+            if tag == 0 { break }
+            switch tag {
+            case 1:
+                error = try reader.readString()
+            case 2:
+                files = try reader.readDynamicArray { _r in try GeneratedFile.decode(from: &_r) }
+            case 3:
+                diagnostics = try reader.readDynamicArray { _r in try Diagnostic.decode(from: &_r) }
+            default:
+                try reader.skip(end - reader.position)
+            }
+        }
+        // @@bebop_insertion_point(decode_end:CodeGeneratorResponse)
+        return CodeGeneratorResponse(error: error, files: files, diagnostics: diagnostics)
+    }
 
-  public static let bebopReflection = BebopTypeReflection(
-    name: "CodeGeneratorResponse",
-    fqn: "bebop.CodeGeneratorResponse",
-    kind: .message,
-    detail: .message(
-      MessageReflection(fields: [
-        BebopFieldReflection(
-          name: "error",
-          index: 1,
-          typeName: "String"
-        ),
-        BebopFieldReflection(
-          name: "files",
-          index: 2,
-          typeName: "[GeneratedFile]"
-        ),
-        BebopFieldReflection(
-          name: "diagnostics",
-          index: 3,
-          typeName: "[Diagnostic]"
-        ),
-      ])
+    public func encode(to writer: inout BebopWriter) {
+        // @@bebop_insertion_point(encode_start:CodeGeneratorResponse)
+        let pos = writer.reserveMessageLength()
+        if let _v = error {
+            writer.writeTag(1)
+            writer.writeString(_v)
+        }
+        if let _v = files {
+            writer.writeTag(2)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        if let _v = diagnostics {
+            writer.writeTag(3)
+            writer.writeDynamicArray(_v) { _w, _el in _el.encode(to: &_w) }
+        }
+        writer.writeEndMarker()
+        writer.fillMessageLength(at: pos)
+        // @@bebop_insertion_point(encode_end:CodeGeneratorResponse)
+    }
+
+    public var encodedSize: Int {
+        var size = 5
+        if let _v = error { size += 1 + (4 + _v.utf8.count + 1) }
+        if let _v = files { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        if let _v = diagnostics { size += 1 + (4 + _v.reduce(0) { _acc, _el in _acc + _el.encodedSize }) }
+        return size
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case files
+        case diagnostics
+    }
+
+    public static let bebopReflection = BebopTypeReflection(
+        name: "CodeGeneratorResponse",
+        fqn: "bebop.CodeGeneratorResponse",
+        kind: .message,
+        detail: .message(
+            MessageReflection(fields: [
+                BebopFieldReflection(
+                    name: "error",
+                    index: 1,
+                    typeName: "String"
+                ),
+                BebopFieldReflection(
+                    name: "files",
+                    index: 2,
+                    typeName: "[GeneratedFile]"
+                ),
+                BebopFieldReflection(
+                    name: "diagnostics",
+                    index: 3,
+                    typeName: "[Diagnostic]"
+                ),
+            ])
+        )
     )
-  )
 
-  // @@bebop_insertion_point(message_scope:CodeGeneratorResponse)
+    // @@bebop_insertion_point(message_scope:CodeGeneratorResponse)
 }
 
 // @@bebop_insertion_point(eof)
