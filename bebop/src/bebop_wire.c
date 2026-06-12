@@ -1,3 +1,5 @@
+#include <ctype.h>
+
 #include "bebop_wire.h"
 
 typedef struct bebop_wire_arena_block_impl {
@@ -2671,6 +2673,11 @@ Bebop_UUID Bebop_UUID_FromString(const char* str)
     if (!*(s + 1)) {
       return (Bebop_UUID) {0};
     }
+    // The lookup table maps invalid characters to 0; reject them instead of
+    // silently producing a wrong UUID.
+    if (!isxdigit((unsigned char)s[0]) || !isxdigit((unsigned char)s[1])) {
+      return (Bebop_UUID) {0};
+    }
 
     const uint8_t high = bebop__wire_ascii_to_hex[(uint8_t)*s++];
     const uint8_t low = bebop__wire_ascii_to_hex[(uint8_t)*s++];
@@ -2901,8 +2908,9 @@ void* Bebop_Map_Get(const Bebop_Map* m, const void* key)
   const int8_t h2 = H2(h);
   const size_t mask = m->capacity - 1;
   const size_t start = H1(h) & mask;
+  const size_t max_probes = m->capacity / BEBOP_MAP_GROUP_SIZE + 2;
 
-  for (size_t probe = 0;; probe++) {
+  for (size_t probe = 0; probe < max_probes; probe++) {
     size_t group_start = (start + bebop__map_probe_offset(probe)) & mask;
     // Align to group boundary
     group_start &= ~(size_t)(BEBOP_MAP_GROUP_SIZE - 1);
@@ -2927,6 +2935,7 @@ void* Bebop_Map_Get(const Bebop_Map* m, const void* key)
       return NULL;
     }
   }
+  return NULL;
 }
 
 bool Bebop_Map_Put(Bebop_Map* m, void* key, void* value)
@@ -2945,10 +2954,11 @@ bool Bebop_Map_Put(Bebop_Map* m, void* key, void* value)
   const int8_t h2 = H2(h);
   const size_t mask = m->capacity - 1;
   const size_t start = H1(h) & mask;
+  const size_t max_probes = m->capacity / BEBOP_MAP_GROUP_SIZE + 2;
 
   size_t insert_idx = SIZE_MAX;
 
-  for (size_t probe = 0;; probe++) {
+  for (size_t probe = 0; probe < max_probes; probe++) {
     size_t group_start = (start + bebop__map_probe_offset(probe)) & mask;
     group_start &= ~(size_t)(BEBOP_MAP_GROUP_SIZE - 1);
 
@@ -3007,8 +3017,9 @@ bool Bebop_Map_Del(Bebop_Map* m, const void* key)
   const int8_t h2 = H2(h);
   const size_t mask = m->capacity - 1;
   const size_t start = H1(h) & mask;
+  const size_t max_probes = m->capacity / BEBOP_MAP_GROUP_SIZE + 2;
 
-  for (size_t probe = 0;; probe++) {
+  for (size_t probe = 0; probe < max_probes; probe++) {
     size_t group_start = (start + bebop__map_probe_offset(probe)) & mask;
     group_start &= ~(size_t)(BEBOP_MAP_GROUP_SIZE - 1);
 
@@ -3031,6 +3042,7 @@ bool Bebop_Map_Del(Bebop_Map* m, const void* key)
       return false;
     }
   }
+  return false;
 }
 
 void Bebop_Map_Clear(Bebop_Map* m)
@@ -3102,7 +3114,9 @@ static bool bebop__map_grow(Bebop_Map* m)
   // Rehash all entries
   for (size_t i = 0; i < old_cap; i++) {
     if (old_ctrl && CTRL_IS_FULL(old_ctrl[i])) {
-      Bebop_Map_Put(m, old_slots[i].key, old_slots[i].value);
+      if (!Bebop_Map_Put(m, old_slots[i].key, old_slots[i].value)) {
+        return false;
+      }
     }
   }
 
@@ -3327,20 +3341,26 @@ uint64_t Bebop_MapHash_U64(const void* key)
 
 uint64_t Bebop_MapHash_I128(const void* key)
 {
-  const uint64_t* p = (const uint64_t*)key;
-  return bebop__wyhash64(p[0], p[1]);
+  uint64_t lo, hi;
+  memcpy(&lo, key, sizeof(lo));
+  memcpy(&hi, (const uint8_t*)key + sizeof(lo), sizeof(hi));
+  return bebop__wyhash64(lo, hi);
 }
 
 uint64_t Bebop_MapHash_U128(const void* key)
 {
-  const uint64_t* p = (const uint64_t*)key;
-  return bebop__wyhash64(p[0], p[1]);
+  uint64_t lo, hi;
+  memcpy(&lo, key, sizeof(lo));
+  memcpy(&hi, (const uint8_t*)key + sizeof(lo), sizeof(hi));
+  return bebop__wyhash64(lo, hi);
 }
 
 uint64_t Bebop_MapHash_UUID(const void* key)
 {
-  const uint64_t* p = (const uint64_t*)key;
-  return bebop__wyhash64(p[0], p[1]);
+  uint64_t lo, hi;
+  memcpy(&lo, key, sizeof(lo));
+  memcpy(&hi, (const uint8_t*)key + sizeof(lo), sizeof(hi));
+  return bebop__wyhash64(lo, hi);
 }
 
 uint64_t Bebop_MapHash_Str(const void* key)
