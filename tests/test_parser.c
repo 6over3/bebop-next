@@ -1587,6 +1587,8 @@ void test_fail_bad_comment(void);
 void test_fail_invalid_syntax(void);
 void test_fail_nested_union(void);
 void test_fail_enum_zero(void);
+void test_enum_cross_reference_rejected(void);
+void test_enum_same_member_names_allowed(void);
 void test_fail_invalid_map_keys(void);
 void test_fail_invalid_union_reference(void);
 void test_fail_rpc(void);
@@ -1772,6 +1774,41 @@ void test_fail_enum_zero(void)
   TEST_ASSERT_TRUE_MESSAGE(
       strstr(msg, "0") != NULL || strstr(msg, "zero") != NULL,
       "Error message should mention zero value"
+  );
+}
+
+void test_enum_cross_reference_rejected(void)
+{
+  // An enum value may reference its own members but not another enum's.
+  bebop_parse_result_t* result = NULL;
+  bebop_parse_source(
+      ctx,
+      BEBOP_SOURCE(
+          "enum A { Zero = 0; Dup = 7; }\nenum B { Zero = 0; Pick = Dup; }", "test.bop"
+      ),
+      &result
+  );
+
+  TEST_ASSERT_NOT_NULL(result);
+  TEST_ASSERT_TRUE(bebop_result_error_count(result) > 0);
+
+  const bebop_diagnostic_t* d = bebop_result_diagnostic_at(result, 0);
+  TEST_ASSERT_NOT_NULL(d);
+  const char* msg = bebop_diagnostic_message(d);
+  TEST_ASSERT_NOT_NULL(msg);
+  TEST_ASSERT_TRUE_MESSAGE(
+      strstr(msg, "another enum") != NULL, "Expected a cross-enum reference diagnostic"
+  );
+}
+
+void test_enum_same_member_names_allowed(void)
+{
+  // Distinct enums may share member names; only cross-enum *references* are
+  // illegal. Same-enum references still resolve.
+  parse_expect_success(
+      "enum A { Zero = 0; Dup = 7; Value = 1; }\n"
+      "enum B { Zero = 0; Dup = 9; Value = 2; }\n"
+      "enum C { None = 0; Read = 1; Write = 2; Both = Read | Write; }"
   );
 }
 
@@ -2170,6 +2207,8 @@ int main(void)
   RUN_TEST(test_fail_invalid_syntax);
   RUN_TEST(test_fail_nested_union);
   RUN_TEST(test_fail_enum_zero);
+  RUN_TEST(test_enum_cross_reference_rejected);
+  RUN_TEST(test_enum_same_member_names_allowed);
   RUN_TEST(test_fail_invalid_map_keys);
   RUN_TEST(test_fail_invalid_union_reference);
   RUN_TEST(test_fail_rpc);

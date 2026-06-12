@@ -1348,8 +1348,11 @@ typedef enum {
   bebop__OP_SHIFT = 3,
 } bebop__op_t;
 
+// Enum value expressions may only reference members of the enum being parsed.
+// Bare references to another enum's member are not allowed (they would be
+// ambiguous when names collide), and qualified references are not supported.
 static bool bebop__parse_lookup_enum_member(
-    const bebop_parser_t* p, const bebop_def_t* enum_def, const bebop_str_t name, int64_t* out_val
+    const bebop_def_t* enum_def, const bebop_str_t name, int64_t* out_val
 )
 {
   if (enum_def && enum_def->kind == BEBOP_DEF_ENUM) {
@@ -1361,20 +1364,26 @@ static bool bebop__parse_lookup_enum_member(
     }
   }
 
+  return false;
+}
+
+// Error-path only: report which other enum (if any) defines this name, to turn
+// "Unknown enum member" into a precise cross-enum diagnostic.
+static const bebop_def_t* bebop__parse_find_enum_with_member(
+    const bebop_parser_t* p, const bebop_def_t* current, const bebop_str_t name
+)
+{
   for (const bebop_def_t* def = p->schema->definitions; def != NULL; def = def->next) {
-    if (def->kind != BEBOP_DEF_ENUM) {
+    if (def->kind != BEBOP_DEF_ENUM || def == current) {
       continue;
     }
-
     for (uint32_t j = 0; j < def->enum_def.member_count; j++) {
       if (bebop_str_eq(def->enum_def.members[j].name, name)) {
-        *out_val = (int64_t)def->enum_def.members[j].value;
-        return true;
+        return def;
       }
     }
   }
-
-  return false;
+  return NULL;
 }
 
 #define bebop__EXPR_STACK_SIZE 32
@@ -1459,11 +1468,24 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         }
       } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_IDENTIFIER)) {
         const bebop_token_t* tok = BEBOP_PARSE_ADVANCE(p);
-        if (!bebop__parse_lookup_enum_member(p, enum_def, tok->lexeme, &val)) {
+        if (!bebop__parse_lookup_enum_member(enum_def, tok->lexeme, &val)) {
           const char* name = BEBOP_STR(p->ctx, tok->lexeme);
-          bebop__PARSE_ERROR_FMT(
-              p, tok, BEBOP_DIAG_INVALID_LITERAL, "Unknown enum member '%s'", name ? name : ""
-          );
+          const bebop_def_t* other = bebop__parse_find_enum_with_member(p, enum_def, tok->lexeme);
+          if (other) {
+            const char* other_name = BEBOP_STR(p->ctx, other->name);
+            bebop__PARSE_ERROR_FMT(
+                p,
+                tok,
+                BEBOP_DIAG_INVALID_LITERAL,
+                "'%s' is a member of enum '%s'; an enum value cannot reference another enum's members",
+                name ? name : "",
+                other_name ? other_name : ""
+            );
+          } else {
+            bebop__PARSE_ERROR_FMT(
+                p, tok, BEBOP_DIAG_INVALID_LITERAL, "Unknown enum member '%s'", name ? name : ""
+            );
+          }
           return 0;
         }
       } else {
