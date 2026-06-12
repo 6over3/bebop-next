@@ -228,7 +228,7 @@ void test_any_encode_decode_point(void)
 
   Reflection_Point point = {.x = 1.5f, .y = 2.5f};
 
-  Bebop_Any any;
+  Bebop_Any any = {0};
   TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Any_Pack(ctx, &any, &point, &Reflection_Point__type_info));
 
   TEST_ASSERT_TRUE(Bebop_Any_Is(&any, "reflection.Point"));
@@ -238,7 +238,7 @@ void test_any_encode_decode_point(void)
   TEST_ASSERT_NOT_NULL(type_name);
   TEST_ASSERT_EQUAL_STRING("reflection.Point", type_name);
 
-  Reflection_Point decoded_point;
+  Reflection_Point decoded_point = {0};
   TEST_ASSERT_EQUAL(
       BEBOP_WIRE_OK, Bebop_Any_Unpack(ctx, &any, &decoded_point, &Reflection_Point__type_info)
   );
@@ -255,12 +255,12 @@ void test_any_encode_decode_color(void)
 
   Reflection_Color color = {.r = 255, .g = 128, .b = 64, .a = 255};
 
-  Bebop_Any any;
+  Bebop_Any any = {0};
   TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Any_Pack(ctx, &any, &color, &Reflection_Color__type_info));
 
   TEST_ASSERT_TRUE(Bebop_Any_Is(&any, "reflection.Color"));
 
-  Reflection_Color decoded_color;
+  Reflection_Color decoded_color = {0};
   TEST_ASSERT_EQUAL(
       BEBOP_WIRE_OK, Bebop_Any_Unpack(ctx, &any, &decoded_color, &Reflection_Color__type_info)
   );
@@ -301,7 +301,7 @@ void test_any_dynamic_decode(void)
 
   Reflection_Point point = {.x = 10.0f, .y = 20.0f};
 
-  Bebop_Any any;
+  Bebop_Any any = {0};
   TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Any_Pack(ctx, &any, &point, &Reflection_Point__type_info));
 
   const char* type_name = Bebop_Any_TypeName(&any);
@@ -310,7 +310,7 @@ void test_any_dynamic_decode(void)
   const Bebop_TypeInfo* info = find_type_info(type_name);
   TEST_ASSERT_NOT_NULL(info);
 
-  Reflection_Point decoded_point;
+  Reflection_Point decoded_point = {0};
   TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Any_Unpack(ctx, &any, &decoded_point, info));
 
   TEST_ASSERT_EQUAL_FLOAT(10.0f, decoded_point.x);
