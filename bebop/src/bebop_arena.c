@@ -221,6 +221,28 @@ void* bebop_arena_realloc(
     return NULL;
   }
 
+  // Extend in place when ptr is the most recent allocation in the current
+  // chunk; doubling growth otherwise strands roughly the final size in dead
+  // arena memory.
+  if (arena && arena->current && ptr && old_size > 0) {
+    bebop__chunk_t* chunk = arena->current;
+    const char* data = bebop__chunk_data(chunk);
+    const uintptr_t base = (uintptr_t)data;
+    const uintptr_t addr = (uintptr_t)ptr;
+    if (addr >= base && addr - base <= chunk->capacity) {
+      const size_t offset = (size_t)(addr - base);
+      if (old_size <= chunk->used && offset == chunk->used - old_size
+          && new_size <= chunk->capacity - offset)
+      {
+        chunk->used = offset + new_size;
+        if (new_size > old_size) {
+          memset((char*)(uintptr_t)ptr + old_size, 0, new_size - old_size);
+        }
+        return (void*)(uintptr_t)ptr;
+      }
+    }
+  }
+
   void* new_ptr = bebop_arena_malloc(arena, new_size);
   if (!new_ptr) {
     return NULL;
