@@ -434,8 +434,6 @@ size_t bebop_str_len(const bebop_intern_t* intern, bebop_str_t handle);
 #define bebop_str_is_null(handle) ((handle).idx == 0)
 #define bebop_str_eq(a, b) ((a).idx == (b).idx)
 
-uint64_t bebop_hash_fnv1a(const char* str, size_t len);
-
 typedef int32_t bebop_codepoint_t;
 
 #define BEBOP_CP_INVALID (-1)
