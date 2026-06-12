@@ -816,7 +816,8 @@ bool bebop_util_parse_timestamp(
     int32_t* out_offset_ms
 )
 {
-  if (!str || len < 20 || !out_seconds || !out_nanos || !out_offset_ms) {
+  // 19 chars covers the shortest valid form, YYYY-MM-DDTHH:MM:SS (no zone).
+  if (!str || len < 19 || !out_seconds || !out_nanos || !out_offset_ms) {
     return false;
   }
 
@@ -847,7 +848,12 @@ bool bebop_util_parse_timestamp(
   if (!bebop__util_parse_2digit(&p, end, &day)) {
     return false;
   }
-  if (day < 1 || day > 31) {
+  static const uint8_t bebop__month_days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  int max_day = bebop__month_days[month - 1];
+  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+    max_day = 29;
+  }
+  if (day < 1 || day > max_day) {
     return false;
   }
 
@@ -1024,7 +1030,11 @@ bool bebop_util_parse_duration(
     uint64_t val = 0;
     int digits = 0;
     while (p < end && bebop__digit_val[(unsigned char)*p] < 10) {
-      val = val * 10 + bebop__digit_val[(unsigned char)*p];
+      const uint8_t d = bebop__digit_val[(unsigned char)*p];
+      if (val > (UINT64_MAX - d) / 10) {
+        return false;
+      }
+      val = val * 10 + d;
       digits++;
       p++;
     }
@@ -1059,7 +1069,14 @@ bool bebop_util_parse_duration(
 
     if (p >= end) {
       if (!had_value) {
-        total_nanos = (int64_t)val * 1000000000LL + (int64_t)frac_nanos;
+        if (val > (uint64_t)INT64_MAX / 1000000000ULL) {
+          return false;
+        }
+        const uint64_t whole = val * 1000000000ULL;
+        if (frac_nanos > (uint64_t)INT64_MAX - whole) {
+          return false;
+        }
+        total_nanos = (int64_t)(whole + frac_nanos);
         had_value = true;
       }
       break;
@@ -1114,10 +1131,27 @@ bool bebop_util_parse_duration(
     (void)is_us;
     (void)is_ns;
 
-    total_nanos += (int64_t)(val * multiplier_ns);
-    if (frac_digits > 0 && multiplier_ns >= 1000000000ULL) {
-      total_nanos += (int64_t)frac_nanos * (int64_t)(multiplier_ns / 1000000000ULL);
+    if (val > (uint64_t)INT64_MAX / multiplier_ns) {
+      return false;
     }
+    uint64_t add = val * multiplier_ns;
+
+    // frac_nanos is the fraction scaled to 1e9; scale to the unit without
+    // overflowing (multiplier divides or is divided by 1e9 exactly).
+    if (frac_digits > 0) {
+      const uint64_t frac_contrib = multiplier_ns >= 1000000000ULL
+          ? frac_nanos * (multiplier_ns / 1000000000ULL)
+          : frac_nanos / (1000000000ULL / multiplier_ns);
+      if (frac_contrib > (uint64_t)INT64_MAX - add) {
+        return false;
+      }
+      add += frac_contrib;
+    }
+
+    if (add > (uint64_t)(INT64_MAX - total_nanos)) {
+      return false;
+    }
+    total_nanos += (int64_t)add;
     had_value = true;
   }
 
