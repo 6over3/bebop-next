@@ -45,6 +45,9 @@ static bebop__chunk_t* bebop__chunk_alloc(
     data_size = default_data;
   }
 
+  if (data_size > SIZE_MAX - header_size) {
+    return NULL;
+  }
   const size_t total_size = header_size + data_size;
 
   void* mem = bebop__alloc(&arena->alloc, total_size);
@@ -138,13 +141,17 @@ void* bebop_arena_alloc(bebop_arena_t* arena, size_t size, size_t align)
     align = BEBOP_ARENA_MIN_ALIGN;
   }
 
+  if (BEBOP_UNLIKELY(size > SIZE_MAX - align)) {
+    return NULL;
+  }
+
   bebop__chunk_t* chunk = arena->current;
 
   const char* data = bebop__chunk_data(chunk);
   char* ptr = bebop__align_ptr(data + chunk->used, align);
   size_t offset = (size_t)(ptr - data);
 
-  if (BEBOP_UNLIKELY(offset + size > chunk->capacity)) {
+  if (BEBOP_UNLIKELY(offset > chunk->capacity || size > chunk->capacity - offset)) {
     const size_t needed = size + align;
     bebop__chunk_t* new_chunk = bebop__chunk_alloc(arena, needed, true);
     if (!new_chunk) {
@@ -189,7 +196,7 @@ char* bebop_arena_strdup(bebop_arena_t* arena, const char* str)
 
 char* bebop_arena_strndup(bebop_arena_t* arena, const char* str, size_t len)
 {
-  if (!str) {
+  if (!str || len == SIZE_MAX) {
     return NULL;
   }
 

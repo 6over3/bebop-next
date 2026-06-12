@@ -276,7 +276,17 @@ void* bebop_arena_realloc(bebop_arena_t* arena, const void* ptr, size_t old_size
 
 void bebop_arena_free(const bebop_arena_t* arena, const void* ptr);
 
-#define bebop_arena_new(arena, T, n) ((T*)bebop_arena_alloc((arena), sizeof(T) * (n), _Alignof(T)))
+static inline void* bebop__arena_alloc_n(
+    bebop_arena_t* arena, const size_t elem_size, const size_t n, const size_t align
+)
+{
+  if (n != 0 && elem_size > SIZE_MAX / n) {
+    return NULL;
+  }
+  return bebop_arena_alloc(arena, elem_size * n, align);
+}
+
+#define bebop_arena_new(arena, T, n) ((T*)bebop__arena_alloc_n((arena), sizeof(T), (n), _Alignof(T)))
 
 #define bebop_arena_new1(arena, T) bebop_arena_new((arena), T, 1)
 
