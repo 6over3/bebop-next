@@ -4060,7 +4060,10 @@ static void emit_decode_wrapper(gen_ctx_t* ctx,
 
 static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 {
-  const char* name = type_name(ctx, bebop_descriptor_def_fqn(def));
+  // Copy into a stable buffer: type_name returns a rotating static buffer that
+  // field emission below clobbers before emit_decode_wrapper reads it.
+  char name[GEN_PATH_SIZE];
+  snprintf(name, sizeof(name), "%s", type_name(ctx, bebop_descriptor_def_fqn(def)));
   uint32_t field_count = bebop_descriptor_def_field_count(def);
   bool needs_ctx = def_needs_ctx(def);
   ctx->is_mutable = bebop_descriptor_def_is_mutable(def);
