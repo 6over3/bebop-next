@@ -184,7 +184,7 @@ static bool _log_strbuf_append_char(_log_strbuf_t* buf, char c)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-static bool _log_strbuf_vappendf(_log_strbuf_t* buf, const char* fmt, va_list args)
+static bool _log_strbuf_vappendf_raw(_log_strbuf_t* buf, const char* fmt, va_list args)
 {
   va_list args_copy;
   va_copy(args_copy, args);
@@ -204,6 +204,241 @@ static bool _log_strbuf_vappendf(_log_strbuf_t* buf, const char* fmt, va_list ar
   bool ok = _log_strbuf_append_str(buf, msg);
   free(msg);
   return ok;
+}
+
+// Escape markup metacharacters so substituted values render literally.
+static bool _log_strbuf_append_markup_escaped(_log_strbuf_t* buf, const char* s)
+{
+  for (; *s; s++) {
+    const char esc[2] = {*s, *s};
+    if (*s == '[' || *s == ']') {
+      if (!_log_strbuf_append(buf, esc, 2)) {
+        return false;
+      }
+    } else if (!_log_strbuf_append(buf, s, 1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Star widths/precisions and %n are not worth per-spec handling.
+static bool _log_fmt_is_simple(const char* fmt)
+{
+  for (const char* p = fmt; *p; p++) {
+    if (*p != '%') {
+      continue;
+    }
+    p++;
+    if (*p == '%') {
+      continue;
+    }
+    while (*p && !strchr("diouxXeEfFgGaAcspn", *p)) {
+      if (*p == '*') {
+        return false;
+      }
+      p++;
+    }
+    if (!*p || *p == 'n') {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Format each conversion separately so '[' and ']' coming from string
+// arguments (file names, plugin diagnostics) cannot inject styling or OSC-8
+// hyperlinks into the markup renderer.
+static bool _log_strbuf_vappendf(_log_strbuf_t* buf, const char* fmt, va_list args)
+{
+  if (!_log_fmt_is_simple(fmt)) {
+    return _log_strbuf_vappendf_raw(buf, fmt, args);
+  }
+
+  const char* p = fmt;
+  while (*p) {
+    if (*p != '%') {
+      const char* start = p;
+      while (*p && *p != '%') {
+        p++;
+      }
+      if (!_log_strbuf_append(buf, start, (size_t)(p - start))) {
+        return false;
+      }
+      continue;
+    }
+
+    const char* spec_start = p;
+    p++;
+    if (*p == '%') {
+      if (!_log_strbuf_append_char(buf, '%')) {
+        return false;
+      }
+      p++;
+      continue;
+    }
+
+    while (*p == '-' || *p == '+' || *p == ' ' || *p == '#' || *p == '0') {
+      p++;
+    }
+    while (*p >= '0' && *p <= '9') {
+      p++;
+    }
+    if (*p == '.') {
+      p++;
+      while (*p >= '0' && *p <= '9') {
+        p++;
+      }
+    }
+
+    enum { L_NONE, L_HH, L_H, L_L, L_LL, L_Z, L_T, L_J, L_BIGL } mod = L_NONE;
+    if (p[0] == 'h' && p[1] == 'h') {
+      mod = L_HH;
+      p += 2;
+    } else if (*p == 'h') {
+      mod = L_H;
+      p++;
+    } else if (p[0] == 'l' && p[1] == 'l') {
+      mod = L_LL;
+      p += 2;
+    } else if (*p == 'l') {
+      mod = L_L;
+      p++;
+    } else if (*p == 'z') {
+      mod = L_Z;
+      p++;
+    } else if (*p == 't') {
+      mod = L_T;
+      p++;
+    } else if (*p == 'j') {
+      mod = L_J;
+      p++;
+    } else if (*p == 'L') {
+      mod = L_BIGL;
+      p++;
+    }
+
+    const char conv = *p;
+    if (!conv) {
+      return _log_strbuf_append_str(buf, spec_start);
+    }
+    p++;
+
+    char spec[32];
+    const size_t spec_len = (size_t)(p - spec_start);
+    if (spec_len >= sizeof(spec)) {
+      return false;
+    }
+    memcpy(spec, spec_start, spec_len);
+    spec[spec_len] = '\0';
+
+    char small[256];
+    char* out = small;
+    int n = -1;
+
+#define LOG_FMT_ONE(value) \
+  do { \
+    n = snprintf(small, sizeof(small), spec, (value)); \
+    if (n < 0) { \
+      return false; \
+    } \
+    if (n >= (int)sizeof(small)) { \
+      out = malloc((size_t)n + 1); \
+      if (!out) { \
+        return false; \
+      } \
+      snprintf(out, (size_t)n + 1, spec, (value)); \
+    } \
+  } while (0)
+
+    bool escape = false;
+    switch (conv) {
+      case 's': {
+        const char* sv = va_arg(args, const char*);
+        LOG_FMT_ONE(sv ? sv : "(null)");
+        escape = true;
+        break;
+      }
+      case 'c':
+        LOG_FMT_ONE(va_arg(args, int));
+        escape = true;
+        break;
+      case 'd':
+      case 'i':
+        switch (mod) {
+          case L_LL:
+            LOG_FMT_ONE(va_arg(args, long long));
+            break;
+          case L_L:
+            LOG_FMT_ONE(va_arg(args, long));
+            break;
+          case L_J:
+            LOG_FMT_ONE(va_arg(args, intmax_t));
+            break;
+          case L_Z:
+          case L_T:
+            LOG_FMT_ONE(va_arg(args, ptrdiff_t));
+            break;
+          default:
+            LOG_FMT_ONE(va_arg(args, int));
+            break;
+        }
+        break;
+      case 'u':
+      case 'o':
+      case 'x':
+      case 'X':
+        switch (mod) {
+          case L_LL:
+            LOG_FMT_ONE(va_arg(args, unsigned long long));
+            break;
+          case L_L:
+            LOG_FMT_ONE(va_arg(args, unsigned long));
+            break;
+          case L_J:
+            LOG_FMT_ONE(va_arg(args, uintmax_t));
+            break;
+          case L_Z:
+          case L_T:
+            LOG_FMT_ONE(va_arg(args, size_t));
+            break;
+          default:
+            LOG_FMT_ONE(va_arg(args, unsigned int));
+            break;
+        }
+        break;
+      case 'e':
+      case 'E':
+      case 'f':
+      case 'F':
+      case 'g':
+      case 'G':
+      case 'a':
+      case 'A':
+        if (mod == L_BIGL) {
+          LOG_FMT_ONE(va_arg(args, long double));
+        } else {
+          LOG_FMT_ONE(va_arg(args, double));
+        }
+        break;
+      case 'p':
+        LOG_FMT_ONE(va_arg(args, void*));
+        break;
+      default:
+        return false;
+    }
+#undef LOG_FMT_ONE
+
+    const bool ok = escape ? _log_strbuf_append_markup_escaped(buf, out)
+                           : _log_strbuf_append_str(buf, out);
+    if (out != small) {
+      free(out);
+    }
+    if (!ok) {
+      return false;
+    }
+  }
+  return true;
 }
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
