@@ -384,6 +384,7 @@ typedef struct {
   char** strings;
   uint64_t* hashes;
   uint32_t* lengths;
+  uint32_t* next;  // collision chain for strings sharing a 64-bit hash; 0 ends the chain
   uint32_t count;
   uint32_t capacity;
   bebop_arena_t* arena;
