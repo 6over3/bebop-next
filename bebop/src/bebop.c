@@ -110,16 +110,7 @@ typedef struct {
 #define BEBOP_DISCARD_CONST(type, ptr) ((type)(uintptr_t)(ptr))
 
 #define BEBOP_ARRAY_PUSH(arena, arr, count, cap, T) \
-  (((count) >= (cap)) \
-       ? ((cap) = ((cap) == 0)           ? 16 \
-              : ((cap) > UINT32_MAX / 2) ? 0 \
-                                         : (cap) * 2, \
-          ((cap) == 0) ? NULL \
-                       : ((arr) = (T*)bebop_arena_realloc( \
-                              (arena), (arr), ((cap) / 2) * sizeof(T), (cap) * sizeof(T) \
-                          ), \
-                          (arr) ? &(arr)[(count)++] : NULL)) \
-       : &(arr)[(count)++])
+  ((T*)bebop__array_push((arena), (void**)&(arr), &(count), &(cap), sizeof(T)))
 
 #define BEBOP_DIAG_FMT(schema, sev, code, span, ...) \
   do { \
@@ -275,6 +266,32 @@ void* bebop_arena_malloc(bebop_arena_t* arena, size_t size);
 void* bebop_arena_realloc(bebop_arena_t* arena, const void* ptr, size_t old_size, size_t new_size);
 
 void bebop_arena_free(const bebop_arena_t* arena, const void* ptr);
+
+// Grow-and-push for uint32_t-counted arrays. Leaves arr/count/cap untouched
+// and returns NULL on capacity overflow or OOM.
+static inline void* bebop__array_push(
+    bebop_arena_t* arena, void** arr, uint32_t* count, uint32_t* cap, const size_t elem_size
+)
+{
+  if (*count >= *cap) {
+    if (*cap > UINT32_MAX / 2) {
+      return NULL;
+    }
+    const uint32_t new_cap = (*cap == 0) ? 16 : *cap * 2;
+    if ((size_t)new_cap > SIZE_MAX / elem_size) {
+      return NULL;
+    }
+    void* new_arr = bebop_arena_realloc(
+        arena, *arr, (size_t)*cap * elem_size, (size_t)new_cap * elem_size
+    );
+    if (!new_arr) {
+      return NULL;
+    }
+    *arr = new_arr;
+    *cap = new_cap;
+  }
+  return (char*)*arr + (size_t)(*count)++ * elem_size;
+}
 
 static inline void* bebop__arena_alloc_n(
     bebop_arena_t* arena, const size_t elem_size, const size_t n, const size_t align
