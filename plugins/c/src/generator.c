@@ -3629,6 +3629,9 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
   const char* ret = ctx->in_step_fn ? "return -(int)r" : "return r";
   const char* ret_oom = ctx->in_step_fn ? "return -(int)BEBOP_WIRE_ERR_OOM"
                                         : "return BEBOP_WIRE_ERR_OOM";
+  const char* ret_malformed = ctx->in_step_fn
+      ? "return -(int)BEBOP_WIRE_ERR_MALFORMED"
+      : "return BEBOP_WIRE_ERR_MALFORMED";
 
   stack[top++] = (size_work_t) {type, "", 0, ctx->loop_depth, is_ptr};
   snprintf(stack[0].access, GEN_PATH_SIZE, "%s", target);
@@ -3694,6 +3697,8 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         const bebop_descriptor_type_t* elem =
             bebop_descriptor_type_element(w->type);
         bebop_type_kind_t ek = bebop_descriptor_type_kind(elem);
+        const type_info_t* guard_eti = type_info(ek);
+        bool zero_copy = guard_eti && guard_eti->size > 0 && ek != BEBOP_TYPE_STRING;
 
         char arr_type[256];
         get_ctype_str(ctx, w->type, arr_type, sizeof(arr_type));
@@ -3704,6 +3709,18 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         emit(ctx,
              "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
              ret);
+        // The count comes from the wire; cap it by the bytes actually left so
+        // a tiny payload cannot claim a huge array (OOB view / OOM alloc).
+        if (zero_copy) {
+          emit(ctx,
+               "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd) / %s)) %s;",
+               guard_eti->size_macro,
+               ret_malformed);
+        } else {
+          emit(ctx,
+               "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+               ret_malformed);
+        }
         if (ctx->is_mutable) {
           emit(ctx, "%s.length = _len;", w->access);
         } else {
@@ -3730,7 +3747,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
                             "BEBOP_WIRE_MUTPTR(%s, &%s)->capacity = 0;",
                             arr_type, w->access);
           }
-          emit(ctx, "Bebop_Reader_Skip(rd, _len * %s);", eti->size_macro);
+          emit(ctx, "Bebop_Reader_Skip(rd, (size_t)_len * %s);", eti->size_macro);
           ctx->indent--;
           emit(ctx, "}");
           top--;
@@ -3750,7 +3767,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
 
           emit(
               ctx,
-              "%s (*_d%d)%s = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d%d));",
+              "%s (*_d%d)%s = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
               inner_type,
               w->loop_var,
               dims.data ? dims.data : "",
@@ -3789,7 +3806,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         get_ctype_str(ctx, elem, elem_type, sizeof(elem_type));
 
         emit(ctx,
-             "%s *_d%d = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d%d));",
+             "%s *_d%d = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
              elem_type,
              w->loop_var,
              w->loop_var);
@@ -3880,6 +3897,9 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         emit(ctx,
              "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
              ret);
+        emit(ctx,
+             "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+             ret_malformed);
         if (ctx->is_mutable) {
           emit(ctx, "Bebop_Map_Init(&%s, ctx, %s, %s);", w->access, hash_fn, eq_fn);
         } else {

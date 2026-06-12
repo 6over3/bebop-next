@@ -588,19 +588,25 @@ static Bebop_WireResult Reflection_ArrayContainer__DecodeBody(
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd) / BEBOP_WIRE_SIZE_INT32)) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->length = _len;
     BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->data =
         BEBOP_WIRE_CASTPTR(int32_t*, Bebop_Reader_Ptr(rd));
     BEBOP_WIRE_MUTPTR(Bebop_I32_Array, &v->integers)->capacity = 0;
-    Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_INT32);
+    Bebop_Reader_Skip(rd, (size_t)_len * BEBOP_WIRE_SIZE_INT32);
   }
   {
     uint32_t _len;
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     BEBOP_WIRE_MUTPTR(Bebop_Str_Array, &v->strings)->length = _len;
-    Bebop_Str* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    Bebop_Str* _d0 = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d0));
     if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
       return BEBOP_WIRE_ERR_OOM;
     }
@@ -624,8 +630,11 @@ static Bebop_WireResult Reflection_ArrayContainer__DecodeBody(
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     BEBOP_WIRE_MUTPTR(Reflection_Point_Array, &v->points)->length = _len;
-    Reflection_Point* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    Reflection_Point* _d0 = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d0));
     if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
       return BEBOP_WIRE_ERR_OOM;
     }
@@ -844,6 +853,9 @@ static Bebop_WireResult Reflection_MapContainer__DecodeBody(
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     Bebop_Map_Init(
         BEBOP_WIRE_MUTPTR(Bebop_Map, &v->string_to_int), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str
     );
@@ -872,6 +884,9 @@ static Bebop_WireResult Reflection_MapContainer__DecodeBody(
     uint32_t _len;
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
+    }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
     }
     Bebop_Map_Init(
         BEBOP_WIRE_MUTPTR(Bebop_Map, &v->int_to_point), ctx, Bebop_MapHash_I32, Bebop_MapEq_I32
@@ -1645,8 +1660,11 @@ static Bebop_WireResult Reflection_AnyContainer__DecodeBody(
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     BEBOP_WIRE_MUTPTR(Bebop_Any_Array, &v->items)->length = _len;
-    Bebop_Any* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+    Bebop_Any* _d0 = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d0));
     if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
       return BEBOP_WIRE_ERR_OOM;
     }
@@ -1669,6 +1687,9 @@ static Bebop_WireResult Reflection_AnyContainer__DecodeBody(
     uint32_t _len;
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
+    }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+      return BEBOP_WIRE_ERR_MALFORMED;
     }
     Bebop_Map_Init(
         BEBOP_WIRE_MUTPTR(Bebop_Map, &v->named), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str

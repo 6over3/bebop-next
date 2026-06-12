@@ -58,11 +58,14 @@ static Bebop_WireResult Bebop_Any__DecodeBody(Bebop_WireCtx* ctx, Bebop_Reader* 
     if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
       return r;
     }
+    if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd) / BEBOP_WIRE_SIZE_BYTE)) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
     BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->length = _len;
     BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->data =
         BEBOP_WIRE_CASTPTR(uint8_t*, Bebop_Reader_Ptr(rd));
     BEBOP_WIRE_MUTPTR(Bebop_U8_Array, &v->value)->capacity = 0;
-    Bebop_Reader_Skip(rd, _len * BEBOP_WIRE_SIZE_BYTE);
+    Bebop_Reader_Skip(rd, (size_t)_len * BEBOP_WIRE_SIZE_BYTE);
   }
   // @@bebop_insertion_point(decode_end:Bebop_Any)
   return BEBOP_WIRE_OK;

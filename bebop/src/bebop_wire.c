@@ -2724,6 +2724,11 @@ const uint8_t* Bebop_Reader_Ptr(const Bebop_Reader* reader)
   return reader ? reader->current : NULL;
 }
 
+size_t Bebop_Reader_Remaining(const Bebop_Reader* reader)
+{
+  return reader ? (size_t)(reader->end - reader->current) : 0;
+}
+
 size_t Bebop_Writer_Len(const Bebop_Writer* writer)
 {
   return writer ? (size_t)(writer->current - writer->buffer) : 0;
@@ -2758,6 +2763,14 @@ void* Bebop_WireCtx_Alloc(Bebop_WireCtx* context, size_t size)
 void* Bebop_WireCtx_Realloc(Bebop_WireCtx* context, void* ptr, size_t old_size, size_t new_size)
 {
   return context ? bebop_wire_arena_realloc(context->arena, ptr, old_size, new_size) : NULL;
+}
+
+void* Bebop_WireCtx_AllocArray(Bebop_WireCtx* context, size_t count, size_t elem_size)
+{
+  if (!context || (elem_size != 0 && count > SIZE_MAX / elem_size)) {
+    return NULL;
+  }
+  return bebop_wire_arena_alloc(context->arena, count * elem_size);
 }
 
 // #region Map Implementation (SwissTable)

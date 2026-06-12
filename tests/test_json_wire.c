@@ -35,6 +35,7 @@ void test_json_string(void);
 void test_json_nested_array(void);
 void test_json_nested_object(void);
 void test_decode_depth_limit(void);
+void test_decode_oversized_array_count(void);
 void test_document(void);
 
 void test_json_null(void)
@@ -338,6 +339,23 @@ void test_decode_depth_limit(void)
   Bebop_WireCtx_Free(ctx);
 }
 
+void test_decode_oversized_array_count(void)
+{
+  Bebop_WireCtx* ctx = _test_ctx_new();
+
+  // Bebop_List frame: len=6, tag=VALUES(1), then an array count of
+  // 0xFFFFFFFF with one trailing byte — far more elements than remain.
+  const uint8_t payload[] = {6, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
+
+  Bebop_Reader* rd;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Reader(ctx, payload, sizeof(payload), &rd));
+
+  Bebop_List decoded = {0};
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_List_Decode(ctx, rd, &decoded));
+
+  Bebop_WireCtx_Free(ctx);
+}
+
 void test_document(void)
 {
   Bebop_WireCtx* ctx = _test_ctx_new();
@@ -389,6 +407,7 @@ int main(void)
   RUN_TEST(test_json_nested_array);
   RUN_TEST(test_json_nested_object);
   RUN_TEST(test_decode_depth_limit);
+  RUN_TEST(test_decode_oversized_array_count);
   RUN_TEST(test_document);
   return UNITY_END();
 }

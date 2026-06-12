@@ -476,8 +476,11 @@ static Bebop_WireResult Bebop_Value_List__DecodeBody(
           if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
             return r;
           }
+          if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+            return BEBOP_WIRE_ERR_MALFORMED;
+          }
           BEBOP_WIRE_MUTPTR(Bebop_Value_Array, &v->values.value)->length = _len;
-          Bebop_Value* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+          Bebop_Value* _d0 = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d0));
           if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
             return BEBOP_WIRE_ERR_OOM;
           }
@@ -631,6 +634,9 @@ static Bebop_WireResult Bebop_Value_Map__DecodeBody(
           uint32_t _len;
           if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
             return r;
+          }
+          if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+            return BEBOP_WIRE_ERR_MALFORMED;
           }
           Bebop_Map_Init(
               BEBOP_WIRE_MUTPTR(Bebop_Map, &v->fields.value), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str
@@ -957,6 +963,9 @@ static Bebop_WireResult Bebop_Object__DecodeBody(
           if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
             return r;
           }
+          if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+            return BEBOP_WIRE_ERR_MALFORMED;
+          }
           Bebop_Map_Init(
               BEBOP_WIRE_MUTPTR(Bebop_Map, &v->fields.value), ctx, Bebop_MapHash_Str, Bebop_MapEq_Str
           );
@@ -1098,8 +1107,11 @@ static Bebop_WireResult Bebop_List__DecodeBody(Bebop_WireCtx* ctx, Bebop_Reader*
           if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) {
             return r;
           }
+          if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) {
+            return BEBOP_WIRE_ERR_MALFORMED;
+          }
           BEBOP_WIRE_MUTPTR(Bebop_Value_Array, &v->values.value)->length = _len;
-          Bebop_Value* _d0 = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d0));
+          Bebop_Value* _d0 = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d0));
           if (BEBOP_WIRE_UNLIKELY(!_d0 && _len > 0)) {
             return BEBOP_WIRE_ERR_OOM;
           }
