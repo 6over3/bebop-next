@@ -224,11 +224,20 @@ static const uint8_t bebop__digit_val[256] = {
 
 static _locale_t bebop__c_locale(void)
 {
-  static _locale_t loc = NULL;
-  if (!loc) {
-    loc = _create_locale(LC_ALL, "C");
+  static _locale_t volatile loc = NULL;
+  _locale_t l = loc;
+  if (!l) {
+    _locale_t fresh = _create_locale(LC_ALL, "C");
+    _locale_t prev =
+        (_locale_t)_InterlockedCompareExchangePointer((void* volatile*)&loc, fresh, NULL);
+    if (prev) {
+      _free_locale(fresh);
+      l = prev;
+    } else {
+      l = fresh;
+    }
   }
-  return loc;
+  return l;
 }
 #elif defined(__APPLE__) || defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) \
     || defined(__OpenBSD__)
@@ -237,10 +246,21 @@ static _locale_t bebop__c_locale(void)
 static locale_t bebop__c_locale(void)
 {
   static locale_t loc = NULL;
-  if (!loc) {
-    loc = newlocale(LC_ALL_MASK, "C", NULL);
+  locale_t l = __atomic_load_n(&loc, __ATOMIC_ACQUIRE);
+  if (!l) {
+    locale_t fresh = newlocale(LC_ALL_MASK, "C", NULL);
+    locale_t expected = NULL;
+    if (__atomic_compare_exchange_n(
+            &loc, &expected, fresh, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE
+        ))
+    {
+      l = fresh;
+    } else {
+      freelocale(fresh);
+      l = expected;
+    }
   }
-  return loc;
+  return l;
 }
 #endif
 
