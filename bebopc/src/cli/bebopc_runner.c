@@ -154,6 +154,37 @@ static void _report_plugin_diagnostics(
   }
 }
 
+// Plugin responses are untrusted: emitted file names must stay inside
+// out_dir, so reject absolute paths, drive letters, and ".." components.
+static bool _plugin_file_name_is_safe(const char* name)
+{
+  if (!name || !name[0]) {
+    return false;
+  }
+  if (name[0] == '/' || name[0] == '\\') {
+    return false;
+  }
+  if (((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z'))
+      && name[1] == ':')
+  {
+    return false;
+  }
+  for (const char* p = name; *p;) {
+    size_t seg_len = 0;
+    while (p[seg_len] && p[seg_len] != '/' && p[seg_len] != '\\') {
+      seg_len++;
+    }
+    if (seg_len == 2 && p[0] == '.' && p[1] == '.') {
+      return false;
+    }
+    p += seg_len;
+    while (*p == '/' || *p == '\\') {
+      p++;
+    }
+  }
+  return true;
+}
+
 static bebopc_error_code_t _write_generated_files(
     bebopc_runner_t* r, const bebopc_plugin_t* gen, bebop_plugin_response_t* resp
 )
@@ -168,6 +199,18 @@ static bebopc_error_code_t _write_generated_files(
       continue;
     }
     if (bebop_plugin_response_file_insertion_point(resp, i)) {
+      continue;
+    }
+
+    if (!_plugin_file_name_is_safe(name)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] refusing file path outside output directory: %s",
+          gen->name,
+          name
+      );
+      result = BEBOPC_ERR_INVALID_ARG;
       continue;
     }
 
@@ -195,6 +238,18 @@ static bebopc_error_code_t _write_generated_files(
       continue;
     }
 
+    if (!_plugin_file_name_is_safe(name)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] refusing file path outside output directory: %s",
+          gen->name,
+          name
+      );
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
+
     char* full_path = bebopc_path_join(gen->out_dir, name);
     if (!full_path) {
       result = BEBOPC_ERR_OUT_OF_MEMORY;
@@ -217,7 +272,20 @@ static bebopc_error_code_t _write_generated_files(
     }
 
     char marker[256];
-    snprintf(marker, sizeof(marker), "// @@bebop_insertion_point(%s)", point);
+    const int marker_n = snprintf(marker, sizeof(marker), "// @@bebop_insertion_point(%s)", point);
+    if (marker_n < 0 || (size_t)marker_n >= sizeof(marker)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] insertion point name too long: %s",
+          gen->name,
+          point
+      );
+      free(file_content);
+      free(full_path);
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
 
     char* insert_pos = strstr(file_content, marker);
     if (!insert_pos) {
@@ -238,6 +306,12 @@ static bebopc_error_code_t _write_generated_files(
     size_t before_len = (size_t)(insert_pos - file_content);
     size_t insert_len = bebopc_strlen(content);
     size_t marker_len = bebopc_strlen(marker);
+    if (before_len + marker_len > file_size) {
+      free(file_content);
+      free(full_path);
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
     size_t after_len = file_size - before_len - marker_len;
     size_t new_size = before_len + insert_len + marker_len + after_len;
 
