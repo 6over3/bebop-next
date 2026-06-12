@@ -309,7 +309,14 @@ static inline void* bebop__arena_alloc_n(
 
 static inline void* bebop__cwiss_alloc(const size_t size, const size_t align, void* ctx)
 {
-  return bebop_arena_alloc(ctx, size, align);
+  void* ptr = bebop_arena_alloc(ctx, size, align);
+  if (BEBOP_UNLIKELY(!ptr)) {
+    // cwisstable writes to the returned block unchecked; fail fast with a
+    // diagnostic instead of dereferencing NULL (matches its malloc policy).
+    fprintf(stderr, "bebop: out of memory growing hash table (%zu bytes)\n", size);
+    abort();
+  }
+  return ptr;
 }
 
 static inline void bebop__cwiss_free(void* ptr, const size_t size, const size_t align, void* ctx)
@@ -1539,6 +1546,10 @@ static bebop_status_t bebop__parse_impl(bebop__work_list_t* wl)
     }
 
     bebop__result_add_schema(result, schema);
+
+    if (bebop_context_last_error(ctx) != BEBOP_ERR_NONE) {
+      return BEBOP_FATAL;
+    }
 
     if (!bebop__process_imports(wl, schema)) {
       return BEBOP_FATAL;

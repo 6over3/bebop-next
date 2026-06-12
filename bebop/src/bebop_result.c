@@ -27,6 +27,9 @@ void bebop__result_add_schema(bebop_parse_result_t* result, bebop_schema_t* sche
     bebop_schema_t** new_schemas =
         bebop_arena_new(BEBOP_ARENA(result->ctx), bebop_schema_t*, new_capacity);
     if (BEBOP_UNLIKELY(!new_schemas)) {
+      // Dropping the schema silently lets the build report success with its
+      // diagnostics and definitions missing.
+      bebop__context_set_error(result->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to grow schema list");
       return;
     }
 
