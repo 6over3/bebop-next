@@ -106,16 +106,18 @@ static void bebop__scan_trivia_push(
   }
 
   if (s->trivia_count >= s->trivia_capacity) {
-    const uint32_t new_cap =
-        s->trivia_capacity == 0 ? BEBOP_TRIVIA_INITIAL_CAPACITY : s->trivia_capacity * 2;
-    bebop_trivia_t* new_buf = bebop_arena_new(BEBOP_ARENA(s->ctx), bebop_trivia_t, new_cap);
+    const uint32_t old_cap = s->trivia_capacity;
+    const uint32_t new_cap = old_cap == 0 ? BEBOP_TRIVIA_INITIAL_CAPACITY : old_cap * 2;
+    bebop_trivia_t* new_buf = bebop_arena_realloc(
+        BEBOP_ARENA(s->ctx),
+        s->trivia_buf,
+        (size_t)old_cap * sizeof(bebop_trivia_t),
+        (size_t)new_cap * sizeof(bebop_trivia_t)
+    );
     if (!new_buf) {
       s->error = BEBOP_ERR_OUT_OF_MEMORY;
       bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate trivia buffer");
       return;
-    }
-    if (s->trivia_buf && s->trivia_count > 0) {
-      memcpy(new_buf, s->trivia_buf, s->trivia_count * sizeof(bebop_trivia_t));
     }
     s->trivia_buf = new_buf;
     s->trivia_capacity = new_cap;
@@ -123,26 +125,11 @@ static void bebop__scan_trivia_push(
   s->trivia_buf[s->trivia_count++] = (bebop_trivia_t) {.kind = kind, .span = span};
 }
 
-static bebop_trivia_list_t bebop__scan_trivia_finalize(bebop__scanner_t* s)
+// Trivia accumulates into one append-only buffer for the whole file; a list is
+// just an (offset, count) slice, resolved to a pointer after the scan.
+static bebop_trivia_list_t bebop__scan_trivia_slice(const bebop__scanner_t* s, uint32_t mark)
 {
-  bebop_trivia_list_t list = {0};
-  if (s->error != BEBOP_ERR_NONE) {
-    return list;
-  }
-
-  if (s->trivia_count > 0) {
-    list.items = bebop_arena_new(BEBOP_ARENA(s->ctx), bebop_trivia_t, s->trivia_count);
-    if (!list.items) {
-      s->error = BEBOP_ERR_OUT_OF_MEMORY;
-      bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate trivia list");
-      s->trivia_count = 0;
-      return list;
-    }
-    memcpy(list.items, s->trivia_buf, s->trivia_count * sizeof(bebop_trivia_t));
-    list.count = s->trivia_count;
-    s->trivia_count = 0;
-  }
-  return list;
+  return (bebop_trivia_list_t) {.items = NULL, .count = s->trivia_count - mark, .off = mark};
 }
 
 static void bebop__scan_skip_whitespace(bebop__scanner_t* s)
@@ -267,7 +254,7 @@ static void bebop__scan_skip_leading_trivia(bebop__scanner_t* s)
 
 static bebop_trivia_list_t bebop__scan_collect_trailing_trivia(bebop__scanner_t* s)
 {
-  s->trivia_count = 0;
+  const uint32_t mark = s->trivia_count;
 
   for (;;) {
     bebop__scan_skip_whitespace(s);
@@ -286,7 +273,7 @@ static bebop_trivia_list_t bebop__scan_collect_trailing_trivia(bebop__scanner_t*
     break;
   }
 
-  return bebop__scan_trivia_finalize(s);
+  return bebop__scan_trivia_slice(s, mark);
 }
 
 static bebop_token_t bebop__scan_identifier(bebop__scanner_t* s)
@@ -355,162 +342,25 @@ static bool bebop__scan_grow_buf(bebop__scanner_t* s, char** buf, size_t* buf_ca
   return true;
 }
 
-static bebop_token_t bebop__scan_bytes(bebop__scanner_t* s)
+// Shared scanner for string and bytes literals; they differ only in the b
+// prefix, the UTF-8 validation, and the token kind.
+static bebop_token_t bebop__scan_quoted(bebop__scanner_t* s, const bool is_bytes)
 {
   const size_t start = s->pos;
   const uint32_t start_line = s->line;
   const uint32_t start_col = s->col;
 
-  bebop__scan_advance(s);
-
-  const char quote = bebop__scan_peek_char(s);
-  if (quote != '"' && quote != '\'') {
-    return (bebop_token_t) {
-        .kind = BEBOP_TOKEN_ERROR,
-        .span = bebop__scan_make_span(s, start, start_line, start_col),
-    };
-  }
-  bebop__scan_advance(s);
-
-  char* buf = NULL;
-  size_t buf_len = 0;
-  size_t buf_cap = 0;
-
-  while (bebop__scan_peek_char(s) != '\0' && s->error == BEBOP_ERR_NONE) {
-    const char c = bebop__scan_peek_char(s);
-
-    if (c == quote) {
-      if (bebop__scan_peek_char_at(s, 1) == quote) {
-        bebop__scan_advance(s);
-        bebop__scan_advance(s);
-        if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-          break;
-        }
-        buf[buf_len++] = quote;
-      } else {
-        bebop__scan_advance(s);
-        goto done_bytes;
-      }
-    } else if (c == '\\') {
-      const size_t esc_start = s->pos;
-      const uint32_t esc_line = s->line;
-      const uint32_t esc_col = s->col;
-      bebop__scan_advance(s);
-
-      const size_t remaining = s->source_len - s->pos;
-      char esc_out[4];
-      int esc_out_len = 0;
-      const int consumed =
-          bebop_unescape_char(s->source + s->pos, remaining, esc_out, &esc_out_len);
-
-      if (consumed == 0) {
-        if (s->schema) {
-          bebop__schema_add_diagnostic(
-              s->schema,
-              (bebop__diag_loc_t) {BEBOP_DIAG_ERROR,
-                                   BEBOP_DIAG_INVALID_ESCAPE,
-                                   bebop__scan_make_span(s, esc_start, esc_line, esc_col)},
-              "Invalid escape sequence",
-              NULL
-          );
-        }
-        goto skip_bytes_to_end;
-      }
-
-      while (buf_len + (size_t)esc_out_len > buf_cap) {
-        if (!bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-          break;
-        }
-      }
-      if (s->error != BEBOP_ERR_NONE) {
-        break;
-      }
-      for (int i = 0; i < esc_out_len; i++) {
-        buf[buf_len++] = esc_out[i];
-      }
-      for (int i = 0; i < consumed; i++) {
-        bebop__scan_advance(s);
-      }
-    } else if (c == '\r' && bebop__scan_peek_char_at(s, 1) == '\n') {
-      if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-        break;
-      }
-      buf[buf_len++] = '\n';
-      bebop__scan_advance(s);
-      bebop__scan_advance(s);
-      s->line++;
-      s->col = 1;
-    } else if (BEBOP_IS_NEWLINE(c)) {
-      if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-        break;
-      }
-      buf[buf_len++] = '\n';
-      bebop__scan_advance(s);
-      s->line++;
-      s->col = 1;
-    } else {
-      if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-        break;
-      }
-      buf[buf_len++] = c;
-      bebop__scan_advance(s);
-    }
-  }
-
-done_bytes:
-  if (s->error != BEBOP_ERR_NONE) {
-    return (bebop_token_t) {
-        .kind = BEBOP_TOKEN_ERROR,
-        .span = bebop__scan_make_span(s, start, start_line, start_col),
-    };
-  }
-
-  if (buf_len >= buf_cap) {
-    const size_t final_cap = buf_len + 1;
-    char* new_buf = bebop_arena_new(BEBOP_ARENA(s->ctx), char, final_cap);
-    if (!new_buf) {
-      s->error = BEBOP_ERR_OUT_OF_MEMORY;
-      bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate bytes buffer");
-      return (bebop_token_t) {
-          .kind = BEBOP_TOKEN_ERROR,
-          .span = bebop__scan_make_span(s, start, start_line, start_col),
-      };
-    }
-    if (buf && buf_len > 0) {
-      memcpy(new_buf, buf, buf_len);
-    }
-    buf = new_buf;
-  }
-  if (buf) {
-    buf[buf_len] = '\0';
-  }
-
-  return (bebop_token_t) {
-      .kind = BEBOP_TOKEN_BYTES,
-      .span = bebop__scan_make_span(s, start, start_line, start_col),
-      .lexeme = bebop_intern_n(BEBOP_INTERN(s->ctx), buf ? buf : "", buf_len),
-  };
-
-skip_bytes_to_end:
-  while (bebop__scan_peek_char(s) != '\0') {
-    const char c = bebop__scan_peek_char(s);
-    if (c == quote && bebop__scan_peek_char_at(s, 1) != quote) {
-      bebop__scan_advance(s);
-      break;
-    }
+  if (is_bytes) {
     bebop__scan_advance(s);
-  }
-  return (bebop_token_t) {
-      .kind = BEBOP_TOKEN_ERROR,
-      .span = bebop__scan_make_span(s, start, start_line, start_col),
-  };
-}
 
-static bebop_token_t bebop__scan_string(bebop__scanner_t* s)
-{
-  const size_t start = s->pos;
-  const uint32_t start_line = s->line;
-  const uint32_t start_col = s->col;
+    const char prefix_quote = bebop__scan_peek_char(s);
+    if (prefix_quote != '"' && prefix_quote != '\'') {
+      return (bebop_token_t) {
+          .kind = BEBOP_TOKEN_ERROR,
+          .span = bebop__scan_make_span(s, start, start_line, start_col),
+      };
+    }
+  }
 
   const char quote = bebop__scan_peek_char(s);
   bebop__scan_advance(s);
@@ -532,7 +382,7 @@ static bebop_token_t bebop__scan_string(bebop__scanner_t* s)
         buf[buf_len++] = quote;
       } else {
         bebop__scan_advance(s);
-        goto done;
+        goto done_lit;
       }
     } else if (c == '\\') {
       const size_t esc_start = s->pos;
@@ -557,7 +407,7 @@ static bebop_token_t bebop__scan_string(bebop__scanner_t* s)
               NULL
           );
         }
-        goto skip_to_end;
+        goto skip_lit_to_end;
       }
 
       while (buf_len + (size_t)esc_out_len > buf_cap) {
@@ -574,23 +424,14 @@ static bebop_token_t bebop__scan_string(bebop__scanner_t* s)
       for (int i = 0; i < consumed; i++) {
         bebop__scan_advance(s);
       }
-    } else if (c == '\r' && bebop__scan_peek_char_at(s, 1) == '\n') {
-      if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
-        break;
-      }
-      buf[buf_len++] = '\n';
-      bebop__scan_advance(s);
-      bebop__scan_advance(s);
-      s->line++;
-      s->col = 1;
     } else if (BEBOP_IS_NEWLINE(c)) {
       if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
         break;
       }
       buf[buf_len++] = '\n';
+      // bebop__scan_advance consumes a full \r\n pair and tracks line/col;
+      // advancing again here would eat a content byte and double-count lines.
       bebop__scan_advance(s);
-      s->line++;
-      s->col = 1;
     } else {
       if (buf_len >= buf_cap && !bebop__scan_grow_buf(s, &buf, &buf_cap, buf_len)) {
         break;
@@ -600,7 +441,8 @@ static bebop_token_t bebop__scan_string(bebop__scanner_t* s)
     }
   }
 
-done:
+
+done_lit:
   if (s->error != BEBOP_ERR_NONE) {
     return (bebop_token_t) {
         .kind = BEBOP_TOKEN_ERROR,
@@ -613,7 +455,7 @@ done:
     char* new_buf = bebop_arena_new(BEBOP_ARENA(s->ctx), char, final_cap);
     if (!new_buf) {
       s->error = BEBOP_ERR_OUT_OF_MEMORY;
-      bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate string buffer");
+      bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate literal buffer");
       return (bebop_token_t) {
           .kind = BEBOP_TOKEN_ERROR,
           .span = bebop__scan_make_span(s, start, start_line, start_col),
@@ -628,7 +470,7 @@ done:
     buf[buf_len] = '\0';
   }
 
-  if (buf_len > 0 && !bebop_utf8_valid(buf, buf_len)) {
+  if (!is_bytes && buf_len > 0 && !bebop_utf8_valid(buf, buf_len)) {
     if (s->schema) {
       bebop__schema_add_diagnostic(
           s->schema,
@@ -646,12 +488,12 @@ done:
   }
 
   return (bebop_token_t) {
-      .kind = BEBOP_TOKEN_STRING,
+      .kind = is_bytes ? BEBOP_TOKEN_BYTES : BEBOP_TOKEN_STRING,
       .span = bebop__scan_make_span(s, start, start_line, start_col),
       .lexeme = bebop_intern_n(BEBOP_INTERN(s->ctx), buf ? buf : "", buf_len),
   };
 
-skip_to_end:
+skip_lit_to_end:
   while (bebop__scan_peek_char(s) != '\0') {
     const char c = bebop__scan_peek_char(s);
     if (c == quote && bebop__scan_peek_char_at(s, 1) != quote) {
@@ -685,7 +527,7 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
     if (c == 'b') {
       const char next = bebop__scan_peek_char_at(s, 1);
       if (next == '"' || next == '\'') {
-        return bebop__scan_bytes(s);
+        return bebop__scan_quoted(s, true);
       }
     }
     return bebop__scan_identifier(s);
@@ -696,7 +538,7 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
   }
 
   if (c == '"' || c == '\'') {
-    return bebop__scan_string(s);
+    return bebop__scan_quoted(s, false);
   }
 
   bebop__scan_advance(s);
@@ -832,11 +674,12 @@ static bebop_token_t bebop__scan_next(bebop__scanner_t* s)
     return (bebop_token_t) {.kind = BEBOP_TOKEN_EOF};
   }
 
+  const uint32_t leading_mark = s->trivia_count;
   bebop__scan_skip_leading_trivia(s);
   if (s->error != BEBOP_ERR_NONE) {
     return (bebop_token_t) {.kind = BEBOP_TOKEN_EOF};
   }
-  const bebop_trivia_list_t leading = bebop__scan_trivia_finalize(s);
+  const bebop_trivia_list_t leading = bebop__scan_trivia_slice(s, leading_mark);
 
   bebop_token_t tok = bebop__scan_token(s);
   tok.leading = leading;
@@ -865,23 +708,32 @@ bebop_token_stream_t bebop__scan_with_schema(
       .error = BEBOP_ERR_NONE,
   };
 
-  bebop_token_t* tokens = NULL;
+  // Estimate token count from source length to avoid repeated doublings; the
+  // average token (keyword/identifier/punct plus surrounding whitespace) is a
+  // handful of bytes, so len/4 + 16 is a reasonable starting point.
+  uint32_t capacity = (uint32_t)(len / 4) + 16;
+  bebop_token_t* tokens = bebop_arena_new(BEBOP_ARENA(ctx), bebop_token_t, capacity);
   uint32_t count = 0;
-  uint32_t capacity = 0;
+  if (!tokens) {
+    s.error = BEBOP_ERR_OUT_OF_MEMORY;
+    bebop__context_set_error(ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate token buffer");
+  }
 
   while (s.error == BEBOP_ERR_NONE) {
     const bebop_token_t tok = bebop__scan_next(&s);
 
     if (count >= capacity) {
-      const uint32_t new_cap = capacity == 0 ? 64 : capacity * 2;
-      bebop_token_t* new_buf = bebop_arena_new(BEBOP_ARENA(ctx), bebop_token_t, new_cap);
+      const uint32_t new_cap = capacity * 2;
+      bebop_token_t* new_buf = bebop_arena_realloc(
+          BEBOP_ARENA(ctx),
+          tokens,
+          (size_t)capacity * sizeof(bebop_token_t),
+          (size_t)new_cap * sizeof(bebop_token_t)
+      );
       if (!new_buf) {
         s.error = BEBOP_ERR_OUT_OF_MEMORY;
         bebop__context_set_error(ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate token buffer");
         break;
-      }
-      if (tokens && count > 0) {
-        memcpy(new_buf, tokens, count * sizeof(bebop_token_t));
       }
       tokens = new_buf;
       capacity = new_cap;
@@ -891,6 +743,19 @@ bebop_token_stream_t bebop__scan_with_schema(
 
     if (tok.kind == BEBOP_TOKEN_EOF) {
       break;
+    }
+  }
+
+  // Resolve each token's trivia (offset, count) slice against the now-final
+  // shared buffer base.
+  if (s.error == BEBOP_ERR_NONE) {
+    for (uint32_t i = 0; i < count; i++) {
+      if (tokens[i].leading.count > 0) {
+        tokens[i].leading.items = s.trivia_buf + tokens[i].leading.off;
+      }
+      if (tokens[i].trailing.count > 0) {
+        tokens[i].trailing.items = s.trivia_buf + tokens[i].trailing.off;
+      }
     }
   }
 

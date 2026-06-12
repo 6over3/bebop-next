@@ -852,8 +852,9 @@ typedef struct {
 } bebop_trivia_t;
 
 typedef struct {
-  bebop_trivia_t* items;
+  bebop_trivia_t* items;  // resolved after the scan; off indexes the shared buffer until then
   uint32_t count;
+  uint32_t off;
 } bebop_trivia_list_t;
 
 typedef struct {

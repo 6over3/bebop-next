@@ -139,6 +139,7 @@ void test_scanner_single_bracket_not_raw(void);
 
 void test_scanner_unknown_character(void);
 void test_scanner_unterminated_string(void);
+void test_scanner_string_crlf_normalized(void);
 
 void test_scanner_fixture_struct(void);
 void test_scanner_fixture_enum(void);
@@ -808,6 +809,20 @@ void test_scanner_unterminated_string(void)
   expect_eof();
 }
 
+void test_scanner_string_crlf_normalized(void)
+{
+  // CRLF inside a literal normalizes to \n and must not drop the following
+  // byte or double-count lines.
+  scan("\"a\r\nb\" x");
+
+  bebop_token_t str = expect_token(BEBOP_TOKEN_STRING, "a\nb");
+  TEST_ASSERT_EQUAL_UINT32(1, str.span.start_line);
+
+  bebop_token_t ident = expect_token(BEBOP_TOKEN_IDENTIFIER, "x");
+  TEST_ASSERT_EQUAL_UINT32(2, ident.span.start_line);
+  expect_eof();
+}
+
 void test_scanner_fixture_struct(void)
 {
   const char* path = FIXTURE("struct.bop");
@@ -976,6 +991,7 @@ int main(void)
 
   RUN_TEST(test_scanner_unknown_character);
   RUN_TEST(test_scanner_unterminated_string);
+  RUN_TEST(test_scanner_string_crlf_normalized);
 
   RUN_TEST(test_scanner_fixture_struct);
   RUN_TEST(test_scanner_fixture_enum);
