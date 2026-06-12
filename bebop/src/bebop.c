@@ -1330,13 +1330,25 @@ static bool bebop__paths_equal(const char* a, const char* b)
 
 static bool bebop__path_seen(const bebop__work_list_t* wl, const char* path)
 {
+  if (!path) {
+    return false;
+  }
+
+  // Normalize the probe once instead of per comparison.
+  char norm[PATH_MAX];
+  snprintf(norm, sizeof(norm), "%s", path);
+  int esc = 0;
+  bebop__normalize_path(norm, sizeof(norm), &esc);
+
   for (uint32_t i = 0; i < wl->result->schema_count; i++) {
-    if (wl->result->schemas[i]->path && bebop__paths_equal(wl->result->schemas[i]->path, path)) {
+    const char* candidate = wl->result->schemas[i]->path;
+    if (candidate && (bebop__streq(candidate, path) || bebop__paths_equal(candidate, norm))) {
       return true;
     }
   }
   for (size_t i = wl->head; i < wl->count; i++) {
-    if (bebop__paths_equal(wl->items[i].path, path)) {
+    const char* candidate = wl->items[i].path;
+    if (candidate && (bebop__streq(candidate, path) || bebop__paths_equal(candidate, norm))) {
       return true;
     }
   }
