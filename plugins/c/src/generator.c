@@ -47,6 +47,12 @@ static void sb_free(gen_sb_t* sb)
   sb->cap = 0;
 }
 
+static void gen_oom(size_t bytes)
+{
+  fprintf(stderr, "bebopc-gen-c: out of memory (%zu bytes)\n", bytes);
+  exit(1);
+}
+
 static void sb_grow(gen_sb_t* sb, size_t needed)
 {
   if (needed <= sb->cap) {
@@ -54,9 +60,17 @@ static void sb_grow(gen_sb_t* sb, size_t needed)
   }
   size_t new_cap = sb->cap ? sb->cap * 2 : 256;
   while (new_cap < needed) {
+    if (new_cap > SIZE_MAX / 2) {
+      new_cap = needed;
+      break;
+    }
     new_cap *= 2;
   }
-  sb->data = realloc(sb->data, new_cap);
+  char* data = realloc(sb->data, new_cap);
+  if (!data) {
+    gen_oom(new_cap);
+  }
+  sb->data = data;
   sb->cap = new_cap;
 }
 
@@ -355,7 +369,7 @@ static bool type_set_has(gen_type_set_t* set, const char* name)
 {
   uint32_t h = fnv1a(name);
   for (uint16_t i = 0; i < set->count; i++) {
-    if (set->hashes[i] == h) {
+    if (set->hashes[i] == h && set->fqns[i] && strcmp(set->fqns[i], name) == 0) {
       return true;
     }
   }
@@ -776,9 +790,20 @@ static void emit_nl(gen_ctx_t* ctx)
 
 static void emit_doc(gen_ctx_t* ctx, const char* doc)
 {
-  if (doc && doc[0]) {
-    emit(ctx, "/** %s */", doc);
+  if (!doc || !doc[0]) {
+    return;
   }
+  sb_indent(&ctx->out, ctx->indent);
+  sb_puts(&ctx->out, "/** ");
+  for (const char* p = doc; *p; p++) {
+    if (p[0] == '*' && p[1] == '/') {
+      sb_puts(&ctx->out, "* /");
+      p++;
+    } else {
+      sb_putc(&ctx->out, *p);
+    }
+  }
+  sb_puts(&ctx->out, " */\n");
 }
 
 static bool emit_fn_start_ex(gen_ctx_t* ctx,
@@ -1780,9 +1805,7 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     const char* mdoc = bebop_descriptor_member_documentation(m);
     uint64_t mval = bebop_descriptor_member_value(m);
 
-    if (mdoc && mdoc[0]) {
-      emit(ctx, "/** %s */", mdoc);
-    }
+    emit_doc(ctx, mdoc);
     sb_indent(&ctx->out, ctx->indent);
     sb_enum_member(&ctx->out, name, mname);
     if (is_flags) {
@@ -1820,16 +1843,18 @@ static void emit_field_decl(gen_ctx_t* ctx,
   const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
   bebop_type_kind_t fkind = bebop_descriptor_type_kind(ftype);
 
-  if (fdoc && fdoc[0]) {
-    emit(ctx, "/** %s */", fdoc);
-  }
+  emit_doc(ctx, fdoc);
 
   sb_indent(&ctx->out, ctx->indent);
 
   if (field_is_deprecated(f)) {
     const char* msg = deprecated_msg(f);
     if (msg) {
-      sb_printf(&ctx->out, "BEBOP_WIRE_DEPRECATED_MSG(\"%s\") ", msg);
+      gen_sb_t escaped;
+      sb_init(&escaped);
+      sb_escape_string(&escaped, msg);
+      sb_printf(&ctx->out, "BEBOP_WIRE_DEPRECATED_MSG(\"%s\") ", escaped.data ? escaped.data : "");
+      sb_free(&escaped);
     } else {
       sb_puts(&ctx->out, "BEBOP_WIRE_DEPRECATED ");
     }
@@ -1900,6 +1925,9 @@ static void gen_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     emit(ctx, "BEBOP_WIRE_EMPTY_STRUCT;");
   } else {
     field_sort_entry_t* sorted = malloc(field_count * sizeof(field_sort_entry_t));
+    if (!sorted) {
+      gen_oom(field_count * sizeof(field_sort_entry_t));
+    }
     for (uint32_t i = 0; i < field_count; i++) {
       const bebop_descriptor_field_t* f = bebop_descriptor_def_field_at(def, i);
       const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
