@@ -810,6 +810,12 @@ static int cmd_version(main_ctx_t* ctx)
 
 int main(int argc, char** argv)
 {
+#ifndef _WIN32
+  // A plugin that exits or closes stdin mid-request would otherwise kill the
+  // compiler with no diagnostic; write() reports EPIPE instead.
+  signal(SIGPIPE, SIG_IGN);
+#endif
+
   main_ctx_t ctx;
   ctx_init(&ctx);
 

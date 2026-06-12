@@ -573,6 +573,14 @@ char* bebopc_find_plugin(const char* name)
     return NULL;
   }
 
+  // The name is spliced into "bebopc-gen-<name>"; separators would let a
+  // config traverse out of the lookup directories.
+  for (const char* p = name; *p; p++) {
+    if (*p == '/' || *p == '\\' || *p == ':') {
+      return NULL;
+    }
+  }
+
 #ifdef BEBOPC_WINDOWS
   const char* ext = ".exe";
 #else
@@ -617,7 +625,17 @@ char* bebopc_find_plugin(const char* name)
       char* dir = strtok_r(path_copy, sep, &save_ptr);
 #endif
       while (dir) {
-        char* full = bebopc_path_join(dir, plugin_name);
+        // Relative PATH entries ("." or empty) resolve against the cwd and
+        // would let a planted binary shadow the real generator.
+        const bool is_absolute =
+#ifdef BEBOPC_WINDOWS
+            (dir[0] == '\\' || dir[0] == '/'
+             || (((dir[0] >= 'A' && dir[0] <= 'Z') || (dir[0] >= 'a' && dir[0] <= 'z'))
+                 && dir[1] == ':'));
+#else
+            dir[0] == '/';
+#endif
+        char* full = is_absolute ? bebopc_path_join(dir, plugin_name) : NULL;
         if (full && bebopc_file_is_file(full)) {
           free(path_copy);
           free(plugin_name);
@@ -745,16 +763,23 @@ bebopc_process_t* bebopc_process_spawn(const char* exe)
   if (pid == 0) {
     dup2(stdin_pipe[0], STDIN_FILENO);
     dup2(stdout_pipe[1], STDOUT_FILENO);
-    close(stdin_pipe[0]);
-    close(stdin_pipe[1]);
-    close(stdout_pipe[0]);
-    close(stdout_pipe[1]);
+    // Close everything above stderr so schema files, config, watcher, and
+    // log fds do not leak into the untrusted plugin.
+    long max_fd = sysconf(_SC_OPEN_MAX);
+    if (max_fd < 0 || max_fd > 1024) {
+      max_fd = 1024;
+    }
+    for (int fd = 3; fd < (int)max_fd; fd++) {
+      close(fd);
+    }
     execl(exe, exe, (char*)NULL);
     _exit(127);
   }
 
   close(stdin_pipe[0]);
   close(stdout_pipe[1]);
+  fcntl(stdin_pipe[1], F_SETFD, FD_CLOEXEC);
+  fcntl(stdout_pipe[0], F_SETFD, FD_CLOEXEC);
   p->pid = pid;
   p->stdin_fd = stdin_pipe[1];
   p->stdout_fd = stdout_pipe[0];
