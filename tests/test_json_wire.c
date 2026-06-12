@@ -34,6 +34,7 @@ void test_json_number(void);
 void test_json_string(void);
 void test_json_nested_array(void);
 void test_json_nested_object(void);
+void test_decode_depth_limit(void);
 void test_document(void);
 
 void test_json_null(void)
@@ -289,6 +290,54 @@ void test_json_nested_object(void)
   Bebop_WireCtx_Free(ctx);
 }
 
+void test_decode_depth_limit(void)
+{
+  enum { DEPTH = 100 };
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* w;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &w));
+
+  // [[[...null...]]] nested DEPTH levels deep
+  Bebop_Value* nodes = malloc(DEPTH * sizeof(Bebop_Value));
+  TEST_ASSERT_NOT_NULL(nodes);
+  nodes[0] = (Bebop_Value) {.discriminator = BEBOP_VALUE_NULL, .null = {0}};
+  for (int i = 1; i < DEPTH; i++) {
+    Bebop_Value_Array arr = {.data = &nodes[i - 1], .length = 1};
+    nodes[i] = (Bebop_Value) {
+        .discriminator = BEBOP_VALUE_LIST,
+        .list = {.values = BEBOP_WIRE_SOME(arr)},
+    };
+  }
+
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Value_Encode(w, &nodes[DEPTH - 1]));
+
+  uint8_t* buf;
+  size_t len;
+  Bebop_Writer_Buf(w, &buf, &len);
+
+  Bebop_Reader* rd;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Reader(ctx, buf, len, &rd));
+
+  Bebop_Value decoded = {0};
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_Value_Decode(ctx, rd, &decoded));
+
+  // A ctx configured for deeper nesting decodes the same payload
+  Bebop_WireCtxOpts opts = Bebop_WireCtx_DefaultOpts();
+  opts.arena_options.allocator.alloc = _test_alloc;
+  opts.max_decode_depth = DEPTH * 2;
+  Bebop_WireCtx* deep_ctx = Bebop_WireCtx_New(&opts);
+
+  Bebop_Reader* rd2;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Reader(deep_ctx, buf, len, &rd2));
+  Bebop_Value decoded2 = {0};
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Value_Decode(deep_ctx, rd2, &decoded2));
+  TEST_ASSERT_EQUAL(BEBOP_VALUE_LIST, decoded2.discriminator);
+
+  free(nodes);
+  Bebop_WireCtx_Free(deep_ctx);
+  Bebop_WireCtx_Free(ctx);
+}
+
 void test_document(void)
 {
   Bebop_WireCtx* ctx = _test_ctx_new();
@@ -339,6 +388,7 @@ int main(void)
   RUN_TEST(test_json_string);
   RUN_TEST(test_json_nested_array);
   RUN_TEST(test_json_nested_object);
+  RUN_TEST(test_decode_depth_limit);
   RUN_TEST(test_document);
   return UNITY_END();
 }

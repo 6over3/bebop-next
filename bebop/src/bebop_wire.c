@@ -28,6 +28,7 @@ typedef struct {
 struct Bebop_WireCtx {
   bebop_wire_arena_impl_t* arena;
   Bebop_WireCtxOpts options;
+  uint32_t decode_depth;
 };
 
 struct Bebop_Reader {
@@ -265,6 +266,7 @@ Bebop_WireCtx* Bebop_WireCtx_New(const Bebop_WireCtxOpts* options)
   }
 
   context->options = *options;
+  context->decode_depth = 0;
   return context;
 }
 
@@ -286,6 +288,30 @@ void Bebop_WireCtx_Reset(Bebop_WireCtx* context)
     return;
   }
   bebop_wire_arena_reset(context->arena);
+  context->decode_depth = 0;
+}
+
+Bebop_WireResult Bebop_WireCtx_EnterDecode(Bebop_WireCtx* context)
+{
+  if (BEBOP_WIRE_UNLIKELY(!context)) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  uint32_t max_depth = context->options.max_decode_depth;
+  if (max_depth == 0) {
+    max_depth = BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH;
+  }
+  if (BEBOP_WIRE_UNLIKELY(context->decode_depth >= max_depth)) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  context->decode_depth++;
+  return BEBOP_WIRE_OK;
+}
+
+void Bebop_WireCtx_LeaveDecode(Bebop_WireCtx* context)
+{
+  if (context && context->decode_depth > 0) {
+    context->decode_depth--;
+  }
 }
 
 size_t Bebop_WireCtx_Allocated(const Bebop_WireCtx* context)

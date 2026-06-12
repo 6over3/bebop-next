@@ -702,9 +702,14 @@ typedef struct {
   Bebop_WireAllocator allocator;
 } Bebop_ArenaOpts;
 
+// Caps generated-decoder recursion on untrusted input; 0 means
+// BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH.
+#define BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH 64
+
 typedef struct {
   Bebop_ArenaOpts arena_options;
   size_t initial_writer_size;
+  uint32_t max_decode_depth;
 } Bebop_WireCtxOpts;
 
 // #endregion
@@ -721,6 +726,8 @@ BEBOP_API void* Bebop_WireCtx_Realloc(
     Bebop_WireCtx* ctx, void* ptr, size_t old_size, size_t new_size
 );
 BEBOP_API Bebop_WireCtxOpts Bebop_WireCtx_DefaultOpts(void);
+BEBOP_API Bebop_WireResult Bebop_WireCtx_EnterDecode(Bebop_WireCtx* ctx);
+BEBOP_API void Bebop_WireCtx_LeaveDecode(Bebop_WireCtx* ctx);
 
 // #endregion
 

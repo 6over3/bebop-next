@@ -3968,6 +3968,25 @@ static void gen_decode_type(gen_ctx_t* ctx,
   gen_decode_type_ex(ctx, type, target, false);
 }
 
+// Public _Decode wraps the static body with the ctx recursion-depth guard so
+// crafted input cannot drive unbounded native recursion through nested types.
+static void emit_decode_wrapper(gen_ctx_t* ctx,
+                                const char* name,
+                                const char* fn_name,
+                                const char* sig)
+{
+  emit(ctx, "BEBOP_WIRE_HOT Bebop_WireResult %s(%s) {", fn_name, sig);
+  ctx->indent++;
+  emit(ctx, "Bebop_WireResult r = Bebop_WireCtx_EnterDecode(ctx);");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "r = %s__DecodeBody(ctx, rd, v);", name);
+  emit(ctx, "Bebop_WireCtx_LeaveDecode(ctx);");
+  emit(ctx, "return r;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit_nl(ctx);
+}
+
 static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 {
   const char* name = type_name(ctx, bebop_descriptor_def_fqn(def));
@@ -3981,9 +4000,11 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
 
@@ -4016,6 +4037,7 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_decode_message(gen_ctx_t* ctx,
@@ -4033,9 +4055,11 @@ static void gen_decode_message(gen_ctx_t* ctx,
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
   if (!needs_ctx) {
@@ -4120,6 +4144,7 @@ static void gen_decode_message(gen_ctx_t* ctx,
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
@@ -4135,9 +4160,11 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
   emit(ctx, "// @@bebop_insertion_point(decode_start:%s)", name);
@@ -4190,6 +4217,7 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_functions(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
