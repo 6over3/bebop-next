@@ -247,14 +247,21 @@ static bool _glob_match_segments(
   return pi == pattern_count && si == path_count;
 }
 
+#define BEBOPC_GLOB_MAX_DEPTH 64
+
 static void _glob_dir_traverse(
     bebopc_glob_t* glob,
     bebopc_ctx_t* ctx,
     bebopc_glob_result_t* result,
     const char* base_dir,
-    const char* rel_path
+    const char* rel_path,
+    int depth
 )
 {
+  if (depth > BEBOPC_GLOB_MAX_DEPTH) {
+    return;
+  }
+
   char* full_path;
   if (rel_path && *rel_path) {
     full_path = bebopc_path_join(base_dir, rel_path);
@@ -334,7 +341,7 @@ static void _glob_dir_traverse(
       }
 
       if (file.is_dir) {
-        _glob_dir_traverse(glob, ctx, result, base_dir, entry_rel_path);
+        _glob_dir_traverse(glob, ctx, result, base_dir, entry_rel_path, depth + 1);
       }
 
       free(entry_rel_path);
@@ -431,7 +438,7 @@ bebopc_glob_result_t* bebopc_glob_execute(
     return NULL;
   }
 
-  _glob_dir_traverse(glob, ctx, result, directory, "");
+  _glob_dir_traverse(glob, ctx, result, directory, "", 0);
 
   return result;
 }

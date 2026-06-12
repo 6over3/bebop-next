@@ -459,21 +459,17 @@ void _fsw_platform_remove_watch(_fsw_platform_t* p, int wd)
     return;
   }
 
+  FSEventStreamRef stream = NULL;
+  dispatch_queue_t queue = NULL;
+  char* path = NULL;
+
   pthread_mutex_lock(&p->mutex);
 
   for (size_t i = 0; i < p->watch_count; i++) {
     if (p->watches[i].wd == wd) {
-      _fsw_darwin_watch_t* w = &p->watches[i];
-
-      if (w->stream) {
-        FSEventStreamStop(w->stream);
-        FSEventStreamInvalidate(w->stream);
-        FSEventStreamRelease(w->stream);
-      }
-      if (w->queue) {
-        dispatch_release(w->queue);
-      }
-      free(w->path);
+      stream = p->watches[i].stream;
+      queue = p->watches[i].queue;
+      path = p->watches[i].path;
 
       for (size_t j = i + 1; j < p->watch_count; j++) {
         p->watches[j - 1] = p->watches[j];
@@ -484,6 +480,18 @@ void _fsw_platform_remove_watch(_fsw_platform_t* p, int wd)
   }
 
   pthread_mutex_unlock(&p->mutex);
+
+  // FSEventStreamInvalidate waits for an in-flight callback, and the
+  // callback takes p->mutex; tearing down under the lock can deadlock.
+  if (stream) {
+    FSEventStreamStop(stream);
+    FSEventStreamInvalidate(stream);
+    FSEventStreamRelease(stream);
+  }
+  if (queue) {
+    dispatch_release(queue);
+  }
+  free(path);
 }
 
 int _fsw_platform_poll(

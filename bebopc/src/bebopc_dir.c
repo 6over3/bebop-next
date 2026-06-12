@@ -294,13 +294,10 @@ bebopc_error_code_t bebopc_dir_readfile(const bebopc_dir_t* dir, bebopc_file_t* 
 #ifndef BEBOPC_WINDOWS
 #ifdef __MINGW32__
   if (_tstat(file->path, &file->_s) == -1)
-#elif (defined _BSD_SOURCE) || (defined _DEFAULT_SOURCE) \
-    || ((defined _XOPEN_SOURCE) && (_XOPEN_SOURCE >= 500)) \
-    || ((defined _POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L)) \
-    || ((defined __APPLE__) && (defined __MACH__)) || (defined BSD)
-  if (lstat(file->path, &file->_s) == -1)
 #else
-  if (stat(file->path, &file->_s) == -1)
+  // lstat unconditionally: symlinked directories must not report is_dir, or
+  // the glob walk follows symlink loops.
+  if (lstat(file->path, &file->_s) == -1)
 #endif
   {
     if (dir->ctx) {
