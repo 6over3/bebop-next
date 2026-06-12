@@ -384,6 +384,7 @@ static bebopc_error_code_t parse_plugins(
                 || !arr[count].options[arr[count].option_count].value)
             {
               free(arr[count].options[arr[count].option_count].key);
+              free(arr[count].options[arr[count].option_count].value);
               err = BEBOPC_ERR_OUT_OF_MEMORY;
               goto cleanup;
             }
