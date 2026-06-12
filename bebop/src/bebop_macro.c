@@ -2,9 +2,13 @@ const char* bebop__lua_wrap_function(
     bebop_arena_t* arena,
     const bebop__str_view_t source,
     const char* const* params,
-    const uint32_t param_count
+    const uint32_t param_count,
+    size_t* out_len
 )
 {
+  if (out_len) {
+    *out_len = 0;
+  }
   if (!source.data || source.len == 0) {
     return NULL;
   }
@@ -56,6 +60,12 @@ const char* bebop__lua_wrap_function(
 
   *p = '\0';
 
+  // Report the exact length: decorator bodies may contain NUL bytes, and a
+  // strlen-based load would silently truncate the chunk.
+  if (out_len) {
+    *out_len = (size_t)(p - buf);
+  }
+
   return buf;
 }
 
@@ -65,13 +75,71 @@ typedef struct {
   bebop_schema_t* schema;
   bebop_span_t span;
   bool error_raised;
+  int64_t instr_remaining;
 } bebop_lua_eval_ctx_t;
+
+typedef struct {
+  size_t used;
+  size_t limit;
+} bebop_lua_mem_t;
 
 struct bebop_lua_state {
   lua_State* L;
   bebop_context_t* ctx;
   bebop_lua_eval_ctx_t eval_ctx;
+  bebop_lua_mem_t mem;
 };
+
+// Decorator bodies are untrusted schema input; bound both their instruction
+// count and the interpreter's heap so a hostile schema cannot hang or OOM
+// the compiler.
+#define BEBOP_LUA_HOOK_INTERVAL 100000
+#define BEBOP_LUA_INSTR_BUDGET 50000000LL
+#define BEBOP_LUA_MEM_LIMIT (64u << 20)
+
+static bebop_lua_eval_ctx_t* bebop__lua_get_eval_ctx(lua_State* L);
+
+static void bebop__lua_budget_hook(lua_State* L, lua_Debug* ar)
+{
+  (void)ar;
+  bebop_lua_eval_ctx_t* ec = bebop__lua_get_eval_ctx(L);
+  if (!ec) {
+    return;
+  }
+  ec->instr_remaining -= BEBOP_LUA_HOOK_INTERVAL;
+  if (ec->instr_remaining <= 0) {
+    luaL_error(L, "decorator exceeded its execution budget");
+  }
+}
+
+static void bebop__lua_budget_reset(lua_State* L)
+{
+  bebop_lua_eval_ctx_t* ec = bebop__lua_get_eval_ctx(L);
+  if (ec) {
+    ec->instr_remaining = BEBOP_LUA_INSTR_BUDGET;
+  }
+}
+
+static void* bebop__lua_bounded_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
+{
+  bebop_lua_mem_t* mem = ud;
+  // When ptr is NULL, osize carries the Lua object type, not a size.
+  const size_t old_size = ptr ? osize : 0;
+
+  if (nsize == 0) {
+    mem->used -= old_size;
+    free(ptr);
+    return NULL;
+  }
+  if (nsize > old_size && nsize - old_size > mem->limit - mem->used) {
+    return NULL;
+  }
+  void* new_ptr = realloc(ptr, nsize);
+  if (new_ptr) {
+    mem->used = mem->used - old_size + nsize;
+  }
+  return new_ptr;
+}
 
 static bebop_lua_eval_ctx_t* bebop__lua_get_eval_ctx(lua_State* L)
 {
@@ -307,12 +375,17 @@ bebop_lua_state_t* bebop__lua_state_create(bebop_context_t* ctx)
   }
 
   state->ctx = ctx;
+  state->mem.used = 0;
+  state->mem.limit = BEBOP_LUA_MEM_LIMIT;
+  state->eval_ctx.instr_remaining = BEBOP_LUA_INSTR_BUDGET;
 
-  state->L = luaL_newstate();
+  state->L = lua_newstate(bebop__lua_bounded_alloc, &state->mem, (unsigned)(uintptr_t)state);
   if (!state->L) {
     bebop__context_set_error(ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to initialize Lua runtime");
     return NULL;
   }
+
+  lua_sethook(state->L, bebop__lua_budget_hook, LUA_MASKCOUNT, BEBOP_LUA_HOOK_INTERVAL);
 
   bebop__lua_open_safe_libs(state->L);
 
@@ -756,8 +829,13 @@ static int bebop__lua_compile_one(
     param_names[i + 2] = BEBOP_STR(state->ctx, def->decorator_def.params[i].name);
   }
 
+  size_t wrapped_len = 0;
   const char* wrapped = bebop__lua_wrap_function(
-      &state->ctx->arena, (bebop__str_view_t) {source, source_len}, param_names, total_params
+      &state->ctx->arena,
+      (bebop__str_view_t) {source, source_len},
+      param_names,
+      total_params,
+      &wrapped_len
   );
   if (!wrapped) {
     bebop__schema_add_diagnostic(
@@ -769,7 +847,7 @@ static int bebop__lua_compile_one(
     return BEBOP_LUA_NOREF;
   }
 
-  int status = luaL_loadbuffer(L, wrapped, strlen(wrapped), "=decorator");
+  int status = luaL_loadbuffer(L, wrapped, wrapped_len, "=decorator");
   if (status != LUA_OK) {
     const char* err = lua_tostring(L, -1);
     bebop_span_t err_span = span;
@@ -790,6 +868,7 @@ static int bebop__lua_compile_one(
     return BEBOP_LUA_NOREF;
   }
 
+  bebop__lua_budget_reset(L);
   status = lua_pcall(L, 0, 1, 0);
   if (status != LUA_OK) {
     const char* err = lua_tostring(L, -1);
@@ -876,6 +955,18 @@ static bebop_status_t bebop__lua_invoke_validate(
   state->eval_ctx.span = usage->span;
   state->eval_ctx.error_raised = false;
 
+  // C calls only guarantee LUA_MINSTACK free slots; grow before pushing the
+  // function, per-parameter args, and push_target's transient tables.
+  if (!lua_checkstack(L, (int)decorator_def->decorator_def.param_count + 32)) {
+    bebop__schema_add_diagnostic(
+        schema,
+        (bebop__diag_loc_t) {BEBOP_DIAG_ERROR, BEBOP_DIAG_MACRO_RUNTIME_ERROR, source_span},
+        "Decorator has too many parameters for the Lua stack",
+        NULL
+    );
+    goto cleanup;
+  }
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, func_ref);
   if (!lua_isfunction(L, -1)) {
     bebop__schema_add_diagnostic(
@@ -889,6 +980,7 @@ static bebop_status_t bebop__lua_invoke_validate(
   }
 
   const uint32_t nargs = bebop__lua_push_call_args(state, decorator_def, usage, target);
+  bebop__lua_budget_reset(L);
   const int call_status = lua_pcall(L, (int)nargs, 0, 0);
   if (call_status != LUA_OK) {
     if (!state->eval_ctx.error_raised) {
@@ -898,10 +990,18 @@ static bebop_status_t bebop__lua_invoke_validate(
       const char* msg = bebop__lua_remap_error(
           &state->ctx->arena, err, &err_span, NULL, (bebop__str_view_t) {block_src, source_span.len}
       );
+      char labeled[640];
+      snprintf(
+          labeled,
+          sizeof(labeled),
+          "@%s: %s",
+          BEBOP_STR(state->ctx, decorator_def->name),
+          msg
+      );
       bebop__schema_add_diagnostic(
           schema,
           (bebop__diag_loc_t) {BEBOP_DIAG_ERROR, BEBOP_DIAG_MACRO_RUNTIME_ERROR, err_span},
-          msg,
+          labeled,
           NULL
       );
     }
@@ -930,6 +1030,16 @@ static bebop_status_t bebop__lua_invoke_export(
   state->eval_ctx.span = usage->span;
   state->eval_ctx.error_raised = false;
 
+  if (!lua_checkstack(L, (int)decorator_def->decorator_def.param_count + 32)) {
+    bebop__schema_add_diagnostic(
+        schema,
+        (bebop__diag_loc_t) {BEBOP_DIAG_ERROR, BEBOP_DIAG_MACRO_RUNTIME_ERROR, source_span},
+        "Decorator has too many parameters for the Lua stack",
+        NULL
+    );
+    goto cleanup;
+  }
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, func_ref);
   if (!lua_isfunction(L, -1)) {
     bebop__schema_add_diagnostic(
@@ -943,6 +1053,7 @@ static bebop_status_t bebop__lua_invoke_export(
   }
 
   const uint32_t nargs = bebop__lua_push_call_args(state, decorator_def, usage, NULL);
+  bebop__lua_budget_reset(L);
   const int call_status = lua_pcall(L, (int)nargs, 1, 0);
   if (call_status != LUA_OK) {
     if (!state->eval_ctx.error_raised) {
@@ -952,10 +1063,18 @@ static bebop_status_t bebop__lua_invoke_export(
       const char* msg = bebop__lua_remap_error(
           &state->ctx->arena, err, &err_span, NULL, (bebop__str_view_t) {block_src, source_span.len}
       );
+      char labeled[640];
+      snprintf(
+          labeled,
+          sizeof(labeled),
+          "@%s: %s",
+          BEBOP_STR(state->ctx, decorator_def->name),
+          msg
+      );
       bebop__schema_add_diagnostic(
           schema,
           (bebop__diag_loc_t) {BEBOP_DIAG_ERROR, BEBOP_DIAG_MACRO_RUNTIME_ERROR, err_span},
-          msg,
+          labeled,
           NULL
       );
     }
@@ -1004,7 +1123,19 @@ static bebop_status_t bebop__lua_invoke_export(
   }
 
   bebop_export_data_t* data = bebop_arena_new1(BEBOP_ARENA(state->ctx), bebop_export_data_t);
-  data->entries = bebop_arena_new(BEBOP_ARENA(state->ctx), bebop_export_entry_t, count);
+  if (data) {
+    data->entries = bebop_arena_new(BEBOP_ARENA(state->ctx), bebop_export_entry_t, count);
+  }
+  if (!data || (count > 0 && !data->entries)) {
+    bebop__schema_add_diagnostic(
+        schema,
+        (bebop__diag_loc_t) {BEBOP_DIAG_ERROR, BEBOP_DIAG_MACRO_RUNTIME_ERROR, source_span},
+        "Failed to allocate export data",
+        NULL
+    );
+    lua_pop(L, 1);
+    goto cleanup;
+  }
   data->count = count;
 
   uint32_t idx = 0;

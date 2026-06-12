@@ -908,7 +908,11 @@ bebop_def_t* bebop__schema_find_def(bebop_schema_t* schema, bebop_str_t name);
 bool bebop__schema_has_visibility(bebop_schema_t* source, bebop_schema_t* target);
 
 const char* bebop__lua_wrap_function(
-    bebop_arena_t* arena, bebop__str_view_t source, const char* const* params, uint32_t param_count
+    bebop_arena_t* arena,
+    bebop__str_view_t source,
+    const char* const* params,
+    uint32_t param_count,
+    size_t* out_len
 );
 
 typedef struct bebop_lua_state bebop_lua_state_t;
