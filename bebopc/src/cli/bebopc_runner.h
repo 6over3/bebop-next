@@ -35,7 +35,23 @@ void bebopc_process_close_stdin(bebopc_process_t* p);
 
 uint8_t* bebopc_process_read_all(bebopc_process_t* p, size_t* out_len);
 
+// Write the request and drain stdout concurrently; timeout_ms <= 0 disables
+// the deadline. Returns false on timeout or I/O failure (response freed).
+bool bebopc_process_exchange(
+    bebopc_process_t* p,
+    const void* req,
+    size_t req_len,
+    uint8_t** out_resp,
+    size_t* out_len,
+    int timeout_ms
+);
+
+void bebopc_process_kill(bebopc_process_t* p);
+
 int bebopc_process_wait(bebopc_process_t* p);
+
+// Wait up to timeout_ms (<= 0 waits forever), killing the process on expiry.
+int bebopc_process_wait_timeout(bebopc_process_t* p, int timeout_ms);
 
 void bebopc_process_free(bebopc_process_t* p);
 
