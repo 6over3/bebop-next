@@ -28,8 +28,9 @@ bool bebop_intern_init(bebop_intern_t* intern, bebop_arena_t* arena, uint32_t ca
   intern->strings = bebop_arena_new(arena, char*, capacity);
   intern->hashes = bebop_arena_new(arena, uint64_t, capacity);
   intern->lengths = bebop_arena_new(arena, uint32_t, capacity);
+  intern->next = bebop_arena_new(arena, uint32_t, capacity);
 
-  if (!intern->strings || !intern->hashes || !intern->lengths) {
+  if (!intern->strings || !intern->hashes || !intern->lengths || !intern->next) {
     return false;
   }
 
@@ -41,6 +42,7 @@ bool bebop_intern_init(bebop_intern_t* intern, bebop_arena_t* arena, uint32_t ca
   intern->strings[0] = NULL;
   intern->hashes[0] = 0;
   intern->lengths[0] = 0;
+  intern->next[0] = 0;
 
   return true;
 }
@@ -52,18 +54,21 @@ static bool bebop__intern_grow(bebop_intern_t* intern)
   char** new_strings = bebop_arena_new(intern->arena, char*, new_capacity);
   uint64_t* new_hashes = bebop_arena_new(intern->arena, uint64_t, new_capacity);
   uint32_t* new_lengths = bebop_arena_new(intern->arena, uint32_t, new_capacity);
+  uint32_t* new_next = bebop_arena_new(intern->arena, uint32_t, new_capacity);
 
-  if (!new_strings || !new_hashes || !new_lengths) {
+  if (!new_strings || !new_hashes || !new_lengths || !new_next) {
     return false;
   }
 
   memcpy(new_strings, intern->strings, intern->count * sizeof(char*));
   memcpy(new_hashes, intern->hashes, intern->count * sizeof(uint64_t));
   memcpy(new_lengths, intern->lengths, intern->count * sizeof(uint32_t));
+  memcpy(new_next, intern->next, intern->count * sizeof(uint32_t));
 
   intern->strings = new_strings;
   intern->hashes = new_hashes;
   intern->lengths = new_lengths;
+  intern->next = new_next;
   intern->capacity = new_capacity;
 
   return true;
@@ -79,14 +84,23 @@ bebop_str_t bebop_intern_n(bebop_intern_t* intern, const char* str, const size_t
 
   const uint64_t hash = bebop_hash_fnv1a(str, len);
 
+  // The lookup map is keyed on the hash alone, so distinct strings can
+  // collide; verify content and chain collisions through next[].
+  uint32_t chain_tail = 0;
   const bebop_internmap_Iter it = bebop_internmap_find(&intern->lookup, &hash);
   const bebop_internmap_Entry* entry = bebop_internmap_Iter_get(&it);
   if (entry) {
-    const uint32_t idx = entry->val;
-
-    BEBOP_ASSERT(intern->lengths[idx] == len);
-    BEBOP_ASSERT(memcmp(intern->strings[idx], str, len) == 0);
-    return (bebop_str_t) {idx};
+    uint32_t idx = entry->val;
+    for (;;) {
+      if (intern->lengths[idx] == len && memcmp(intern->strings[idx], str, len) == 0) {
+        return (bebop_str_t) {idx};
+      }
+      if (intern->next[idx] == 0) {
+        chain_tail = idx;
+        break;
+      }
+      idx = intern->next[idx];
+    }
   }
 
   if (intern->count >= intern->capacity) {
@@ -104,9 +118,14 @@ bebop_str_t bebop_intern_n(bebop_intern_t* intern, const char* str, const size_t
   intern->strings[idx] = copy;
   intern->hashes[idx] = hash;
   intern->lengths[idx] = (uint32_t)len;
+  intern->next[idx] = 0;
 
-  const bebop_internmap_Entry new_entry = {hash, idx};
-  bebop_internmap_insert(&intern->lookup, &new_entry);
+  if (chain_tail != 0) {
+    intern->next[chain_tail] = idx;
+  } else {
+    const bebop_internmap_Entry new_entry = {hash, idx};
+    bebop_internmap_insert(&intern->lookup, &new_entry);
+  }
 
   return (bebop_str_t) {idx};
 }

@@ -893,8 +893,9 @@ static bebop_str_t bebop__parse_substitute_env_vars(
     while (result_len + _need >= result_cap) { \
       if (result_cap > SIZE_MAX / 2) \
         goto fail; \
+      const size_t _old_cap = result_cap; \
       result_cap *= 2; \
-      result = bebop_arena_realloc(BEBOP_ARENA(p->ctx), result, result_len, result_cap); \
+      result = bebop_arena_realloc(BEBOP_ARENA(p->ctx), result, _old_cap, result_cap); \
       if (!result) \
         goto fail; \
     } \
@@ -1265,26 +1266,41 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
 
     bebop_str_t dec_name = name->lexeme;
 
-    while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
-      BEBOP_PARSE_ADVANCE(p);
-      if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'")) {
+    if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
+      // Accumulate the whole dotted name in one buffer and intern once,
+      // rather than interning each wasted intermediate prefix.
+      char name_buf[512];
+      const char* first_str = BEBOP_STR(p->ctx, dec_name);
+      size_t name_len = BEBOP_STR_LEN(p->ctx, dec_name);
+      if (name_len >= sizeof(name_buf)) {
+        BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_QUALIFIED_NAME, "Decorator name too long");
         break;
       }
-      bebop_token_t* next = BEBOP_PARSE_PREVIOUS(p);
+      memcpy(name_buf, first_str, name_len);
 
-      const char* left = BEBOP_STR(p->ctx, dec_name);
-      const size_t left_len = BEBOP_STR_LEN(p->ctx, dec_name);
-      const char* right = BEBOP_STR(p->ctx, next->lexeme);
-      const size_t right_len = BEBOP_STR_LEN(p->ctx, next->lexeme);
-      char* buf = bebop__join_dotted(
-          BEBOP_ARENA(p->ctx),
-          (bebop__str_view_t) {left, left_len},
-          (bebop__str_view_t) {right, right_len}
-      );
-      if (!buf) {
+      bool name_ok = true;
+      while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
+        BEBOP_PARSE_ADVANCE(p);
+        if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'")) {
+          name_ok = false;
+          break;
+        }
+        bebop_token_t* next = BEBOP_PARSE_PREVIOUS(p);
+        const char* right = BEBOP_STR(p->ctx, next->lexeme);
+        const size_t right_len = BEBOP_STR_LEN(p->ctx, next->lexeme);
+        if (name_len + 1 + right_len >= sizeof(name_buf)) {
+          BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_QUALIFIED_NAME, "Decorator name too long");
+          name_ok = false;
+          break;
+        }
+        name_buf[name_len++] = '.';
+        memcpy(name_buf + name_len, right, right_len);
+        name_len += right_len;
+      }
+      if (!name_ok) {
         break;
       }
-      dec_name = bebop_intern_n(BEBOP_INTERN(p->ctx), buf, left_len + 1 + right_len);
+      dec_name = bebop_intern_n(BEBOP_INTERN(p->ctx), name_buf, name_len);
     }
 
     bebop_decorator_arg_t* args = NULL;
@@ -1332,8 +1348,11 @@ typedef enum {
   bebop__OP_SHIFT = 3,
 } bebop__op_t;
 
+// Enum value expressions may only reference members of the enum being parsed.
+// Bare references to another enum's member are not allowed (they would be
+// ambiguous when names collide), and qualified references are not supported.
 static bool bebop__parse_lookup_enum_member(
-    const bebop_parser_t* p, const bebop_def_t* enum_def, const bebop_str_t name, int64_t* out_val
+    const bebop_def_t* enum_def, const bebop_str_t name, int64_t* out_val
 )
 {
   if (enum_def && enum_def->kind == BEBOP_DEF_ENUM) {
@@ -1345,20 +1364,26 @@ static bool bebop__parse_lookup_enum_member(
     }
   }
 
+  return false;
+}
+
+// Error-path only: report which other enum (if any) defines this name, to turn
+// "Unknown enum member" into a precise cross-enum diagnostic.
+static const bebop_def_t* bebop__parse_find_enum_with_member(
+    const bebop_parser_t* p, const bebop_def_t* current, const bebop_str_t name
+)
+{
   for (const bebop_def_t* def = p->schema->definitions; def != NULL; def = def->next) {
-    if (def->kind != BEBOP_DEF_ENUM) {
+    if (def->kind != BEBOP_DEF_ENUM || def == current) {
       continue;
     }
-
     for (uint32_t j = 0; j < def->enum_def.member_count; j++) {
       if (bebop_str_eq(def->enum_def.members[j].name, name)) {
-        *out_val = (int64_t)def->enum_def.members[j].value;
-        return true;
+        return def;
       }
     }
   }
-
-  return false;
+  return NULL;
 }
 
 #define bebop__EXPR_STACK_SIZE 32
@@ -1443,11 +1468,24 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         }
       } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_IDENTIFIER)) {
         const bebop_token_t* tok = BEBOP_PARSE_ADVANCE(p);
-        if (!bebop__parse_lookup_enum_member(p, enum_def, tok->lexeme, &val)) {
+        if (!bebop__parse_lookup_enum_member(enum_def, tok->lexeme, &val)) {
           const char* name = BEBOP_STR(p->ctx, tok->lexeme);
-          bebop__PARSE_ERROR_FMT(
-              p, tok, BEBOP_DIAG_INVALID_LITERAL, "Unknown enum member '%s'", name ? name : ""
-          );
+          const bebop_def_t* other = bebop__parse_find_enum_with_member(p, enum_def, tok->lexeme);
+          if (other) {
+            const char* other_name = BEBOP_STR(p->ctx, other->name);
+            bebop__PARSE_ERROR_FMT(
+                p,
+                tok,
+                BEBOP_DIAG_INVALID_LITERAL,
+                "'%s' is a member of enum '%s'; an enum value cannot reference another enum's members",
+                name ? name : "",
+                other_name ? other_name : ""
+            );
+          } else {
+            bebop__PARSE_ERROR_FMT(
+                p, tok, BEBOP_DIAG_INVALID_LITERAL, "Unknown enum member '%s'", name ? name : ""
+            );
+          }
           return 0;
         }
       } else {
@@ -1843,13 +1881,9 @@ static bebop_field_t* bebop__parse_field_inline(
   bebop__check_reserved_name(p, name, name->lexeme);
   bebop_sema_check_duplicate_name(p->sema, name->lexeme, name->span);
 
-  bebop_str_t doc = BEBOP_STR_NULL;
-  if (!decorators) {
-    doc = bebop__parse_extract_doc(p, &first_tok->leading);
-  }
-  if (bebop_str_is_null(doc)) {
-    doc = bebop__parse_extract_doc(p, &name->leading);
-  }
+  // Without decorators first_tok IS name; with them it is a span-only
+  // temporary whose leading trivia is empty. Either way the doc lives on name.
+  const bebop_str_t doc = bebop__parse_extract_doc(p, &name->leading);
 
   if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_SEMICOLON, "Expected ';' after field")) {
     return NULL;
@@ -2214,37 +2248,28 @@ static bool bebop__parse_macro_param(bebop_parser_t* p, bebop_macro_param_def_t*
         return false;
       }
 
-      uint32_t capacity = 8;
-      param->allowed_values = bebop_arena_new(BEBOP_ARENA(p->ctx), bebop_literal_t, capacity);
-      if (!param->allowed_values) {
-        return false;
-      }
+      uint32_t capacity = 0;
+      param->allowed_values = NULL;
       param->allowed_value_count = 0;
 
       while (!BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_RBRACKET) && !BEBOP_PARSE_AT_END(p)) {
-        if (param->allowed_value_count >= capacity) {
-          const uint32_t new_cap = capacity * 2;
-          bebop_literal_t* new_arr = bebop_arena_new(BEBOP_ARENA(p->ctx), bebop_literal_t, new_cap);
-          if (!new_arr) {
-            return false;
-          }
-          memcpy(
-              new_arr, param->allowed_values, sizeof(bebop_literal_t) * param->allowed_value_count
-          );
-          param->allowed_values = new_arr;
-          capacity = new_cap;
+        bebop_literal_t* slot = BEBOP_ARRAY_PUSH(
+            BEBOP_ARENA(p->ctx),
+            param->allowed_values,
+            param->allowed_value_count,
+            capacity,
+            bebop_literal_t
+        );
+        if (!slot) {
+          return false;
         }
 
-        if (!bebop__parse_literal(
-                p, param->type, &param->allowed_values[param->allowed_value_count]
-            ))
-        {
+        if (!bebop__parse_literal(p, param->type, slot)) {
           BEBOP_PARSE_ERROR_CURRENT(
               p, BEBOP_DIAG_INVALID_MACRO, "Invalid value in 'in [...]' constraint list"
           );
           return false;
         }
-        param->allowed_value_count++;
 
         if (!BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_RBRACKET)) {
           if (!BEBOP_PARSE_CONSUME(p, BEBOP_TOKEN_COMMA, "Expected ',' or ']' in value list")) {
@@ -2911,7 +2936,7 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop__check_reserved_name(p, name, name->lexeme);
 
         if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_LBRACE, "Expected '{'")) {
-          frame->state = frame->nested_parent ? PARSE_STATE_FILE : PARSE_STATE_FILE;
+          frame->state = PARSE_STATE_FILE;
           if (p->flags & BEBOP_PARSER_PANIC_MODE) {
             bebop__parse_synchronize(p);
           }

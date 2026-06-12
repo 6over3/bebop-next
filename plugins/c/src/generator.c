@@ -47,6 +47,23 @@ static void sb_free(gen_sb_t* sb)
   sb->cap = 0;
 }
 
+static void gen_oom(size_t bytes)
+{
+  fprintf(stderr, "bebopc-gen-c: out of memory (%zu bytes)\n", bytes);
+  exit(1);
+}
+
+// Fail loudly instead of silently dropping types nested deeper than the
+// work-stack capacity.
+static bool gen_stack_ok(int top, int need)
+{
+  if (top + need > GEN_STACK_DEPTH) {
+    fprintf(stderr, "bebopc-gen-c: schema type nesting exceeds %d levels\n", GEN_STACK_DEPTH);
+    exit(1);
+  }
+  return true;
+}
+
 static void sb_grow(gen_sb_t* sb, size_t needed)
 {
   if (needed <= sb->cap) {
@@ -54,9 +71,17 @@ static void sb_grow(gen_sb_t* sb, size_t needed)
   }
   size_t new_cap = sb->cap ? sb->cap * 2 : 256;
   while (new_cap < needed) {
+    if (new_cap > SIZE_MAX / 2) {
+      new_cap = needed;
+      break;
+    }
     new_cap *= 2;
   }
-  sb->data = realloc(sb->data, new_cap);
+  char* data = realloc(sb->data, new_cap);
+  if (!data) {
+    gen_oom(new_cap);
+  }
+  sb->data = data;
   sb->cap = new_cap;
 }
 
@@ -355,7 +380,7 @@ static bool type_set_has(gen_type_set_t* set, const char* name)
 {
   uint32_t h = fnv1a(name);
   for (uint16_t i = 0; i < set->count; i++) {
-    if (set->hashes[i] == h) {
+    if (set->hashes[i] == h && set->fqns[i] && strcmp(set->fqns[i], name) == 0) {
       return true;
     }
   }
@@ -368,9 +393,16 @@ static bool type_set_add(gen_type_set_t* set, const char* name)
     return false;
   }
   if (set->count >= GEN_TYPE_SET_CAP) {
-    return false;
+    fprintf(stderr, "bebopc-gen-c: too many distinct container types (max %d)\n",
+            GEN_TYPE_SET_CAP);
+    exit(1);
   }
-  set->fqns[set->count] = name;
+  // Callers pass transient buffers; the set owns its copies (freed at exit).
+  char* copy = strdup(name);
+  if (!copy) {
+    gen_oom(strlen(name) + 1);
+  }
+  set->fqns[set->count] = copy;
   set->hashes[set->count++] = fnv1a(name);
   return true;
 }
@@ -776,9 +808,20 @@ static void emit_nl(gen_ctx_t* ctx)
 
 static void emit_doc(gen_ctx_t* ctx, const char* doc)
 {
-  if (doc && doc[0]) {
-    emit(ctx, "/** %s */", doc);
+  if (!doc || !doc[0]) {
+    return;
   }
+  sb_indent(&ctx->out, ctx->indent);
+  sb_puts(&ctx->out, "/** ");
+  for (const char* p = doc; *p; p++) {
+    if (p[0] == '*' && p[1] == '/') {
+      sb_puts(&ctx->out, "* /");
+      p++;
+    } else {
+      sb_putc(&ctx->out, *p);
+    }
+  }
+  sb_puts(&ctx->out, " */\n");
 }
 
 static bool emit_fn_start_ex(gen_ctx_t* ctx,
@@ -863,6 +906,11 @@ static const char* type_name(gen_ctx_t* ctx, const char* fqn)
       *p++ = c;
     }
     fqn++;
+  }
+  if (*fqn || (prefix && *prefix)) {
+    // Truncated names collide into the same C identifier and miscompile.
+    fprintf(stderr, "bebopc-gen-c: type name too long: %s\n", fqn);
+    exit(1);
   }
   *p = '\0';
   return buf;
@@ -1331,11 +1379,11 @@ static void emit_container_types(gen_ctx_t* ctx,
       if (kind == BEBOP_TYPE_ARRAY || kind == BEBOP_TYPE_FIXED_ARRAY) {
         const bebop_descriptor_type_t* elem =
             bebop_descriptor_type_element(f->type);
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] = (frame_t) {elem, false};
         }
       } else if (kind == BEBOP_TYPE_MAP) {
-        if (top < GEN_STACK_DEPTH - 1) {
+        if (gen_stack_ok(top, 2)) {
           stack[top++] = (frame_t) {bebop_descriptor_type_key(f->type), false};
           stack[top++] =
               (frame_t) {bebop_descriptor_type_value(f->type), false};
@@ -1630,7 +1678,7 @@ static void gen_forward_decls(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -1780,9 +1828,7 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     const char* mdoc = bebop_descriptor_member_documentation(m);
     uint64_t mval = bebop_descriptor_member_value(m);
 
-    if (mdoc && mdoc[0]) {
-      emit(ctx, "/** %s */", mdoc);
-    }
+    emit_doc(ctx, mdoc);
     sb_indent(&ctx->out, ctx->indent);
     sb_enum_member(&ctx->out, name, mname);
     if (is_flags) {
@@ -1820,16 +1866,18 @@ static void emit_field_decl(gen_ctx_t* ctx,
   const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
   bebop_type_kind_t fkind = bebop_descriptor_type_kind(ftype);
 
-  if (fdoc && fdoc[0]) {
-    emit(ctx, "/** %s */", fdoc);
-  }
+  emit_doc(ctx, fdoc);
 
   sb_indent(&ctx->out, ctx->indent);
 
   if (field_is_deprecated(f)) {
     const char* msg = deprecated_msg(f);
     if (msg) {
-      sb_printf(&ctx->out, "BEBOP_WIRE_DEPRECATED_MSG(\"%s\") ", msg);
+      gen_sb_t escaped;
+      sb_init(&escaped);
+      sb_escape_string(&escaped, msg);
+      sb_printf(&ctx->out, "BEBOP_WIRE_DEPRECATED_MSG(\"%s\") ", escaped.data ? escaped.data : "");
+      sb_free(&escaped);
     } else {
       sb_puts(&ctx->out, "BEBOP_WIRE_DEPRECATED ");
     }
@@ -1900,6 +1948,9 @@ static void gen_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     emit(ctx, "BEBOP_WIRE_EMPTY_STRUCT;");
   } else {
     field_sort_entry_t* sorted = malloc(field_count * sizeof(field_sort_entry_t));
+    if (!sorted) {
+      gen_oom(field_count * sizeof(field_sort_entry_t));
+    }
     for (uint32_t i = 0; i < field_count; i++) {
       const bebop_descriptor_field_t* f = bebop_descriptor_def_field_at(def, i);
       const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
@@ -2044,7 +2095,7 @@ static void gen_typedef(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -2094,7 +2145,7 @@ static void gen_enums_only(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -2686,7 +2737,7 @@ static void gen_reflection(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -2737,7 +2788,7 @@ static void gen_reflection_decl(gen_ctx_t* ctx, const bebop_descriptor_def_t* de
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -2799,7 +2850,7 @@ static void gen_container_typedef(gen_ctx_t* ctx,
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }
@@ -2905,7 +2956,7 @@ static void gen_size_type_ex(gen_ctx_t* ctx,
              w->loop_var);
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(child.access,
                    GEN_PATH_SIZE,
@@ -2935,7 +2986,7 @@ static void gen_size_type_ex(gen_ctx_t* ctx,
              w->loop_var);
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(
               child.access, GEN_PATH_SIZE, "%s[_i%d]", w->access, w->loop_var);
@@ -2959,7 +3010,7 @@ static void gen_size_type_ex(gen_ctx_t* ctx,
              w->loop_var, w->loop_var, w->loop_var);
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH - 1) {
+        if (gen_stack_ok(top, 2)) {
           const bebop_descriptor_type_t* vtype = bebop_descriptor_type_value(w->type);
           bebop_type_kind_t vkind = bebop_descriptor_type_kind(vtype);
           bool val_is_ptr = (vkind == BEBOP_TYPE_FIXED_ARRAY);
@@ -3263,7 +3314,7 @@ static void gen_encode_type_ex(gen_ctx_t* ctx,
              w->loop_var);
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(child.access,
                    GEN_PATH_SIZE,
@@ -3304,7 +3355,7 @@ static void gen_encode_type_ex(gen_ctx_t* ctx,
         }
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(
               child.access, GEN_PATH_SIZE, "%s[_i%d]", w->access, w->loop_var);
@@ -3331,7 +3382,7 @@ static void gen_encode_type_ex(gen_ctx_t* ctx,
              w->loop_var, w->loop_var, w->loop_var);
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH - 1) {
+        if (gen_stack_ok(top, 2)) {
           const bebop_descriptor_type_t* vtype = bebop_descriptor_type_value(w->type);
           bebop_type_kind_t vkind = bebop_descriptor_type_kind(vtype);
           bool val_is_ptr = (vkind == BEBOP_TYPE_FIXED_ARRAY);
@@ -3629,6 +3680,9 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
   const char* ret = ctx->in_step_fn ? "return -(int)r" : "return r";
   const char* ret_oom = ctx->in_step_fn ? "return -(int)BEBOP_WIRE_ERR_OOM"
                                         : "return BEBOP_WIRE_ERR_OOM";
+  const char* ret_malformed = ctx->in_step_fn
+      ? "return -(int)BEBOP_WIRE_ERR_MALFORMED"
+      : "return BEBOP_WIRE_ERR_MALFORMED";
 
   stack[top++] = (size_work_t) {type, "", 0, ctx->loop_depth, is_ptr};
   snprintf(stack[0].access, GEN_PATH_SIZE, "%s", target);
@@ -3694,6 +3748,8 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         const bebop_descriptor_type_t* elem =
             bebop_descriptor_type_element(w->type);
         bebop_type_kind_t ek = bebop_descriptor_type_kind(elem);
+        const type_info_t* guard_eti = type_info(ek);
+        bool zero_copy = guard_eti && guard_eti->size > 0 && ek != BEBOP_TYPE_STRING;
 
         char arr_type[256];
         get_ctype_str(ctx, w->type, arr_type, sizeof(arr_type));
@@ -3704,6 +3760,18 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         emit(ctx,
              "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
              ret);
+        // The count comes from the wire; cap it by the bytes actually left so
+        // a tiny payload cannot claim a huge array (OOB view / OOM alloc).
+        if (zero_copy) {
+          emit(ctx,
+               "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd) / %s)) %s;",
+               guard_eti->size_macro,
+               ret_malformed);
+        } else {
+          emit(ctx,
+               "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+               ret_malformed);
+        }
         if (ctx->is_mutable) {
           emit(ctx, "%s.length = _len;", w->access);
         } else {
@@ -3730,7 +3798,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
                             "BEBOP_WIRE_MUTPTR(%s, &%s)->capacity = 0;",
                             arr_type, w->access);
           }
-          emit(ctx, "Bebop_Reader_Skip(rd, _len * %s);", eti->size_macro);
+          emit(ctx, "Bebop_Reader_Skip(rd, (size_t)_len * %s);", eti->size_macro);
           ctx->indent--;
           emit(ctx, "}");
           top--;
@@ -3750,7 +3818,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
 
           emit(
               ctx,
-              "%s (*_d%d)%s = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d%d));",
+              "%s (*_d%d)%s = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
               inner_type,
               w->loop_var,
               dims.data ? dims.data : "",
@@ -3773,7 +3841,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
                pf_dist);
 
           w->state = 1;
-          if (top < GEN_STACK_DEPTH) {
+          if (gen_stack_ok(top, 1)) {
             size_work_t child = {elem, "", 0, w->loop_var + 1, false};
             snprintf(child.access,
                      GEN_PATH_SIZE,
@@ -3789,7 +3857,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         get_ctype_str(ctx, elem, elem_type, sizeof(elem_type));
 
         emit(ctx,
-             "%s *_d%d = Bebop_WireCtx_Alloc(ctx, _len * sizeof(*_d%d));",
+             "%s *_d%d = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
              elem_type,
              w->loop_var,
              w->loop_var);
@@ -3810,7 +3878,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
              pf_dist2);
 
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(child.access,
                    GEN_PATH_SIZE,
@@ -3857,7 +3925,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         }
         ctx->indent++;
         w->state = 1;
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           size_work_t child = {elem, "", 0, w->loop_var + 1, false};
           snprintf(
               child.access, GEN_PATH_SIZE, "%s[_i%d]", w->access, w->loop_var);
@@ -3880,6 +3948,9 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         emit(ctx,
              "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
              ret);
+        emit(ctx,
+             "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+             ret_malformed);
         if (ctx->is_mutable) {
           emit(ctx, "Bebop_Map_Init(&%s, ctx, %s, %s);", w->access, hash_fn, eq_fn);
         } else {
@@ -3904,7 +3975,7 @@ static void gen_decode_type_ex(gen_ctx_t* ctx,
         }
         emit(ctx, "if (BEBOP_WIRE_UNLIKELY(!_k%d || !_v%d)) %s;", w->loop_var, w->loop_var, ret_oom);
         w->state = 1;
-        if (top < GEN_STACK_DEPTH - 1) {
+        if (gen_stack_ok(top, 2)) {
           bool val_is_ptr = (vkind == BEBOP_TYPE_FIXED_ARRAY);
           size_work_t val_work = {vtype, "", 0, w->loop_var + 1, val_is_ptr};
           size_work_t key_work = {bebop_descriptor_type_key(w->type),
@@ -3968,9 +4039,31 @@ static void gen_decode_type(gen_ctx_t* ctx,
   gen_decode_type_ex(ctx, type, target, false);
 }
 
+// Public _Decode wraps the static body with the ctx recursion-depth guard so
+// crafted input cannot drive unbounded native recursion through nested types.
+static void emit_decode_wrapper(gen_ctx_t* ctx,
+                                const char* name,
+                                const char* fn_name,
+                                const char* sig)
+{
+  emit(ctx, "BEBOP_WIRE_HOT Bebop_WireResult %s(%s) {", fn_name, sig);
+  ctx->indent++;
+  emit(ctx, "Bebop_WireResult r = Bebop_WireCtx_EnterDecode(ctx);");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "r = %s__DecodeBody(ctx, rd, v);", name);
+  emit(ctx, "Bebop_WireCtx_LeaveDecode(ctx);");
+  emit(ctx, "return r;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit_nl(ctx);
+}
+
 static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 {
-  const char* name = type_name(ctx, bebop_descriptor_def_fqn(def));
+  // Copy into a stable buffer: type_name returns a rotating static buffer that
+  // field emission below clobbers before emit_decode_wrapper reads it.
+  char name[GEN_PATH_SIZE];
+  snprintf(name, sizeof(name), "%s", type_name(ctx, bebop_descriptor_def_fqn(def)));
   uint32_t field_count = bebop_descriptor_def_field_count(def);
   bool needs_ctx = def_needs_ctx(def);
   ctx->is_mutable = bebop_descriptor_def_is_mutable(def);
@@ -3981,9 +4074,11 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
 
@@ -4016,6 +4111,7 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_decode_message(gen_ctx_t* ctx,
@@ -4033,9 +4129,11 @@ static void gen_decode_message(gen_ctx_t* ctx,
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
   if (!needs_ctx) {
@@ -4050,6 +4148,10 @@ static void gen_decode_message(gen_ctx_t* ctx,
   emit(
       ctx,
       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "const uint8_t *_outer_end;");
+  emit(ctx,
+       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != "
+       "BEBOP_WIRE_OK)) return r;");
   emit(ctx, "const uint8_t *end = Bebop_Reader_Ptr(rd) + msg_len;");
   emit_nl(ctx);
 
@@ -4115,11 +4217,13 @@ static void gen_decode_message(gen_ctx_t* ctx,
   emit_nl(ctx);
   emit(ctx, "done:");
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
+  emit(ctx, "Bebop_Reader_PopLimit(rd, _outer_end);");
   emit(ctx, "return BEBOP_WIRE_OK;");
 
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
@@ -4135,9 +4239,11 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
            sizeof(sig),
            "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v",
            name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
     return;
   }
+  emit(ctx, "static Bebop_WireResult %s__DecodeBody(%s) {", name, sig);
 
   ctx->indent++;
   emit(ctx, "// @@bebop_insertion_point(decode_start:%s)", name);
@@ -4145,6 +4251,10 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   emit(ctx, "uint32_t union_len;");
   emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) "
               "return r;");
+  emit(ctx, "const uint8_t *_outer_end;");
+  emit(ctx,
+       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, union_len, &_outer_end)) != "
+       "BEBOP_WIRE_OK)) return r;");
   emit(ctx, "const uint8_t *end = Bebop_Reader_Ptr(rd) + union_len;");
   emit_nl(ctx);
   emit(ctx, "uint8_t disc;");
@@ -4179,17 +4289,22 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   emit(ctx, "// @@bebop_insertion_point(decode_switch:%s)", name);
   emit(ctx, "default:");
   ctx->indent++;
+  emit(ctx, "// Unknown discriminator: reset to 0 so callers never switch on");
+  emit(ctx, "// a stored discriminator whose payload was left uninitialized.");
+  emit(ctx, "v->discriminator = (%s_Disc)0;", name);
   emit(ctx, "Bebop_Reader_Seek(rd, end);");
   emit(ctx, "break;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
+  emit(ctx, "Bebop_Reader_PopLimit(rd, _outer_end);");
   emit(ctx, "return BEBOP_WIRE_OK;");
 
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
+  emit_decode_wrapper(ctx, name, fn_name, sig);
 }
 
 static void gen_functions(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
@@ -4210,7 +4325,7 @@ static void gen_functions(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       f->children_pushed = true;
       uint32_t nested = bebop_descriptor_def_nested_count(f->def);
       for (uint32_t i = nested; i > 0; i--) {
-        if (top < GEN_STACK_DEPTH) {
+        if (gen_stack_ok(top, 1)) {
           stack[top++] =
               (frame_t) {bebop_descriptor_def_nested_at(f->def, i - 1), false};
         }

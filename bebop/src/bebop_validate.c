@@ -106,9 +106,51 @@ static bool bebop__validate_paths_equal(const char* a, const char* b)
   return false;
 }
 
+static const char* bebop__validate_path_base(const char* path)
+{
+  const char* base = path;
+  for (const char* p = path; *p; p++) {
+    if (*p == '/') {
+      base = p + 1;
+    }
+  }
+  return base;
+}
+
+typedef struct {
+  const char* base;
+  bebop_schema_t* schema;
+} bebop__schema_path_entry_t;
+
+static int bebop__schema_path_entry_cmp(const void* a, const void* b)
+{
+  return strcmp(
+      ((const bebop__schema_path_entry_t*)a)->base, ((const bebop__schema_path_entry_t*)b)->base
+  );
+}
+
 static void bebop__validate_resolve_imports(const bebop_validator_t* v)
 {
   const bebop_parse_result_t* result = v->result;
+
+  // Any exact or suffix path match shares its final component, so an index
+  // sorted by basename turns the schemas-times-imports scan into a binary
+  // search per import.
+  uint32_t indexed = 0;
+  bebop__schema_path_entry_t* index = result->schema_count > 0
+      ? bebop_arena_new(BEBOP_ARENA(v->ctx), bebop__schema_path_entry_t, result->schema_count)
+      : NULL;
+  if (index) {
+    for (uint32_t s = 0; s < result->schema_count; s++) {
+      bebop_schema_t* schema = result->schemas[s];
+      if (schema && schema->path) {
+        index[indexed].base = bebop__validate_path_base(schema->path);
+        index[indexed].schema = schema;
+        indexed++;
+      }
+    }
+    qsort(index, indexed, sizeof(*index), bebop__schema_path_entry_cmp);
+  }
 
   for (uint32_t s = 0; s < result->schema_count; s++) {
     bebop_schema_t* schema = result->schemas[s];
@@ -119,6 +161,29 @@ static void bebop__validate_resolve_imports(const bebop_validator_t* v)
     for (uint32_t i = 0; i < schema->import_count; i++) {
       bebop_import_t* imp = &schema->imports[i];
       if (!imp->resolved_path) {
+        continue;
+      }
+
+      if (index) {
+        const char* base = bebop__validate_path_base(imp->resolved_path);
+        uint32_t lo = 0, hi = indexed;
+        while (lo < hi) {
+          const uint32_t mid = lo + (hi - lo) / 2;
+          if (strcmp(index[mid].base, base) < 0) {
+            lo = mid + 1;
+          } else {
+            hi = mid;
+          }
+        }
+        for (uint32_t t = lo; t < indexed && strcmp(index[t].base, base) == 0; t++) {
+          bebop_schema_t* target = index[t].schema;
+          if (target != schema
+              && bebop__validate_paths_equal(target->path, imp->resolved_path))
+          {
+            imp->schema = target;
+            break;
+          }
+        }
         continue;
       }
 
@@ -1690,32 +1755,32 @@ bebop_status_t bebop_validate(bebop_parse_result_t* result)
       }
 
       schema->state = BEBOP_SCHEMA_VALIDATED;
+      schema->sorted_defs = NULL;
+      schema->sorted_defs_count = 0;
+      schema->sorted_defs_capacity = 0;
+    }
 
-      uint32_t schema_sorted_count = 0;
-      for (uint32_t i = 0; i < sorted_count; i++) {
-        if (sorted[i]->schema == schema) {
-          schema_sorted_count++;
-        }
+    for (uint32_t i = 0; i < sorted_count; i++) {
+      if (sorted[i]->schema) {
+        sorted[i]->schema->sorted_defs_count++;
       }
+    }
 
-      if (schema_sorted_count > 0) {
-        bebop_def_t** new_sorted =
-            bebop_arena_new(BEBOP_ARENA(ctx), bebop_def_t*, schema_sorted_count);
-        if (new_sorted) {
-          uint32_t j = 0;
-          for (uint32_t i = 0; i < sorted_count; i++) {
-            if (sorted[i]->schema == schema) {
-              new_sorted[j++] = sorted[i];
-            }
-          }
-          schema->sorted_defs = new_sorted;
-          schema->sorted_defs_count = schema_sorted_count;
-          schema->sorted_defs_capacity = schema_sorted_count;
-        }
-      } else {
-        schema->sorted_defs = NULL;
-        schema->sorted_defs_count = 0;
-        schema->sorted_defs_capacity = 0;
+    for (uint32_t s = 0; s < result->schema_count; s++) {
+      bebop_schema_t* schema = result->schemas[s];
+      if (!schema || schema->sorted_defs_count == 0) {
+        continue;
+      }
+      schema->sorted_defs =
+          bebop_arena_new(BEBOP_ARENA(ctx), bebop_def_t*, schema->sorted_defs_count);
+      schema->sorted_defs_capacity = schema->sorted_defs ? schema->sorted_defs_count : 0;
+      schema->sorted_defs_count = 0;
+    }
+
+    for (uint32_t i = 0; i < sorted_count; i++) {
+      bebop_schema_t* schema = sorted[i]->schema;
+      if (schema && schema->sorted_defs) {
+        schema->sorted_defs[schema->sorted_defs_count++] = sorted[i];
       }
     }
   }

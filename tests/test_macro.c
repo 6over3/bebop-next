@@ -935,7 +935,7 @@ void test_lua_wrap_no_params(void)
   const char* source = "print('hello')";
 
   const char* result =
-      bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {source, strlen(source)}, NULL, 0);
+      bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {source, strlen(source)}, NULL, 0, NULL);
   TEST_ASSERT_NOT_NULL(result);
   TEST_ASSERT_EQUAL_STRING("return function()\nprint('hello')\nend\n", result);
 }
@@ -946,7 +946,7 @@ void test_lua_wrap_with_params(void)
   const char* params[] = {"self", "target", "min", "max"};
 
   const char* result = bebop__lua_wrap_function(
-      &ctx->arena, (bebop__str_view_t) {source, strlen(source)}, params, 4
+      &ctx->arena, (bebop__str_view_t) {source, strlen(source)}, params, 4, NULL
   );
   TEST_ASSERT_NOT_NULL(result);
   TEST_ASSERT_EQUAL_STRING(
@@ -960,7 +960,7 @@ void test_lua_wrap_multiline(void)
   const char* params[] = {"x"};
 
   const char* result = bebop__lua_wrap_function(
-      &ctx->arena, (bebop__str_view_t) {source, strlen(source)}, params, 1
+      &ctx->arena, (bebop__str_view_t) {source, strlen(source)}, params, 1, NULL
   );
   TEST_ASSERT_NOT_NULL(result);
 
@@ -974,10 +974,10 @@ void test_lua_wrap_null_source(void)
   const char* params[] = {"self"};
 
   const char* result =
-      bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {NULL, 0}, params, 1);
+      bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {NULL, 0}, params, 1, NULL);
   TEST_ASSERT_NULL(result);
 
-  result = bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {"x", 0}, params, 1);
+  result = bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {"x", 0}, params, 1, NULL);
   TEST_ASSERT_NULL(result);
 }
 
@@ -1001,7 +1001,7 @@ void test_lua_wrap_decorator_validate(void)
 
   const char* params[] = {"self", "target", "min", "max"};
   const char* wrapped = bebop__lua_wrap_function(
-      &ctx->arena, (bebop__str_view_t) {val_src, def->decorator_def.validate_span.len}, params, 4
+      &ctx->arena, (bebop__str_view_t) {val_src, def->decorator_def.validate_span.len}, params, 4, NULL
   );
 
   TEST_ASSERT_NOT_NULL(wrapped);
@@ -1029,7 +1029,7 @@ void test_lua_wrap_decorator_export(void)
 
   const char* params[] = {"self", "target", "name"};
   const char* wrapped = bebop__lua_wrap_function(
-      &ctx->arena, (bebop__str_view_t) {exp_src, def->decorator_def.export_span.len}, params, 3
+      &ctx->arena, (bebop__str_view_t) {exp_src, def->decorator_def.export_span.len}, params, 3, NULL
   );
 
   TEST_ASSERT_NOT_NULL(wrapped);

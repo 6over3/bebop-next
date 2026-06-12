@@ -34,6 +34,8 @@ void test_arena_dup(void);
 void test_arena_strdup_null(void);
 void test_arena_custom_allocator(void);
 void test_arena_custom_allocator_reset(void);
+void test_arena_realloc_extends_last_alloc(void);
+void test_arena_realloc_copies_when_not_last(void);
 
 void test_arena_create_destroy(void)
 {
@@ -303,6 +305,42 @@ void test_arena_custom_allocator_reset(void)
   TEST_ASSERT_EQUAL_UINT(chunks_allocated - 1, custom_free_count);
 }
 
+void test_arena_realloc_extends_last_alloc(void)
+{
+  TEST_ASSERT_TRUE(bebop_arena_init(&arena, &test_alloc, 0));
+
+  char* p = bebop_arena_alloc(&arena, 64, 8);
+  TEST_ASSERT_NOT_NULL(p);
+  memset(p, 0xAB, 64);
+
+  char* grown = bebop_arena_realloc(&arena, p, 64, 256);
+  TEST_ASSERT_EQUAL_PTR(p, grown);
+  for (int i = 0; i < 64; i++) {
+    TEST_ASSERT_EQUAL_HEX8(0xAB, (uint8_t)grown[i]);
+  }
+  for (int i = 64; i < 256; i++) {
+    TEST_ASSERT_EQUAL_HEX8(0, (uint8_t)grown[i]);
+  }
+}
+
+void test_arena_realloc_copies_when_not_last(void)
+{
+  TEST_ASSERT_TRUE(bebop_arena_init(&arena, &test_alloc, 0));
+
+  char* p = bebop_arena_alloc(&arena, 64, 8);
+  TEST_ASSERT_NOT_NULL(p);
+  memset(p, 0xCD, 64);
+
+  TEST_ASSERT_NOT_NULL(bebop_arena_alloc(&arena, 16, 8));
+
+  char* grown = bebop_arena_realloc(&arena, p, 64, 256);
+  TEST_ASSERT_NOT_NULL(grown);
+  TEST_ASSERT_TRUE(grown != p);
+  for (int i = 0; i < 64; i++) {
+    TEST_ASSERT_EQUAL_HEX8(0xCD, (uint8_t)grown[i]);
+  }
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -329,6 +367,9 @@ int main(void)
 
   RUN_TEST(test_arena_custom_allocator);
   RUN_TEST(test_arena_custom_allocator_reset);
+
+  RUN_TEST(test_arena_realloc_extends_last_alloc);
+  RUN_TEST(test_arena_realloc_copies_when_not_last);
 
   return UNITY_END();
 }

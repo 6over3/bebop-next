@@ -294,13 +294,10 @@ bebopc_error_code_t bebopc_dir_readfile(const bebopc_dir_t* dir, bebopc_file_t* 
 #ifndef BEBOPC_WINDOWS
 #ifdef __MINGW32__
   if (_tstat(file->path, &file->_s) == -1)
-#elif (defined _BSD_SOURCE) || (defined _DEFAULT_SOURCE) \
-    || ((defined _XOPEN_SOURCE) && (_XOPEN_SOURCE >= 500)) \
-    || ((defined _POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L)) \
-    || ((defined __APPLE__) && (defined __MACH__)) || (defined BSD)
-  if (lstat(file->path, &file->_s) == -1)
 #else
-  if (stat(file->path, &file->_s) == -1)
+  // lstat unconditionally: symlinked directories must not report is_dir, or
+  // the glob walk follows symlink loops.
+  if (lstat(file->path, &file->_s) == -1)
 #endif
   {
     if (dir->ctx) {
@@ -758,7 +755,18 @@ char* bebopc_path_relative(const char* base, const char* path)
   size_t base_len = bebopc_strlen(base);
   size_t path_len = bebopc_strlen(path);
 
+  // Trailing separators on base don't count toward the boundary check.
+  while (base_len > 0 && (base[base_len - 1] == '/' || base[base_len - 1] == '\\')) {
+    base_len--;
+  }
+
   if (path_len < base_len || bebopc_strncmp(path, base, base_len) != 0) {
+    return bebopc_strdup(path);
+  }
+
+  // Require a separator (or exact match) at the boundary so base "/foo"
+  // does not claim "/foobar".
+  if (path[base_len] != '\0' && path[base_len] != '/' && path[base_len] != '\\') {
     return bebopc_strdup(path);
   }
 

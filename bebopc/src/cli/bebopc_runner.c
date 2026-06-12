@@ -7,6 +7,8 @@
 
 extern bebopc_log_ctx_t* g_log_ctx;
 
+#include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,9 +19,41 @@ extern bebopc_log_ctx_t* g_log_ctx;
 #endif
 #include <windows.h>
 #else
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #endif
+
+#define BEBOPC_PLUGIN_TIMEOUT_MS_DEFAULT 60000
+
+// Wall-clock budget for one plugin invocation; 0 disables the deadline.
+static int bebopc__plugin_timeout_ms(void)
+{
+  const char* env = getenv("BEBOPC_PLUGIN_TIMEOUT_MS");
+  if (env && env[0]) {
+    char* end = NULL;
+    long val = strtol(env, &end, 10);
+    if (end && *end == '\0' && val >= 0 && val <= INT_MAX) {
+      return (int)val;
+    }
+  }
+  return BEBOPC_PLUGIN_TIMEOUT_MS_DEFAULT;
+}
+
+static int64_t bebopc__now_ms(void)
+{
+#ifdef BEBOPC_WINDOWS
+  return (int64_t)GetTickCount64();
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
 
 bebopc_error_code_t bebopc_runner_init(
     bebopc_runner_t* r,
@@ -120,6 +154,37 @@ static void _report_plugin_diagnostics(
   }
 }
 
+// Plugin responses are untrusted: emitted file names must stay inside
+// out_dir, so reject absolute paths, drive letters, and ".." components.
+static bool _plugin_file_name_is_safe(const char* name)
+{
+  if (!name || !name[0]) {
+    return false;
+  }
+  if (name[0] == '/' || name[0] == '\\') {
+    return false;
+  }
+  if (((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z'))
+      && name[1] == ':')
+  {
+    return false;
+  }
+  for (const char* p = name; *p;) {
+    size_t seg_len = 0;
+    while (p[seg_len] && p[seg_len] != '/' && p[seg_len] != '\\') {
+      seg_len++;
+    }
+    if (seg_len == 2 && p[0] == '.' && p[1] == '.') {
+      return false;
+    }
+    p += seg_len;
+    while (*p == '/' || *p == '\\') {
+      p++;
+    }
+  }
+  return true;
+}
+
 static bebopc_error_code_t _write_generated_files(
     bebopc_runner_t* r, const bebopc_plugin_t* gen, bebop_plugin_response_t* resp
 )
@@ -134,6 +199,18 @@ static bebopc_error_code_t _write_generated_files(
       continue;
     }
     if (bebop_plugin_response_file_insertion_point(resp, i)) {
+      continue;
+    }
+
+    if (!_plugin_file_name_is_safe(name)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] refusing file path outside output directory: %s",
+          gen->name,
+          name
+      );
+      result = BEBOPC_ERR_INVALID_ARG;
       continue;
     }
 
@@ -161,6 +238,18 @@ static bebopc_error_code_t _write_generated_files(
       continue;
     }
 
+    if (!_plugin_file_name_is_safe(name)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] refusing file path outside output directory: %s",
+          gen->name,
+          name
+      );
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
+
     char* full_path = bebopc_path_join(gen->out_dir, name);
     if (!full_path) {
       result = BEBOPC_ERR_OUT_OF_MEMORY;
@@ -183,7 +272,20 @@ static bebopc_error_code_t _write_generated_files(
     }
 
     char marker[256];
-    snprintf(marker, sizeof(marker), "// @@bebop_insertion_point(%s)", point);
+    const int marker_n = snprintf(marker, sizeof(marker), "// @@bebop_insertion_point(%s)", point);
+    if (marker_n < 0 || (size_t)marker_n >= sizeof(marker)) {
+      BEBOPC_ERROR(
+          &r->ctx->errors,
+          BEBOPC_ERR_INVALID_ARG,
+          "[%s] insertion point name too long: %s",
+          gen->name,
+          point
+      );
+      free(file_content);
+      free(full_path);
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
 
     char* insert_pos = strstr(file_content, marker);
     if (!insert_pos) {
@@ -204,6 +306,12 @@ static bebopc_error_code_t _write_generated_files(
     size_t before_len = (size_t)(insert_pos - file_content);
     size_t insert_len = bebopc_strlen(content);
     size_t marker_len = bebopc_strlen(marker);
+    if (before_len + marker_len > file_size) {
+      free(file_content);
+      free(full_path);
+      result = BEBOPC_ERR_INVALID_ARG;
+      continue;
+    }
     size_t after_len = file_size - before_len - marker_len;
     size_t new_size = before_len + insert_len + marker_len + after_len;
 
@@ -345,17 +453,21 @@ static bebopc_error_code_t _invoke_plugin(bebopc_runner_t* r, const bebopc_plugi
     goto cleanup;
   }
 
-  if (!bebopc_process_write(proc, req_buf, req_len)) {
+  const int timeout_ms = bebopc__plugin_timeout_ms();
+  if (!bebopc_process_exchange(proc, req_buf, req_len, &resp_buf, &resp_len, timeout_ms)) {
+    bebopc_process_kill(proc);
+    bebopc_process_wait(proc);
     BEBOPC_ERROR(
-        &r->ctx->errors, BEBOPC_ERR_IO, "[%s] failed to write request to plugin", gen->name
+        &r->ctx->errors,
+        BEBOPC_ERR_IO,
+        "[%s] plugin did not respond within %d ms (or pipe I/O failed)",
+        gen->name,
+        timeout_ms
     );
     result = BEBOPC_ERR_IO;
     goto cleanup;
   }
-  bebopc_process_close_stdin(proc);
-
-  resp_buf = bebopc_process_read_all(proc, &resp_len);
-  exit_code = bebopc_process_wait(proc);
+  exit_code = bebopc_process_wait_timeout(proc, timeout_ms);
 
   log_trace(
       "[%s] plugin exited with code %d, response size: %zu bytes", gen->name, exit_code, resp_len
@@ -461,6 +573,14 @@ char* bebopc_find_plugin(const char* name)
     return NULL;
   }
 
+  // The name is spliced into "bebopc-gen-<name>"; separators would let a
+  // config traverse out of the lookup directories.
+  for (const char* p = name; *p; p++) {
+    if (*p == '/' || *p == '\\' || *p == ':') {
+      return NULL;
+    }
+  }
+
 #ifdef BEBOPC_WINDOWS
   const char* ext = ".exe";
 #else
@@ -505,7 +625,17 @@ char* bebopc_find_plugin(const char* name)
       char* dir = strtok_r(path_copy, sep, &save_ptr);
 #endif
       while (dir) {
-        char* full = bebopc_path_join(dir, plugin_name);
+        // Relative PATH entries ("." or empty) resolve against the cwd and
+        // would let a planted binary shadow the real generator.
+        const bool is_absolute =
+#ifdef BEBOPC_WINDOWS
+            (dir[0] == '\\' || dir[0] == '/'
+             || (((dir[0] >= 'A' && dir[0] <= 'Z') || (dir[0] >= 'a' && dir[0] <= 'z'))
+                 && dir[1] == ':'));
+#else
+            dir[0] == '/';
+#endif
+        char* full = is_absolute ? bebopc_path_join(dir, plugin_name) : NULL;
         if (full && bebopc_file_is_file(full)) {
           free(path_copy);
           free(plugin_name);
@@ -633,16 +763,23 @@ bebopc_process_t* bebopc_process_spawn(const char* exe)
   if (pid == 0) {
     dup2(stdin_pipe[0], STDIN_FILENO);
     dup2(stdout_pipe[1], STDOUT_FILENO);
-    close(stdin_pipe[0]);
-    close(stdin_pipe[1]);
-    close(stdout_pipe[0]);
-    close(stdout_pipe[1]);
+    // Close everything above stderr so schema files, config, watcher, and
+    // log fds do not leak into the untrusted plugin.
+    long max_fd = sysconf(_SC_OPEN_MAX);
+    if (max_fd < 0 || max_fd > 1024) {
+      max_fd = 1024;
+    }
+    for (int fd = 3; fd < (int)max_fd; fd++) {
+      close(fd);
+    }
     execl(exe, exe, (char*)NULL);
     _exit(127);
   }
 
   close(stdin_pipe[0]);
   close(stdout_pipe[1]);
+  fcntl(stdin_pipe[1], F_SETFD, FD_CLOEXEC);
+  fcntl(stdout_pipe[0], F_SETFD, FD_CLOEXEC);
   p->pid = pid;
   p->stdin_fd = stdin_pipe[1];
   p->stdout_fd = stdout_pipe[0];
@@ -734,6 +871,276 @@ uint8_t* bebopc_process_read_all(bebopc_process_t* p, size_t* out_len)
 
   *out_len = len;
   return buf;
+}
+
+#ifdef BEBOPC_WINDOWS
+typedef struct {
+  HANDLE pipe;
+  const uint8_t* data;
+  size_t len;
+} bebopc__win_writer_t;
+
+static DWORD WINAPI bebopc__win_writer_main(LPVOID arg)
+{
+  bebopc__win_writer_t* w = arg;
+  size_t off = 0;
+  while (off < w->len) {
+    DWORD chunk = (w->len - off > (size_t)1 << 20) ? (DWORD)(1 << 20) : (DWORD)(w->len - off);
+    DWORD written = 0;
+    if (!WriteFile(w->pipe, w->data + off, chunk, &written, NULL) || written == 0) {
+      break;
+    }
+    off += written;
+  }
+  CloseHandle(w->pipe);
+  return 0;
+}
+#endif
+
+// Write the request and drain stdout concurrently under a wall-clock
+// deadline. A blocking write-all-then-read sequence deadlocks once both the
+// request and the response exceed the pipe buffer.
+bool bebopc_process_exchange(
+    bebopc_process_t* p,
+    const void* req,
+    size_t req_len,
+    uint8_t** out_resp,
+    size_t* out_len,
+    int timeout_ms
+)
+{
+  if (!p || !out_resp || !out_len || (!req && req_len > 0)) {
+    return false;
+  }
+  *out_resp = NULL;
+  *out_len = 0;
+
+  const int64_t deadline = timeout_ms > 0 ? bebopc__now_ms() + timeout_ms : 0;
+  size_t cap = 4096;
+  size_t len = 0;
+  uint8_t* buf = malloc(cap);
+  if (!buf) {
+    return false;
+  }
+  bool ok = false;
+
+#ifdef BEBOPC_WINDOWS
+  bebopc__win_writer_t writer = {p->stdin_write, req, req_len};
+  HANDLE writer_thread = NULL;
+  if (p->stdin_write) {
+    writer_thread = CreateThread(NULL, 0, bebopc__win_writer_main, &writer, 0, NULL);
+    if (!writer_thread) {
+      free(buf);
+      return false;
+    }
+    p->stdin_write = NULL;  // the writer thread owns and closes the handle
+  }
+
+  for (;;) {
+    if (deadline && bebopc__now_ms() >= deadline) {
+      break;
+    }
+    DWORD avail = 0;
+    if (!PeekNamedPipe(p->stdout_read, NULL, 0, NULL, &avail, NULL)) {
+      ok = true;  // pipe closed: writer side exited
+      break;
+    }
+    if (avail == 0) {
+      if (WaitForSingleObject(p->process, 10) == WAIT_OBJECT_0) {
+        if (!PeekNamedPipe(p->stdout_read, NULL, 0, NULL, &avail, NULL) || avail == 0) {
+          ok = true;
+          break;
+        }
+      }
+      continue;
+    }
+    if (len + avail > cap) {
+      size_t new_cap = cap;
+      while (new_cap < len + avail) {
+        new_cap *= 2;
+      }
+      uint8_t* new_buf = realloc(buf, new_cap);
+      if (!new_buf) {
+        break;
+      }
+      buf = new_buf;
+      cap = new_cap;
+    }
+    DWORD n = 0;
+    if (!ReadFile(p->stdout_read, buf + len, avail, &n, NULL) || n == 0) {
+      ok = true;
+      break;
+    }
+    len += n;
+  }
+
+  if (!ok) {
+    TerminateProcess(p->process, 1);
+  }
+  if (writer_thread) {
+    WaitForSingleObject(writer_thread, 5000);
+    CloseHandle(writer_thread);
+  }
+#else
+  size_t written = 0;
+  if (p->stdin_fd >= 0 && req_len == 0) {
+    close(p->stdin_fd);
+    p->stdin_fd = -1;
+  }
+  if (p->stdin_fd >= 0) {
+    fcntl(p->stdin_fd, F_SETFL, O_NONBLOCK);
+  }
+  fcntl(p->stdout_fd, F_SETFL, O_NONBLOCK);
+
+  for (;;) {
+    struct pollfd fds[2];
+    nfds_t nfds = 0;
+    int stdin_slot = -1;
+    int stdout_slot = -1;
+    if (p->stdin_fd >= 0) {
+      fds[nfds] = (struct pollfd) {.fd = p->stdin_fd, .events = POLLOUT};
+      stdin_slot = (int)nfds++;
+    }
+    if (p->stdout_fd >= 0) {
+      fds[nfds] = (struct pollfd) {.fd = p->stdout_fd, .events = POLLIN};
+      stdout_slot = (int)nfds++;
+    }
+    if (stdout_slot < 0) {
+      ok = true;
+      break;
+    }
+
+    int wait_ms = -1;
+    if (deadline) {
+      const int64_t left = deadline - bebopc__now_ms();
+      if (left <= 0) {
+        break;
+      }
+      wait_ms = left > INT_MAX ? INT_MAX : (int)left;
+    }
+
+    const int rc = poll(fds, nfds, wait_ms);
+    if (rc < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    if (rc == 0) {
+      break;  // deadline expired
+    }
+
+    if (stdin_slot >= 0 && fds[stdin_slot].revents) {
+      bool close_stdin = false;
+      if (fds[stdin_slot].revents & POLLOUT) {
+        const ssize_t n = write(p->stdin_fd, (const uint8_t*)req + written, req_len - written);
+        if (n > 0) {
+          written += (size_t)n;
+          if (written == req_len) {
+            close_stdin = true;
+          }
+        } else if (n < 0 && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+          close_stdin = true;  // plugin stopped reading; let it finish from what it got
+        }
+      } else {
+        close_stdin = true;  // POLLERR/POLLHUP
+      }
+      if (close_stdin) {
+        close(p->stdin_fd);
+        p->stdin_fd = -1;
+      }
+    }
+
+    if (stdout_slot >= 0 && fds[stdout_slot].revents) {
+      if (len + 4096 > cap) {
+        uint8_t* new_buf = realloc(buf, cap * 2);
+        if (!new_buf) {
+          break;
+        }
+        buf = new_buf;
+        cap *= 2;
+      }
+      const ssize_t n = read(p->stdout_fd, buf + len, cap - len);
+      if (n > 0) {
+        len += (size_t)n;
+      } else if (n == 0) {
+        ok = true;
+        break;
+      } else if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+        break;
+      }
+    }
+  }
+#endif
+
+  if (!ok) {
+    free(buf);
+    return false;
+  }
+  *out_resp = buf;
+  *out_len = len;
+  return true;
+}
+
+void bebopc_process_kill(bebopc_process_t* p)
+{
+  if (!p) {
+    return;
+  }
+#ifdef BEBOPC_WINDOWS
+  if (p->process) {
+    TerminateProcess(p->process, 1);
+  }
+#else
+  if (p->pid > 0) {
+    kill(p->pid, SIGKILL);
+  }
+#endif
+}
+
+int bebopc_process_wait_timeout(bebopc_process_t* p, int timeout_ms)
+{
+  if (!p) {
+    return -1;
+  }
+#ifdef BEBOPC_WINDOWS
+  const DWORD wait = timeout_ms > 0 ? (DWORD)timeout_ms : INFINITE;
+  if (WaitForSingleObject(p->process, wait) == WAIT_TIMEOUT) {
+    TerminateProcess(p->process, 1);
+    WaitForSingleObject(p->process, INFINITE);
+  }
+  DWORD exit_code = 0;
+  GetExitCodeProcess(p->process, &exit_code);
+  return (int)exit_code;
+#else
+  const int64_t deadline = timeout_ms > 0 ? bebopc__now_ms() + timeout_ms : 0;
+  for (;;) {
+    int status;
+    const pid_t rc = waitpid(p->pid, &status, deadline ? WNOHANG : 0);
+    if (rc < 0 && errno == EINTR) {
+      continue;
+    }
+    if (rc < 0) {
+      return -1;
+    }
+    if (rc == p->pid || !deadline) {
+      if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+      }
+      if (WIFSIGNALED(status)) {
+        return -WTERMSIG(status);
+      }
+      return -1;
+    }
+    if (bebopc__now_ms() >= deadline) {
+      kill(p->pid, SIGKILL);
+      waitpid(p->pid, &status, 0);
+      return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    }
+    struct timespec ts = {0, 10 * 1000000};
+    nanosleep(&ts, NULL);
+  }
+#endif
 }
 
 int bebopc_process_wait(bebopc_process_t* p)

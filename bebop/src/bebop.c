@@ -110,16 +110,7 @@ typedef struct {
 #define BEBOP_DISCARD_CONST(type, ptr) ((type)(uintptr_t)(ptr))
 
 #define BEBOP_ARRAY_PUSH(arena, arr, count, cap, T) \
-  (((count) >= (cap)) \
-       ? ((cap) = ((cap) == 0)           ? 16 \
-              : ((cap) > UINT32_MAX / 2) ? 0 \
-                                         : (cap) * 2, \
-          ((cap) == 0) ? NULL \
-                       : ((arr) = (T*)bebop_arena_realloc( \
-                              (arena), (arr), ((cap) / 2) * sizeof(T), (cap) * sizeof(T) \
-                          ), \
-                          (arr) ? &(arr)[(count)++] : NULL)) \
-       : &(arr)[(count)++])
+  ((T*)bebop__array_push((arena), (void**)&(arr), &(count), &(cap), sizeof(T)))
 
 #define BEBOP_DIAG_FMT(schema, sev, code, span, ...) \
   do { \
@@ -276,13 +267,56 @@ void* bebop_arena_realloc(bebop_arena_t* arena, const void* ptr, size_t old_size
 
 void bebop_arena_free(const bebop_arena_t* arena, const void* ptr);
 
-#define bebop_arena_new(arena, T, n) ((T*)bebop_arena_alloc((arena), sizeof(T) * (n), _Alignof(T)))
+// Grow-and-push for uint32_t-counted arrays. Leaves arr/count/cap untouched
+// and returns NULL on capacity overflow or OOM.
+static inline void* bebop__array_push(
+    bebop_arena_t* arena, void** arr, uint32_t* count, uint32_t* cap, const size_t elem_size
+)
+{
+  if (*count >= *cap) {
+    if (*cap > UINT32_MAX / 2) {
+      return NULL;
+    }
+    const uint32_t new_cap = (*cap == 0) ? 16 : *cap * 2;
+    if ((size_t)new_cap > SIZE_MAX / elem_size) {
+      return NULL;
+    }
+    void* new_arr = bebop_arena_realloc(
+        arena, *arr, (size_t)*cap * elem_size, (size_t)new_cap * elem_size
+    );
+    if (!new_arr) {
+      return NULL;
+    }
+    *arr = new_arr;
+    *cap = new_cap;
+  }
+  return (char*)*arr + (size_t)(*count)++ * elem_size;
+}
+
+static inline void* bebop__arena_alloc_n(
+    bebop_arena_t* arena, const size_t elem_size, const size_t n, const size_t align
+)
+{
+  if (n != 0 && elem_size > SIZE_MAX / n) {
+    return NULL;
+  }
+  return bebop_arena_alloc(arena, elem_size * n, align);
+}
+
+#define bebop_arena_new(arena, T, n) ((T*)bebop__arena_alloc_n((arena), sizeof(T), (n), _Alignof(T)))
 
 #define bebop_arena_new1(arena, T) bebop_arena_new((arena), T, 1)
 
 static inline void* bebop__cwiss_alloc(const size_t size, const size_t align, void* ctx)
 {
-  return bebop_arena_alloc(ctx, size, align);
+  void* ptr = bebop_arena_alloc(ctx, size, align);
+  if (BEBOP_UNLIKELY(!ptr)) {
+    // cwisstable writes to the returned block unchecked; fail fast with a
+    // diagnostic instead of dereferencing NULL (matches its malloc policy).
+    fprintf(stderr, "bebop: out of memory growing hash table (%zu bytes)\n", size);
+    abort();
+  }
+  return ptr;
 }
 
 static inline void bebop__cwiss_free(void* ptr, const size_t size, const size_t align, void* ctx)
@@ -333,6 +367,31 @@ CWISS_DECLARE_FLAT_MAP_POLICY(
 );
 CWISS_DECLARE_HASHMAP_WITH(bebop_idxmap, uint32_t, uint32_t, bebop_idxmap_kPolicy);
 
+uint64_t bebop_hash_fnv1a(const char* str, size_t len);
+
+static inline size_t bebop__pathset_hash(const void* val)
+{
+  const char* const* s = val;
+  return (size_t)bebop_hash_fnv1a(*s, strlen(*s));
+}
+
+static inline bool bebop__pathset_eq(const void* a, const void* b)
+{
+  const char* const* sa = a;
+  const char* const* sb = b;
+  return strcmp(*sa, *sb) == 0;
+}
+
+CWISS_DECLARE_FLAT_SET_POLICY(
+    bebop_pathset_kPolicy,
+    const char*,
+    (key_hash, bebop__pathset_hash),
+    (key_eq, bebop__pathset_eq),
+    (alloc_alloc, bebop__cwiss_alloc),
+    (alloc_free, bebop__cwiss_free)
+);
+CWISS_DECLARE_HASHSET_WITH(bebop_pathset, const char*, bebop_pathset_kPolicy);
+
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -357,6 +416,7 @@ typedef struct {
   char** strings;
   uint64_t* hashes;
   uint32_t* lengths;
+  uint32_t* next;  // collision chain for strings sharing a 64-bit hash; 0 ends the chain
   uint32_t count;
   uint32_t capacity;
   bebop_arena_t* arena;
@@ -373,8 +433,6 @@ size_t bebop_str_len(const bebop_intern_t* intern, bebop_str_t handle);
 
 #define bebop_str_is_null(handle) ((handle).idx == 0)
 #define bebop_str_eq(a, b) ((a).idx == (b).idx)
-
-uint64_t bebop_hash_fnv1a(const char* str, size_t len);
 
 typedef int32_t bebop_codepoint_t;
 
@@ -792,8 +850,9 @@ typedef struct {
 } bebop_trivia_t;
 
 typedef struct {
-  bebop_trivia_t* items;
+  bebop_trivia_t* items;  // resolved after the scan; off indexes the shared buffer until then
   uint32_t count;
+  uint32_t off;
 } bebop_trivia_list_t;
 
 typedef struct {
@@ -880,7 +939,11 @@ bebop_def_t* bebop__schema_find_def(bebop_schema_t* schema, bebop_str_t name);
 bool bebop__schema_has_visibility(bebop_schema_t* source, bebop_schema_t* target);
 
 const char* bebop__lua_wrap_function(
-    bebop_arena_t* arena, bebop__str_view_t source, const char* const* params, uint32_t param_count
+    bebop_arena_t* arena,
+    bebop__str_view_t source,
+    const char* const* params,
+    uint32_t param_count,
+    size_t* out_len
 );
 
 typedef struct bebop_lua_state bebop_lua_state_t;
@@ -1189,6 +1252,7 @@ typedef struct {
   size_t count;
   size_t capacity;
   size_t head;
+  bebop_pathset seen;  // normalized paths already parsed
 } bebop__work_list_t;
 
 static bool bebop__normalize_path(char* path, size_t size, int* escape_count)
@@ -1269,37 +1333,32 @@ static bool bebop__normalize_path(char* path, size_t size, int* escape_count)
   return true;
 }
 
-static bool bebop__paths_equal(const char* a, const char* b)
+static void bebop__path_normalize_into(const char* path, char* norm, size_t size)
 {
-  if (bebop__streq(a, b)) {
-    return true;
-  }
-  if (!a || !b) {
+  snprintf(norm, size, "%s", path);
+  int esc = 0;
+  bebop__normalize_path(norm, size, &esc);
+}
+
+// Return whether the path was already recorded; record it otherwise.
+static bool bebop__path_mark(bebop__work_list_t* wl, const char* path)
+{
+  if (!path) {
     return false;
   }
 
-  char norm_a[PATH_MAX], norm_b[PATH_MAX];
-  snprintf(norm_a, sizeof(norm_a), "%s", a);
-  snprintf(norm_b, sizeof(norm_b), "%s", b);
+  char norm[PATH_MAX];
+  bebop__path_normalize_into(path, norm, sizeof(norm));
 
-  int esc_a = 0, esc_b = 0;
-  bebop__normalize_path(norm_a, sizeof(norm_a), &esc_a);
-  bebop__normalize_path(norm_b, sizeof(norm_b), &esc_b);
-
-  return bebop__streq(norm_a, norm_b);
-}
-
-static bool bebop__path_seen(const bebop__work_list_t* wl, const char* path)
-{
-  for (uint32_t i = 0; i < wl->result->schema_count; i++) {
-    if (wl->result->schemas[i]->path && bebop__paths_equal(wl->result->schemas[i]->path, path)) {
-      return true;
-    }
+  const char* key = norm;
+  const bebop_pathset_Iter it = bebop_pathset_find(&wl->seen, &key);
+  if (bebop_pathset_Iter_get(&it)) {
+    return true;
   }
-  for (size_t i = wl->head; i < wl->count; i++) {
-    if (bebop__paths_equal(wl->items[i].path, path)) {
-      return true;
-    }
+
+  const char* copy = bebop_arena_strdup(BEBOP_ARENA(wl->ctx), norm);
+  if (copy) {
+    bebop_pathset_insert(&wl->seen, &copy);
   }
   return false;
 }
@@ -1442,7 +1501,7 @@ static bool bebop__process_imports(bebop__work_list_t* wl, bebop_schema_t* schem
 
     imp->resolved_path = bebop_arena_strdup(BEBOP_ARENA(ctx), resolved);
 
-    if (bebop__path_seen(wl, resolved)) {
+    if (bebop__path_mark(wl, resolved)) {
       continue;
     }
 
@@ -1484,10 +1543,6 @@ static bebop_status_t bebop__parse_impl(bebop__work_list_t* wl)
   while (wl->head < wl->count) {
     const bebop__work_item_t item = wl->items[wl->head++];
 
-    if (bebop__path_seen(wl, item.path)) {
-      continue;
-    }
-
     bebop_schema_t* schema = bebop__schema_create(ctx, item.path, item.source, item.len);
     if (!schema) {
       bebop__context_set_error(ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate schema");
@@ -1507,6 +1562,10 @@ static bebop_status_t bebop__parse_impl(bebop__work_list_t* wl)
     }
 
     bebop__result_add_schema(result, schema);
+
+    if (bebop_context_last_error(ctx) != BEBOP_ERR_NONE) {
+      return BEBOP_FATAL;
+    }
 
     if (!bebop__process_imports(wl, schema)) {
       return BEBOP_FATAL;
@@ -1548,6 +1607,7 @@ bebop_status_t bebop_parse_source(
       .count = 0,
       .capacity = 16,
       .head = 0,
+      .seen = bebop_pathset_new(16, BEBOP_ARENA(ctx)),
   };
 
   if (!wl.items) {
@@ -1555,6 +1615,7 @@ bebop_status_t bebop_parse_source(
     return BEBOP_FATAL;
   }
 
+  bebop__path_mark(&wl, source->path);
   wl.items[wl.count++] =
       (bebop__work_item_t) {.path = source->path, .source = source->source, .len = source->len};
 
@@ -1592,6 +1653,7 @@ bebop_status_t bebop_parse_sources(
       .count = 0,
       .capacity = count + 16,
       .head = 0,
+      .seen = bebop_pathset_new(16, BEBOP_ARENA(ctx)),
   };
 
   if (!wl.items) {
@@ -1600,6 +1662,9 @@ bebop_status_t bebop_parse_sources(
   }
 
   for (size_t i = 0; i < count; i++) {
+    if (bebop__path_mark(&wl, sources[i].path)) {
+      continue;
+    }
     const char* source_copy =
         bebop_arena_strndup(BEBOP_ARENA(ctx), sources[i].source, sources[i].len);
     if (!source_copy) {
@@ -1649,6 +1714,7 @@ bebop_status_t bebop_parse(
       .count = 0,
       .capacity = path_count + 16,
       .head = 0,
+      .seen = bebop_pathset_new(16, BEBOP_ARENA(ctx)),
   };
 
   if (!wl.items) {
@@ -1657,7 +1723,7 @@ bebop_status_t bebop_parse(
   }
 
   for (size_t i = 0; i < path_count; i++) {
-    if (bebop__path_seen(&wl, paths[i])) {
+    if (bebop__path_mark(&wl, paths[i])) {
       continue;
     }
 

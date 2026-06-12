@@ -89,18 +89,22 @@ static inline bool _glob_char_eq(char a, char b, bool case_sensitive)
   return case_sensitive ? (a == b) : BEBOPC_CHAR_IEQ(a, b);
 }
 
-static bool _glob_match_segment(const char* pattern, const char* name, bool case_sensitive)
+static bool _glob_match_segment_n(
+    const char* pattern, size_t plen, const char* name, size_t nlen, bool case_sensitive
+)
 {
   const char* p = pattern;
+  const char* p_end = pattern + plen;
   const char* n = name;
+  const char* n_end = name + nlen;
   const char* star_p = NULL;
   const char* star_n = NULL;
 
-  while (*n) {
-    if (*p == '*') {
+  while (n < n_end) {
+    if (p < p_end && *p == '*') {
       star_p = p++;
       star_n = n;
-    } else if (*p == '?' || _glob_char_eq(*p, *n, case_sensitive)) {
+    } else if (p < p_end && (*p == '?' || _glob_char_eq(*p, *n, case_sensitive))) {
       p++;
       n++;
     } else if (star_p) {
@@ -111,11 +115,16 @@ static bool _glob_match_segment(const char* pattern, const char* name, bool case
     }
   }
 
-  while (*p == '*') {
+  while (p < p_end && *p == '*') {
     p++;
   }
 
-  return *p == '\0';
+  return p == p_end;
+}
+
+static bool _glob_match_segment(const char* pattern, const char* name, bool case_sensitive)
+{
+  return _glob_match_segment_n(pattern, strlen(pattern), name, strlen(name), case_sensitive);
 }
 
 static bool _glob_is_double_star(const char* segment, size_t len)
@@ -183,57 +192,53 @@ static bool _glob_match_segments(
     size_t path_count,
     size_t pi,
     size_t si,
-    bool case_sensitive
+    bool case_sensitive,
+    uint8_t* memo
 )
 {
+  // Memoize on the entry (pi, si): each '**' forks the recursion two ways,
+  // which is exponential on patterns like **/a/**/a/** without it.
+  const size_t memo_idx = pi * (path_count + 1) + si;
+  if (memo && memo[memo_idx]) {
+    return memo[memo_idx] == 1;
+  }
+  const size_t entry_idx = memo_idx;
+  bool matched = false;
+
   while (pi < pattern_count && si < path_count) {
     if (_glob_is_double_star(pattern_segs[pi], pattern_lens[pi])) {
-      if (_glob_match_segments(
-              pattern_segs,
-              pattern_lens,
-              pattern_count,
-              path_segs,
-              path_lens,
-              path_count,
-              pi + 1,
-              si,
-              case_sensitive
-          ))
-      {
-        return true;
-      }
-
-      if (_glob_match_segments(
-              pattern_segs,
-              pattern_lens,
-              pattern_count,
-              path_segs,
-              path_lens,
-              path_count,
-              pi,
-              si + 1,
-              case_sensitive
-          ))
-      {
-        return true;
-      }
-      return false;
+      matched = _glob_match_segments(
+                    pattern_segs,
+                    pattern_lens,
+                    pattern_count,
+                    path_segs,
+                    path_lens,
+                    path_count,
+                    pi + 1,
+                    si,
+                    case_sensitive,
+                    memo
+                )
+          || _glob_match_segments(
+                    pattern_segs,
+                    pattern_lens,
+                    pattern_count,
+                    path_segs,
+                    path_lens,
+                    path_count,
+                    pi,
+                    si + 1,
+                    case_sensitive,
+                    memo
+                );
+      goto done;
     }
 
-    char* pattern_seg = bebopc_strndup(pattern_segs[pi], pattern_lens[pi]);
-    char* path_seg = bebopc_strndup(path_segs[si], path_lens[si]);
-    if (!pattern_seg || !path_seg) {
-      free(pattern_seg);
-      free(path_seg);
-      return false;
-    }
-
-    bool match = _glob_match_segment(pattern_seg, path_seg, case_sensitive);
-    free(pattern_seg);
-    free(path_seg);
-
-    if (!match) {
-      return false;
+    if (!_glob_match_segment_n(
+            pattern_segs[pi], pattern_lens[pi], path_segs[si], path_lens[si], case_sensitive
+        ))
+    {
+      goto done;
     }
 
     pi++;
@@ -244,17 +249,30 @@ static bool _glob_match_segments(
     pi++;
   }
 
-  return pi == pattern_count && si == path_count;
+  matched = pi == pattern_count && si == path_count;
+
+done:
+  if (memo) {
+    memo[entry_idx] = matched ? 1 : 2;
+  }
+  return matched;
 }
+
+#define BEBOPC_GLOB_MAX_DEPTH 64
 
 static void _glob_dir_traverse(
     bebopc_glob_t* glob,
     bebopc_ctx_t* ctx,
     bebopc_glob_result_t* result,
     const char* base_dir,
-    const char* rel_path
+    const char* rel_path,
+    int depth
 )
 {
+  if (depth > BEBOPC_GLOB_MAX_DEPTH) {
+    return;
+  }
+
   char* full_path;
   if (rel_path && *rel_path) {
     full_path = bebopc_path_join(base_dir, rel_path);
@@ -334,7 +352,7 @@ static void _glob_dir_traverse(
       }
 
       if (file.is_dir) {
-        _glob_dir_traverse(glob, ctx, result, base_dir, entry_rel_path);
+        _glob_dir_traverse(glob, ctx, result, base_dir, entry_rel_path, depth + 1);
       }
 
       free(entry_rel_path);
@@ -431,7 +449,7 @@ bebopc_glob_result_t* bebopc_glob_execute(
     return NULL;
   }
 
-  _glob_dir_traverse(glob, ctx, result, directory, "");
+  _glob_dir_traverse(glob, ctx, result, directory, "", 0);
 
   return result;
 }
@@ -531,10 +549,22 @@ bool bebopc_glob_match(bebopc_glob_t* glob, const char* pattern, const char* pat
   size_t* path_lens = NULL;
   size_t path_count = _glob_split_path(path, &path_segs, &path_lens);
 
+  uint8_t* memo = calloc((pattern_count + 1) * (path_count + 1), 1);
+
   bool result = _glob_match_segments(
-      pattern_segs, pattern_lens, pattern_count, path_segs, path_lens, path_count, 0, 0, case_sensitive
+      pattern_segs,
+      pattern_lens,
+      pattern_count,
+      path_segs,
+      path_lens,
+      path_count,
+      0,
+      0,
+      case_sensitive,
+      memo
   );
 
+  free(memo);
   free(pattern_segs);
   free(pattern_lens);
   free(path_segs);

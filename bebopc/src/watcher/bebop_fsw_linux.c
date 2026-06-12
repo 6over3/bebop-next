@@ -2,7 +2,8 @@
 
 #if defined(BEBOP_FSW_LINUX)
 
-#include <assert.h>
+// Not implemented yet: report a clean "unsupported" failure instead of
+// asserting, so behavior does not depend on NDEBUG.
 
 struct _fsw_platform {
   int dummy;
@@ -10,14 +11,12 @@ struct _fsw_platform {
 
 _fsw_platform_t* _fsw_platform_create(void)
 {
-  assert(0 && "Linux file watcher not implemented");
   return NULL;
 }
 
 void _fsw_platform_destroy(_fsw_platform_t* p)
 {
   (void)p;
-  assert(0 && "Linux file watcher not implemented");
 }
 
 int _fsw_platform_add_watch(_fsw_platform_t* p, const char* path, bool recursive)
@@ -25,7 +24,6 @@ int _fsw_platform_add_watch(_fsw_platform_t* p, const char* path, bool recursive
   (void)p;
   (void)path;
   (void)recursive;
-  assert(0 && "Linux file watcher not implemented");
   return BEBOP_FSW_ERR_SYSTEM;
 }
 
@@ -33,7 +31,6 @@ void _fsw_platform_remove_watch(_fsw_platform_t* p, int wd)
 {
   (void)p;
   (void)wd;
-  assert(0 && "Linux file watcher not implemented");
 }
 
 int _fsw_platform_poll(
@@ -44,7 +41,6 @@ int _fsw_platform_poll(
   (void)timeout_ms;
   (void)events;
   (void)max_events;
-  assert(0 && "Linux file watcher not implemented");
   return BEBOP_FSW_ERR_SYSTEM;
 }
 
