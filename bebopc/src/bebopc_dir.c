@@ -755,7 +755,18 @@ char* bebopc_path_relative(const char* base, const char* path)
   size_t base_len = bebopc_strlen(base);
   size_t path_len = bebopc_strlen(path);
 
+  // Trailing separators on base don't count toward the boundary check.
+  while (base_len > 0 && (base[base_len - 1] == '/' || base[base_len - 1] == '\\')) {
+    base_len--;
+  }
+
   if (path_len < base_len || bebopc_strncmp(path, base, base_len) != 0) {
+    return bebopc_strdup(path);
+  }
+
+  // Require a separator (or exact match) at the boundary so base "/foo"
+  // does not claim "/foobar".
+  if (path[base_len] != '\0' && path[base_len] != '/' && path[base_len] != '\\') {
     return bebopc_strdup(path);
   }
 
