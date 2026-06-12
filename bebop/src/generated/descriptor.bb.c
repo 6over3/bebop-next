@@ -182,6 +182,11 @@ static Bebop_WireResult Bebop_TypeDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->kind);
@@ -296,6 +301,7 @@ static Bebop_WireResult Bebop_TypeDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_TypeDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -542,6 +548,11 @@ static Bebop_WireResult Bebop_LiteralValue__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->kind);
@@ -686,6 +697,7 @@ static Bebop_WireResult Bebop_LiteralValue__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_LiteralValue)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -912,6 +924,11 @@ static Bebop_WireResult Bebop_DecoratorUsage__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->fqn);
@@ -1022,6 +1039,7 @@ static Bebop_WireResult Bebop_DecoratorUsage__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_DecoratorUsage)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1185,6 +1203,11 @@ static Bebop_WireResult Bebop_FieldDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -1288,6 +1311,7 @@ static Bebop_WireResult Bebop_FieldDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_FieldDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1454,6 +1478,11 @@ static Bebop_WireResult Bebop_EnumMemberDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -1554,6 +1583,7 @@ static Bebop_WireResult Bebop_EnumMemberDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_EnumMemberDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1740,6 +1770,11 @@ static Bebop_WireResult Bebop_UnionBranchDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->discriminator);
@@ -1851,6 +1886,7 @@ static Bebop_WireResult Bebop_UnionBranchDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_UnionBranchDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2053,6 +2089,11 @@ static Bebop_WireResult Bebop_MethodDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -2181,6 +2222,7 @@ static Bebop_WireResult Bebop_MethodDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_MethodDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2306,6 +2348,11 @@ static Bebop_WireResult Bebop_EnumDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->base_type);
@@ -2384,6 +2431,7 @@ static Bebop_WireResult Bebop_EnumDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_EnumDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2509,6 +2557,11 @@ static Bebop_WireResult Bebop_StructDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->fields);
@@ -2587,6 +2640,7 @@ static Bebop_WireResult Bebop_StructDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_StructDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2676,6 +2730,11 @@ static Bebop_WireResult Bebop_MessageDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->fields);
@@ -2732,6 +2791,7 @@ static Bebop_WireResult Bebop_MessageDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_MessageDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2821,6 +2881,11 @@ static Bebop_WireResult Bebop_UnionDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->branches);
@@ -2877,6 +2942,7 @@ static Bebop_WireResult Bebop_UnionDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_UnionDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -2966,6 +3032,11 @@ static Bebop_WireResult Bebop_ServiceDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->methods);
@@ -3022,6 +3093,7 @@ static Bebop_WireResult Bebop_ServiceDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_ServiceDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -3117,6 +3189,11 @@ static Bebop_WireResult Bebop_ConstDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->type);
@@ -3167,6 +3244,7 @@ static Bebop_WireResult Bebop_ConstDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_ConstDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -3351,6 +3429,11 @@ static Bebop_WireResult Bebop_DecoratorParamDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -3465,6 +3548,7 @@ static Bebop_WireResult Bebop_DecoratorParamDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_DecoratorParamDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -3629,6 +3713,11 @@ static Bebop_WireResult Bebop_DecoratorDef__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->targets);
@@ -3732,6 +3821,7 @@ static Bebop_WireResult Bebop_DecoratorDef__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_DecoratorDef)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -4080,6 +4170,11 @@ static Bebop_WireResult Bebop_DefinitionDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->kind);
@@ -4323,6 +4418,7 @@ static Bebop_WireResult Bebop_DefinitionDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_DefinitionDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -4492,6 +4588,11 @@ static Bebop_WireResult Bebop_Location__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->path);
@@ -4604,6 +4705,7 @@ static Bebop_WireResult Bebop_Location__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Location)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -4695,6 +4797,11 @@ static Bebop_WireResult Bebop_SourceCodeInfo__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->locations);
@@ -4751,6 +4858,7 @@ static Bebop_WireResult Bebop_SourceCodeInfo__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_SourceCodeInfo)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -4950,6 +5058,11 @@ static Bebop_WireResult Bebop_SchemaDescriptor__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->path);
@@ -5086,6 +5199,7 @@ static Bebop_WireResult Bebop_SchemaDescriptor__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_SchemaDescriptor)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -5177,6 +5291,11 @@ static Bebop_WireResult Bebop_DescriptorSet__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->schemas);
@@ -5233,6 +5352,7 @@ static Bebop_WireResult Bebop_DescriptorSet__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_DescriptorSet)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 

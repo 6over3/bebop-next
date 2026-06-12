@@ -288,6 +288,11 @@ static Bebop_WireResult Bebop_CodeGeneratorRequest__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->files_to_generate);
@@ -441,6 +446,7 @@ static Bebop_WireResult Bebop_CodeGeneratorRequest__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_CodeGeneratorRequest)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -593,6 +599,11 @@ static Bebop_WireResult Bebop_Diagnostic__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->severity);
@@ -673,6 +684,7 @@ static Bebop_WireResult Bebop_Diagnostic__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Diagnostic)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -809,6 +821,11 @@ static Bebop_WireResult Bebop_GeneratedFile__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -881,6 +898,7 @@ static Bebop_WireResult Bebop_GeneratedFile__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_GeneratedFile)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1022,6 +1040,11 @@ static Bebop_WireResult Bebop_CodeGeneratorResponse__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->error);
@@ -1123,6 +1146,7 @@ static Bebop_WireResult Bebop_CodeGeneratorResponse__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_CodeGeneratorResponse)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 

@@ -116,6 +116,11 @@ static Bebop_WireResult Test_Document__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->title);
@@ -188,6 +193,7 @@ static Bebop_WireResult Test_Document__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Test_Document)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 

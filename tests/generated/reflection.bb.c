@@ -443,6 +443,11 @@ static Bebop_WireResult Reflection_OptionalFields__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->name);
@@ -498,6 +503,7 @@ static Bebop_WireResult Reflection_OptionalFields__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Reflection_OptionalFields)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1447,6 +1453,11 @@ static Bebop_WireResult Reflection_Shape__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, union_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + union_len;
 
   uint8_t disc;
@@ -1482,11 +1493,15 @@ static Bebop_WireResult Reflection_Shape__DecodeBody(
       break;
     // @@bebop_insertion_point(decode_switch:Reflection_Shape)
     default:
+      // Unknown discriminator: reset to 0 so callers never switch on
+      // a stored discriminator whose payload was left uninitialized.
+      v->discriminator = (Reflection_Shape_Disc)0;
       Bebop_Reader_Seek(rd, end);
       break;
   }
 
   // @@bebop_insertion_point(decode_end:Reflection_Shape)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 

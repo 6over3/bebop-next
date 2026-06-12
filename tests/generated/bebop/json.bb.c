@@ -110,6 +110,11 @@ static Bebop_WireResult Bebop_Value_Bool__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->value);
@@ -143,6 +148,7 @@ static Bebop_WireResult Bebop_Value_Bool__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Value_Bool)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -222,6 +228,11 @@ static Bebop_WireResult Bebop_Value_Number__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->value);
@@ -255,6 +266,7 @@ static Bebop_WireResult Bebop_Value_Number__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Value_Number)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -334,6 +346,11 @@ static Bebop_WireResult Bebop_Value_String__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->value);
@@ -367,6 +384,7 @@ static Bebop_WireResult Bebop_Value_String__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Value_String)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -455,6 +473,11 @@ static Bebop_WireResult Bebop_Value_List__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->values);
@@ -509,6 +532,7 @@ static Bebop_WireResult Bebop_Value_List__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Value_List)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -614,6 +638,11 @@ static Bebop_WireResult Bebop_Value_Map__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->fields);
@@ -674,6 +703,7 @@ static Bebop_WireResult Bebop_Value_Map__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Value_Map)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -791,6 +821,11 @@ static Bebop_WireResult Bebop_Value__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, union_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + union_len;
 
   uint8_t disc;
@@ -834,11 +869,15 @@ static Bebop_WireResult Bebop_Value__DecodeBody(
       break;
     // @@bebop_insertion_point(decode_switch:Bebop_Value)
     default:
+      // Unknown discriminator: reset to 0 so callers never switch on
+      // a stored discriminator whose payload was left uninitialized.
+      v->discriminator = (Bebop_Value_Disc)0;
       Bebop_Reader_Seek(rd, end);
       break;
   }
 
   // @@bebop_insertion_point(decode_end:Bebop_Value)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -942,6 +981,11 @@ static Bebop_WireResult Bebop_Object__DecodeBody(
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->fields);
@@ -1002,6 +1046,7 @@ static Bebop_WireResult Bebop_Object__DecodeBody(
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_Object)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 
@@ -1086,6 +1131,11 @@ static Bebop_WireResult Bebop_List__DecodeBody(Bebop_WireCtx* ctx, Bebop_Reader*
   if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) {
     return r;
   }
+  const uint8_t* _outer_end;
+  if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != BEBOP_WIRE_OK))
+  {
+    return r;
+  }
   const uint8_t* end = Bebop_Reader_Ptr(rd) + msg_len;
 
   BEBOP_WIRE_SET_NONE(v->values);
@@ -1140,6 +1190,7 @@ static Bebop_WireResult Bebop_List__DecodeBody(Bebop_WireCtx* ctx, Bebop_Reader*
 
 done:
   // @@bebop_insertion_point(decode_end:Bebop_List)
+  Bebop_Reader_PopLimit(rd, _outer_end);
   return BEBOP_WIRE_OK;
 }
 

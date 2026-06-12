@@ -4094,6 +4094,10 @@ static void gen_decode_message(gen_ctx_t* ctx,
   emit(
       ctx,
       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &msg_len)) != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "const uint8_t *_outer_end;");
+  emit(ctx,
+       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, msg_len, &_outer_end)) != "
+       "BEBOP_WIRE_OK)) return r;");
   emit(ctx, "const uint8_t *end = Bebop_Reader_Ptr(rd) + msg_len;");
   emit_nl(ctx);
 
@@ -4159,6 +4163,7 @@ static void gen_decode_message(gen_ctx_t* ctx,
   emit_nl(ctx);
   emit(ctx, "done:");
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
+  emit(ctx, "Bebop_Reader_PopLimit(rd, _outer_end);");
   emit(ctx, "return BEBOP_WIRE_OK;");
 
   ctx->indent--;
@@ -4192,6 +4197,10 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   emit(ctx, "uint32_t union_len;");
   emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) "
               "return r;");
+  emit(ctx, "const uint8_t *_outer_end;");
+  emit(ctx,
+       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, union_len, &_outer_end)) != "
+       "BEBOP_WIRE_OK)) return r;");
   emit(ctx, "const uint8_t *end = Bebop_Reader_Ptr(rd) + union_len;");
   emit_nl(ctx);
   emit(ctx, "uint8_t disc;");
@@ -4226,12 +4235,16 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   emit(ctx, "// @@bebop_insertion_point(decode_switch:%s)", name);
   emit(ctx, "default:");
   ctx->indent++;
+  emit(ctx, "// Unknown discriminator: reset to 0 so callers never switch on");
+  emit(ctx, "// a stored discriminator whose payload was left uninitialized.");
+  emit(ctx, "v->discriminator = (%s_Disc)0;", name);
   emit(ctx, "Bebop_Reader_Seek(rd, end);");
   emit(ctx, "break;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
+  emit(ctx, "Bebop_Reader_PopLimit(rd, _outer_end);");
   emit(ctx, "return BEBOP_WIRE_OK;");
 
   ctx->indent--;

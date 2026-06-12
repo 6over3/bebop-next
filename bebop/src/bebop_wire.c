@@ -2729,6 +2729,26 @@ size_t Bebop_Reader_Remaining(const Bebop_Reader* reader)
   return reader ? (size_t)(reader->end - reader->current) : 0;
 }
 
+Bebop_WireResult Bebop_Reader_PushLimit(Bebop_Reader* reader, uint32_t len, const uint8_t** old_end)
+{
+  if (BEBOP_WIRE_UNLIKELY(!reader || !old_end)) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  if (BEBOP_WIRE_UNLIKELY((size_t)len > (size_t)(reader->end - reader->current))) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  *old_end = reader->end;
+  reader->end = reader->current + len;
+  return BEBOP_WIRE_OK;
+}
+
+void Bebop_Reader_PopLimit(Bebop_Reader* reader, const uint8_t* old_end)
+{
+  if (reader && old_end && old_end >= reader->end) {
+    reader->end = old_end;
+  }
+}
+
 size_t Bebop_Writer_Len(const Bebop_Writer* writer)
 {
   return writer ? (size_t)(writer->current - writer->buffer) : 0;

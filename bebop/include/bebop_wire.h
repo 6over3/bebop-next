@@ -744,6 +744,12 @@ BEBOP_API void Bebop_Reader_Skip(Bebop_Reader* rd, size_t amount);
 BEBOP_API size_t Bebop_Reader_Pos(const Bebop_Reader* rd);
 BEBOP_API const uint8_t* Bebop_Reader_Ptr(const Bebop_Reader* rd);
 BEBOP_API size_t Bebop_Reader_Remaining(const Bebop_Reader* rd);
+// Clamp the readable window to len bytes from the current position so nested
+// frames cannot read past their parent; restore with PopLimit.
+BEBOP_API Bebop_WireResult Bebop_Reader_PushLimit(
+    Bebop_Reader* rd, uint32_t len, const uint8_t** old_end
+);
+BEBOP_API void Bebop_Reader_PopLimit(Bebop_Reader* rd, const uint8_t* old_end);
 
 BEBOP_API Bebop_WireResult Bebop_Reader_GetByte(Bebop_Reader* rd, uint8_t* out);
 BEBOP_API Bebop_WireResult Bebop_Reader_GetI8(Bebop_Reader* rd, int8_t* out);
