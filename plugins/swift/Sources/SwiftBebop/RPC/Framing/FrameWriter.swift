@@ -2,19 +2,23 @@ public struct FrameWriter: Sendable {
     public typealias WriteBytes = @Sendable ([UInt8], FrameFlags) async throws -> Void
 
     private let write: WriteBytes
+    private let maxPayloadSize: Int
 
-    public init(write: @escaping WriteBytes) {
+    public init(maxPayloadSize: Int = Int(FrameReader.defaultMaxPayloadSize), write: @escaping WriteBytes) {
+        self.maxPayloadSize = maxPayloadSize
         self.write = write
     }
 
     // MARK: - Frame-level writes
 
     public func data(_ payload: [UInt8], streamId: UInt32 = 0, cursor: UInt64? = nil) async throws {
+        try validatePayload(payload)
         let frame = Frame(payload: payload, flags: [], streamId: streamId, cursor: cursor)
         try await write(frame.encode(), frame.header.flags)
     }
 
     public func endStream(_ payload: [UInt8], streamId: UInt32 = 0) async throws {
+        try validatePayload(payload)
         let flags: FrameFlags = .endStream
         try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
     }
@@ -22,13 +26,21 @@ public struct FrameWriter: Sendable {
     public func error(_ error: BebopRpcError, streamId: UInt32 = 0) async throws {
         let flags: FrameFlags = [.endStream, .error]
         let payload = error.toWire().serializedData()
+        try validatePayload(payload)
         try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
     }
 
     public func trailer(_ metadata: [String: String], streamId: UInt32 = 0) async throws {
         let flags: FrameFlags = [.endStream, .trailer]
         let payload = TrailingMetadata(metadata: metadata).serializedData()
+        try validatePayload(payload)
         try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
+    }
+
+    private func validatePayload(_ payload: [UInt8]) throws {
+        guard payload.count <= maxPayloadSize else {
+            throw BebopRpcError(code: .resourceExhausted, detail: "frame payload too large")
+        }
     }
 }
 

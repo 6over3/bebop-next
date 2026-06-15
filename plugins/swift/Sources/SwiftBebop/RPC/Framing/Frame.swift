@@ -7,12 +7,14 @@ public struct Frame: Sendable {
 
     public init(header: FrameHeader, payload: [UInt8], cursor: UInt64? = nil) {
         assert(header.flags.contains(.cursor) == (cursor != nil))
+        precondition(Int(header.length) == payload.count, "frame header length does not match payload size")
         self.header = header
         self.payload = payload
         self.cursor = cursor
     }
 
     public init(payload: [UInt8], flags: FrameFlags, streamId: UInt32 = 0, cursor: UInt64? = nil) {
+        precondition(payload.count <= Int(UInt32.max), "frame payload exceeds uint32 length")
         var resolvedFlags = flags
         if cursor != nil { resolvedFlags.insert(.cursor) }
         header = FrameHeader(
@@ -37,13 +39,14 @@ public struct Frame: Sendable {
             var reader = BebopReader(data: UnsafeRawBufferPointer(buf))
             return try FrameHeader.decode(from: &reader)
         }
+        try validate(header.flags)
         let payloadStart = headerSize
         let payloadEnd = payloadStart + Int(header.length)
         let totalNeeded = header.flags.contains(.cursor) ? payloadEnd + 8 : payloadEnd
-        guard bytes.count >= totalNeeded else {
+        guard bytes.count == totalNeeded else {
             throw BebopRpcError(
                 code: .invalidArgument,
-                detail: "frame truncated: need \(totalNeeded) bytes, got \(bytes.count)"
+                detail: "frame length mismatch: need \(totalNeeded) bytes, got \(bytes.count)"
             )
         }
         let payload = Array(bytes[payloadStart ..< payloadEnd])
@@ -57,6 +60,18 @@ public struct Frame: Sendable {
             }
         }
         return Frame(header: header, payload: payload, cursor: cursor)
+    }
+
+    static func validate(_ flags: FrameFlags) throws {
+        if flags.contains(.error) && !flags.contains(.endStream) {
+            throw BebopRpcError(code: .invalidArgument, detail: "ERROR frame must end stream")
+        }
+        if flags.contains(.trailer) && !flags.contains(.endStream) {
+            throw BebopRpcError(code: .invalidArgument, detail: "TRAILER frame must end stream")
+        }
+        if flags.contains(.error) && flags.contains(.trailer) {
+            throw BebopRpcError(code: .invalidArgument, detail: "ERROR and TRAILER cannot both be set")
+        }
     }
 
     public func encode() -> [UInt8] {

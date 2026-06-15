@@ -306,9 +306,13 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
         var deadline: BebopTimestamp? = nil
         var metadata: [String: String]? = nil
         var cursor: UInt64? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 methodId = try reader.readUInt32()
@@ -321,6 +325,9 @@ public final class CallHeader: BebopRecord, BebopReflectable, @unchecked Sendabl
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:CallHeader)
         return CallHeader(methodId: methodId, deadline: deadline, metadata: metadata, cursor: cursor)
@@ -433,9 +440,13 @@ public final class RpcError: BebopRecord, BebopReflectable, @unchecked Sendable 
         var code: StatusCode? = nil
         var detail: String? = nil
         var metadata: [String: String]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 code = try StatusCode.decode(from: &reader)
@@ -446,6 +457,9 @@ public final class RpcError: BebopRecord, BebopReflectable, @unchecked Sendable 
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:RpcError)
         return RpcError(code: code, detail: detail, metadata: metadata)
@@ -536,15 +550,22 @@ public final class TrailingMetadata: BebopRecord, BebopReflectable, @unchecked S
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var metadata: [String: String]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 metadata = try reader.readDynamicMap { _r in try (_r.readString(), _r.readString()) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:TrailingMetadata)
         return TrailingMetadata(metadata: metadata)
@@ -1032,18 +1053,23 @@ public enum BatchOutcome: BebopRecord, BebopReflectable, Codable {
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         let disc = try reader.readByte()
+        let result: BatchOutcome
         switch disc {
         case 1:
-            return try .success(BatchSuccess.decode(from: &reader))
+            result = .success(try BatchSuccess.decode(from: &reader))
         case 2:
-            return try .error(RpcError.decode(from: &reader))
+            result = .error(try RpcError.decode(from: &reader))
         // @@bebop_insertion_point(decode_switch:BatchOutcome)
         default:
             let remaining = end - reader.position
             let data = try reader.readBytes(remaining)
-            return .unknown(discriminator: disc, data: data)
+            result = .unknown(discriminator: disc, data: data)
+        }
+        guard reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:BatchOutcome)
+        return result
     }
 
     public func encode(to writer: inout BebopWriter) {
@@ -1290,9 +1316,13 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
         var metadata: [String: String]? = nil
         var deadline: BebopTimestamp? = nil
         var discardResult: Bool? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 methodId = try reader.readUInt32()
@@ -1309,6 +1339,9 @@ public final class FutureDispatchRequest: BebopRecord, BebopReflectable, @unchec
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:FutureDispatchRequest)
         return FutureDispatchRequest(methodId: methodId, payload: payload, idempotencyKey: idempotencyKey, metadata: metadata, deadline: deadline, discardResult: discardResult)
@@ -1482,15 +1515,22 @@ public final class FutureResolveRequest: BebopRecord, BebopReflectable, @uncheck
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var ids: [BebopUUID]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 ids = try reader.readLengthPrefixedArray(of: BebopUUID.self)
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:FutureResolveRequest)
         return FutureResolveRequest(ids: ids)
@@ -1614,18 +1654,23 @@ public enum FutureOutcome: BebopRecord, BebopReflectable, Codable {
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         let disc = try reader.readByte()
+        let result: FutureOutcome
         switch disc {
         case 1:
-            return try .success(FutureSuccess.decode(from: &reader))
+            result = .success(try FutureSuccess.decode(from: &reader))
         case 2:
-            return try .error(RpcError.decode(from: &reader))
+            result = .error(try RpcError.decode(from: &reader))
         // @@bebop_insertion_point(decode_switch:FutureOutcome)
         default:
             let remaining = end - reader.position
             let data = try reader.readBytes(remaining)
-            return .unknown(discriminator: disc, data: data)
+            result = .unknown(discriminator: disc, data: data)
+        }
+        guard reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:FutureOutcome)
+        return result
     }
 
     public func encode(to writer: inout BebopWriter) {

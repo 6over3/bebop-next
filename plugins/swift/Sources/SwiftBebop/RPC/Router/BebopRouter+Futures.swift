@@ -2,7 +2,7 @@ extension BebopRouter {
     private func requireOwner(_ ctx: RpcContext) throws -> String {
         let peer = ctx[PeerInfoKey.self]
         if let identity = peer?.authInfo?.identity { return identity }
-        if let addr = peer?.remoteAddress { return addr }
+        if config.allowUnauthenticatedFutureOwners, let addr = peer?.remoteAddress { return addr }
         throw BebopRpcError(code: .unauthenticated)
     }
 

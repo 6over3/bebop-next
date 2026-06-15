@@ -578,9 +578,13 @@ public final class TypeDescriptor: BebopRecord, BebopReflectable, @unchecked Sen
         var mapKey: TypeDescriptor? = nil
         var mapValue: TypeDescriptor? = nil
         var definedFqn: String? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 kind = try TypeKind.decode(from: &reader)
@@ -599,6 +603,9 @@ public final class TypeDescriptor: BebopRecord, BebopReflectable, @unchecked Sen
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:TypeDescriptor)
         return TypeDescriptor(kind: kind, arrayElement: arrayElement, fixedArrayElement: fixedArrayElement, fixedArraySize: fixedArraySize, mapKey: mapKey, mapValue: mapValue, definedFqn: definedFqn)
@@ -785,9 +792,13 @@ public final class LiteralValue: BebopRecord, BebopReflectable, @unchecked Senda
         var bytesValue: [UInt8]? = nil
         var timestampValue: BebopTimestamp? = nil
         var durationValue: Duration? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 kind = try LiteralKind.decode(from: &reader)
@@ -812,6 +823,9 @@ public final class LiteralValue: BebopRecord, BebopReflectable, @unchecked Senda
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:LiteralValue)
         return LiteralValue(kind: kind, boolValue: boolValue, intValue: intValue, floatValue: floatValue, stringValue: stringValue, uuidValue: uuidValue, rawValue: rawValue, bytesValue: bytesValue, timestampValue: timestampValue, durationValue: durationValue)
@@ -1057,9 +1071,13 @@ public final class DecoratorUsage: BebopRecord, BebopReflectable, @unchecked Sen
         var fqn: String? = nil
         var args: [DecoratorArg]? = nil
         var exportData: [String: LiteralValue]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 fqn = try reader.readString()
@@ -1070,6 +1088,9 @@ public final class DecoratorUsage: BebopRecord, BebopReflectable, @unchecked Sen
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:DecoratorUsage)
         return DecoratorUsage(fqn: fqn, args: args, exportData: exportData)
@@ -1187,9 +1208,13 @@ public final class FieldDescriptor: BebopRecord, BebopReflectable, @unchecked Se
         var type: TypeDescriptor? = nil
         var index: UInt32? = nil
         var decorators: [DecoratorUsage]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 name = try reader.readString()
@@ -1204,6 +1229,9 @@ public final class FieldDescriptor: BebopRecord, BebopReflectable, @unchecked Se
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:FieldDescriptor)
         return FieldDescriptor(name: name, documentation: documentation, type: type, index: index, decorators: decorators)
@@ -1339,9 +1367,13 @@ public final class EnumMemberDescriptor: BebopRecord, BebopReflectable, @uncheck
         var value: UInt64? = nil
         var decorators: [DecoratorUsage]? = nil
         var valueExpr: String? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 name = try reader.readString()
@@ -1356,6 +1388,9 @@ public final class EnumMemberDescriptor: BebopRecord, BebopReflectable, @uncheck
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:EnumMemberDescriptor)
         return EnumMemberDescriptor(name: name, documentation: documentation, value: value, decorators: decorators, valueExpr: valueExpr)
@@ -1508,9 +1543,13 @@ public final class UnionBranchDescriptor: BebopRecord, BebopReflectable, @unchec
         var typeRefFqn: String? = nil
         var name: String? = nil
         var decorators: [DecoratorUsage]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 discriminator = try reader.readByte()
@@ -1527,6 +1566,9 @@ public final class UnionBranchDescriptor: BebopRecord, BebopReflectable, @unchec
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:UnionBranchDescriptor)
         return UnionBranchDescriptor(discriminator: discriminator, documentation: documentation, inlineFqn: inlineFqn, typeRefFqn: typeRefFqn, name: name, decorators: decorators)
@@ -1681,9 +1723,13 @@ public final class MethodDescriptor: BebopRecord, BebopReflectable, @unchecked S
         var methodType: MethodType? = nil
         var id: UInt32? = nil
         var decorators: [DecoratorUsage]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 name = try reader.readString()
@@ -1702,6 +1748,9 @@ public final class MethodDescriptor: BebopRecord, BebopReflectable, @unchecked S
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:MethodDescriptor)
         return MethodDescriptor(name: name, documentation: documentation, requestType: requestType, responseType: responseType, methodType: methodType, id: id, decorators: decorators)
@@ -1849,9 +1898,13 @@ public final class EnumDef: BebopRecord, BebopReflectable, @unchecked Sendable {
         var baseType: TypeKind? = nil
         var members: [EnumMemberDescriptor]? = nil
         var isFlags: Bool? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 baseType = try TypeKind.decode(from: &reader)
@@ -1862,6 +1915,9 @@ public final class EnumDef: BebopRecord, BebopReflectable, @unchecked Sendable {
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:EnumDef)
         return EnumDef(baseType: baseType, members: members, isFlags: isFlags)
@@ -1966,9 +2022,13 @@ public final class StructDef: BebopRecord, BebopReflectable, @unchecked Sendable
         var fields: [FieldDescriptor]? = nil
         var isMutable: Bool? = nil
         var fixedSize: UInt32? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
@@ -1979,6 +2039,9 @@ public final class StructDef: BebopRecord, BebopReflectable, @unchecked Sendable
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:StructDef)
         return StructDef(fields: fields, isMutable: isMutable, fixedSize: fixedSize)
@@ -2069,15 +2132,22 @@ public final class MessageDef: BebopRecord, BebopReflectable, @unchecked Sendabl
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var fields: [FieldDescriptor]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 fields = try reader.readDynamicArray { _r in try FieldDescriptor.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:MessageDef)
         return MessageDef(fields: fields)
@@ -2146,15 +2216,22 @@ public final class UnionDef: BebopRecord, BebopReflectable, @unchecked Sendable 
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var branches: [UnionBranchDescriptor]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 branches = try reader.readDynamicArray { _r in try UnionBranchDescriptor.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:UnionDef)
         return UnionDef(branches: branches)
@@ -2221,15 +2298,22 @@ public final class ServiceDef: BebopRecord, BebopReflectable, @unchecked Sendabl
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var methods: [MethodDescriptor]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 methods = try reader.readDynamicArray { _r in try MethodDescriptor.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:ServiceDef)
         return ServiceDef(methods: methods)
@@ -2308,9 +2392,13 @@ public final class ConstDef: BebopRecord, BebopReflectable, @unchecked Sendable 
         let end = reader.position + Int(length)
         var type: TypeDescriptor? = nil
         var value: LiteralValue? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 type = try TypeDescriptor.decode(from: &reader)
@@ -2319,6 +2407,9 @@ public final class ConstDef: BebopRecord, BebopReflectable, @unchecked Sendable 
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:ConstDef)
         return ConstDef(type: type, value: value)
@@ -2435,9 +2526,13 @@ public final class DecoratorParamDef: BebopRecord, BebopReflectable, @unchecked 
         var required: Bool? = nil
         var defaultValue: LiteralValue? = nil
         var allowedValues: [LiteralValue]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 name = try reader.readString()
@@ -2454,6 +2549,9 @@ public final class DecoratorParamDef: BebopRecord, BebopReflectable, @unchecked 
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:DecoratorParamDef)
         return DecoratorParamDef(name: name, description: description, type: type, required: required, defaultValue: defaultValue, allowedValues: allowedValues)
@@ -2603,9 +2701,13 @@ public final class DecoratorDef: BebopRecord, BebopReflectable, @unchecked Senda
         var params: [DecoratorParamDef]? = nil
         var validateSource: String? = nil
         var exportSource: String? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 targets = try DecoratorTarget.decode(from: &reader)
@@ -2620,6 +2722,9 @@ public final class DecoratorDef: BebopRecord, BebopReflectable, @unchecked Senda
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:DecoratorDef)
         return DecoratorDef(targets: targets, allowMultiple: allowMultiple, params: params, validateSource: validateSource, exportSource: exportSource)
@@ -2806,9 +2911,13 @@ public final class DefinitionDescriptor: BebopRecord, BebopReflectable, @uncheck
         var serviceDef: ServiceDef? = nil
         var constDef: ConstDef? = nil
         var decoratorDef: DecoratorDef? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 kind = try DefinitionKind.decode(from: &reader)
@@ -2841,6 +2950,9 @@ public final class DefinitionDescriptor: BebopRecord, BebopReflectable, @uncheck
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:DefinitionDescriptor)
         return DefinitionDescriptor(kind: kind, name: name, fqn: fqn, documentation: documentation, visibility: visibility, decorators: decorators, nested: nested, enumDef: enumDef, structDef: structDef, messageDef: messageDef, unionDef: unionDef, serviceDef: serviceDef, constDef: constDef, decoratorDef: decoratorDef)
@@ -3086,9 +3198,13 @@ public final class Location: BebopRecord, BebopReflectable, @unchecked Sendable 
         var leadingComments: String? = nil
         var trailingComments: String? = nil
         var detachedComments: [String]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 path = try reader.readLengthPrefixedArray(of: Int32.self)
@@ -3103,6 +3219,9 @@ public final class Location: BebopRecord, BebopReflectable, @unchecked Sendable 
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:Location)
         return Location(path: path, span: span, leadingComments: leadingComments, trailingComments: trailingComments, detachedComments: detachedComments)
@@ -3242,15 +3361,22 @@ public final class SourceCodeInfo: BebopRecord, BebopReflectable, @unchecked Sen
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var locations: [Location]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 locations = try reader.readDynamicArray { _r in try Location.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:SourceCodeInfo)
         return SourceCodeInfo(locations: locations)
@@ -3350,9 +3476,13 @@ public final class SchemaDescriptor: BebopRecord, BebopReflectable, @unchecked S
         var imports: [String]? = nil
         var definitions: [DefinitionDescriptor]? = nil
         var sourceCodeInfo: SourceCodeInfo? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 path = try reader.readString()
@@ -3369,6 +3499,9 @@ public final class SchemaDescriptor: BebopRecord, BebopReflectable, @unchecked S
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:SchemaDescriptor)
         return SchemaDescriptor(path: path, package: package, edition: edition, imports: imports, definitions: definitions, sourceCodeInfo: sourceCodeInfo)
@@ -3494,15 +3627,22 @@ public final class DescriptorSet: BebopRecord, BebopReflectable, @unchecked Send
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var schemas: [SchemaDescriptor]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 schemas = try reader.readDynamicArray { _r in try SchemaDescriptor.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:DescriptorSet)
         return DescriptorSet(schemas: schemas)

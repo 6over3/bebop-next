@@ -85,10 +85,14 @@ enum GenerateMessage {
         for f in fieldDecls {
             decodeBody.append("var \(f.swiftName): \(f.swiftType)? = nil")
         }
+        decodeBody.append("var sawEndMarker = false")
         var switchLines: [String] = [
             "while reader.position < end {",
             "    let tag = try reader.readTag()",
-            "    if tag == 0 { break }",
+            "    if tag == 0 {",
+            "        sawEndMarker = true",
+            "        break",
+            "    }",
             "    switch tag {",
         ]
         for f in fieldDecls {
@@ -101,6 +105,9 @@ enum GenerateMessage {
         switchLines.append("    }")
         switchLines.append("}")
         decodeBody.append(switchLines.joined(separator: "\n"))
+        decodeBody.append("guard sawEndMarker && reader.position == end else {")
+        decodeBody.append("    throw BebopDecodingError.trailingData")
+        decodeBody.append("}")
         decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
         let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
         decodeBody.append("return \(name)(\(args))")

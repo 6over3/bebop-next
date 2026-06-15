@@ -8,12 +8,16 @@
 public struct BebopReader: @unchecked Sendable {
     @usableFromInline let base: UnsafeRawPointer
     @usableFromInline let end: Int
+    @usableFromInline var limit: Int
+    @usableFromInline var limitStack: [Int]
     @usableFromInline var offset: Int
 
     /// Create a reader over the given buffer.
     public init(data: UnsafeRawBufferPointer) {
-        base = data.baseAddress!
+        base = data.baseAddress ?? UnsafeRawPointer(bitPattern: 1)!
         end = data.count
+        limit = data.count
+        limitStack = []
         offset = 0
     }
 
@@ -28,10 +32,26 @@ public struct BebopReader: @unchecked Sendable {
     }
 
     @inlinable @inline(__always)
+    public var remaining: Int { max(0, limit - offset) }
+
+    @usableFromInline
+    mutating func popExpiredLimitIfNeeded() {
+        while offset == limit, let restored = limitStack.popLast() {
+            limit = restored
+        }
+    }
+
+    @inlinable @inline(__always)
     func ensureBytes(_ count: Int) throws {
-        guard _fastPath(offset &+ count <= end) else {
+        guard _fastPath(count >= 0 && offset >= 0 && offset <= limit && count <= limit - offset) else {
             throw BebopDecodingError.unexpectedEndOfData
         }
+    }
+
+    @usableFromInline
+    mutating func advance(by count: Int) {
+        offset += count
+        popExpiredLimitIfNeeded()
     }
 
     // MARK: - Primitives
@@ -40,7 +60,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readBool() throws -> Bool {
         try ensureBytes(1)
         let value = base.load(fromByteOffset: offset, as: UInt8.self)
-        offset &+= 1
+        advance(by: 1)
         return value != 0
     }
 
@@ -48,7 +68,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readByte() throws -> UInt8 {
         try ensureBytes(1)
         let value = base.load(fromByteOffset: offset, as: UInt8.self)
-        offset &+= 1
+        advance(by: 1)
         return value
     }
 
@@ -61,7 +81,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readInt8() throws -> Int8 {
         try ensureBytes(1)
         let value = base.load(fromByteOffset: offset, as: Int8.self)
-        offset &+= 1
+        advance(by: 1)
         return value
     }
 
@@ -69,7 +89,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readUInt16() throws -> UInt16 {
         try ensureBytes(2)
         let value = base.loadUnaligned(fromByteOffset: offset, as: UInt16.self)
-        offset &+= 2
+        advance(by: 2)
         return UInt16(littleEndian: value)
     }
 
@@ -77,7 +97,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readInt16() throws -> Int16 {
         try ensureBytes(2)
         let value = base.loadUnaligned(fromByteOffset: offset, as: Int16.self)
-        offset &+= 2
+        advance(by: 2)
         return Int16(littleEndian: value)
     }
 
@@ -85,7 +105,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readUInt32() throws -> UInt32 {
         try ensureBytes(4)
         let value = base.loadUnaligned(fromByteOffset: offset, as: UInt32.self)
-        offset &+= 4
+        advance(by: 4)
         return UInt32(littleEndian: value)
     }
 
@@ -93,7 +113,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readInt32() throws -> Int32 {
         try ensureBytes(4)
         let value = base.loadUnaligned(fromByteOffset: offset, as: Int32.self)
-        offset &+= 4
+        advance(by: 4)
         return Int32(littleEndian: value)
     }
 
@@ -101,7 +121,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readUInt64() throws -> UInt64 {
         try ensureBytes(8)
         let value = base.loadUnaligned(fromByteOffset: offset, as: UInt64.self)
-        offset &+= 8
+        advance(by: 8)
         return UInt64(littleEndian: value)
     }
 
@@ -109,7 +129,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readInt64() throws -> Int64 {
         try ensureBytes(8)
         let value = base.loadUnaligned(fromByteOffset: offset, as: Int64.self)
-        offset &+= 8
+        advance(by: 8)
         return Int64(littleEndian: value)
     }
 
@@ -119,7 +139,7 @@ public struct BebopReader: @unchecked Sendable {
         let low = UInt64(littleEndian: base.loadUnaligned(fromByteOffset: offset, as: UInt64.self))
         let high = UInt64(
             littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 8, as: UInt64.self))
-        offset &+= 16
+        advance(by: 16)
         return UInt128(high) << 64 | UInt128(low)
     }
 
@@ -156,14 +176,18 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readString() throws -> String {
         let length = try Int(readUInt32())
         try ensureBytes(length + 1)
-        let str = String(
-            decoding: UnsafeBufferPointer(
-                start: (base + offset).assumingMemoryBound(to: UInt8.self),
-                count: length
-            ),
-            as: UTF8.self
+        guard base.load(fromByteOffset: offset + length, as: UInt8.self) == 0 else {
+            throw BebopDecodingError.invalidStringTerminator
+        }
+        let bytes = UnsafeBufferPointer(
+            start: length == 0 ? nil : (base + offset).assumingMemoryBound(to: UInt8.self),
+            count: length
         )
-        offset &+= length + 1
+        let str = String(decoding: bytes, as: UTF8.self)
+        guard str.utf8.elementsEqual(bytes) else {
+            throw BebopDecodingError.invalidUTF8
+        }
+        advance(by: length + 1)
         return str
     }
 
@@ -173,7 +197,7 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readUUID() throws -> BebopUUID {
         try ensureBytes(16)
         let uuid = base.loadUnaligned(fromByteOffset: offset, as: BebopUUID.self)
-        offset &+= 16
+        advance(by: 16)
         return uuid
     }
 
@@ -186,7 +210,7 @@ public struct BebopReader: @unchecked Sendable {
         let nanos = Int32(littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 8, as: Int32.self))
         let offsetMs = Int32(
             littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 12, as: Int32.self))
-        offset &+= 16
+        advance(by: 16)
         return BebopTimestamp(seconds: seconds, nanoseconds: nanos, offsetMs: offsetMs)
     }
 
@@ -195,7 +219,7 @@ public struct BebopReader: @unchecked Sendable {
         try ensureBytes(12)
         let seconds = Int64(littleEndian: base.loadUnaligned(fromByteOffset: offset, as: Int64.self))
         let nanos = Int32(littleEndian: base.loadUnaligned(fromByteOffset: offset &+ 8, as: Int32.self))
-        offset &+= 12
+        advance(by: 12)
         return Duration(
             secondsComponent: seconds,
             attosecondsComponent: Int64(nanos) * 1_000_000_000
@@ -214,7 +238,7 @@ public struct BebopReader: @unchecked Sendable {
             }
             initialized = count
         }
-        offset &+= count
+        advance(by: count)
         return result
     }
 
@@ -224,7 +248,8 @@ public struct BebopReader: @unchecked Sendable {
     /// little-endian wire format (fixed-width integers and IEEE floats).
     @inlinable
     public mutating func readArray<T: BebopScalar>(_ count: Int, of _: T.Type) throws -> [T] {
-        let byteCount = count &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = count.multipliedReportingOverflow(by: MemoryLayout<T>.stride)
+        guard !overflow else { throw BebopDecodingError.invalidLength }
         try ensureBytes(byteCount)
         let src = base + offset
         let result = [T](unsafeUninitializedCapacity: count) { buf, initialized in
@@ -234,7 +259,7 @@ public struct BebopReader: @unchecked Sendable {
             }
             initialized = count
         }
-        offset &+= byteCount
+        advance(by: byteCount)
         return result
     }
 
@@ -245,10 +270,11 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readInlineArray< let N: Int, T: BebopScalar > (
         of type: T.Type
     ) throws -> InlineArray<N, T> {
-        let byteCount = N &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = N.multipliedReportingOverflow(by: MemoryLayout<T>.stride)
+        guard !overflow else { throw BebopDecodingError.invalidLength }
         try ensureBytes(byteCount)
         let result = (base + offset).loadUnaligned(as: InlineArray<N, T>.self)
-        offset &+= byteCount
+        advance(by: byteCount)
         return result
     }
 
@@ -269,9 +295,10 @@ public struct BebopReader: @unchecked Sendable {
     @inlinable
     public mutating func readFixedArray<T>(
         _ count: Int, _ body: (inout BebopReader) throws -> T
-    ) rethrows -> [T] {
+    ) throws -> [T] {
+        try ensureBytes(count)
         var result = [T]()
-        result.reserveCapacity(count)
+        result.reserveCapacity(min(count, remaining))
         for _ in 0 ..< count {
             try result.append(body(&self))
         }
@@ -285,7 +312,7 @@ public struct BebopReader: @unchecked Sendable {
     ) throws -> [T] {
         let count = try Int(readUInt32())
         var result = [T]()
-        result.reserveCapacity(count)
+        result.reserveCapacity(min(count, remaining))
         for _ in 0 ..< count {
             try result.append(body(&self))
         }
@@ -298,7 +325,7 @@ public struct BebopReader: @unchecked Sendable {
         _ body: (inout BebopReader) throws -> (K, V)
     ) throws -> [K: V] {
         let count = try Int(readUInt32())
-        var result = [K: V](minimumCapacity: count)
+        var result = [K: V](minimumCapacity: min(count, remaining))
         for _ in 0 ..< count {
             let (k, v) = try body(&self)
             result[k] = v
@@ -329,19 +356,34 @@ public struct BebopReader: @unchecked Sendable {
     /// Read the 4-byte message body length prefix.
     @inlinable @inline(__always)
     public mutating func readMessageLength() throws -> UInt32 {
-        try readUInt32()
+        let length = try readUInt32()
+        let byteCount = Int(length)
+        guard byteCount > 0 else {
+            throw BebopDecodingError.unexpectedEndOfData
+        }
+        try ensureBytes(byteCount)
+        limitStack.append(limit)
+        limit = offset + byteCount
+        return length
     }
 
     /// Read a 1-byte message field tag. Returns 0 for the end-of-message marker.
     @inlinable @inline(__always)
     public mutating func readTag() throws -> UInt8 {
-        try readByte()
+        try ensureBytes(1)
+        let tag = base.load(fromByteOffset: offset, as: UInt8.self)
+        offset += 1
+        if tag == 0, offset != limit {
+            throw BebopDecodingError.trailingData
+        }
+        popExpiredLimitIfNeeded()
+        return tag
     }
 
     /// Advance the read cursor by `count` bytes, skipping over unknown data.
     @inlinable @inline(__always)
     public mutating func skip(_ count: Int) throws {
         try ensureBytes(count)
-        offset &+= count
+        advance(by: count)
     }
 }

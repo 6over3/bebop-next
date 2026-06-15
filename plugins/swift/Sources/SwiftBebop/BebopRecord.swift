@@ -18,7 +18,11 @@ public extension BebopRecord {
     static func decode(from bytes: [UInt8]) throws -> Self {
         try bytes.withUnsafeBufferPointer { buf in
             var reader = BebopReader(data: UnsafeRawBufferPointer(buf))
-            return try Self.decode(from: &reader)
+            let value = try Self.decode(from: &reader)
+            guard reader.position == bytes.count else {
+                throw BebopDecodingError.trailingData
+            }
+            return value
         }
     }
 
