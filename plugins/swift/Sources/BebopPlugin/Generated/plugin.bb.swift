@@ -205,9 +205,13 @@ public final class CodeGeneratorRequest: BebopRecord, BebopReflectable, @uncheck
         var compilerVersion: Version? = nil
         var schemas: [SchemaDescriptor]? = nil
         var hostOptions: [String: String]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 filesToGenerate = try reader.readDynamicArray { _r in try _r.readString() }
@@ -222,6 +226,9 @@ public final class CodeGeneratorRequest: BebopRecord, BebopReflectable, @uncheck
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:CodeGeneratorRequest)
         return CodeGeneratorRequest(filesToGenerate: filesToGenerate, parameter: parameter, compilerVersion: compilerVersion, schemas: schemas, hostOptions: hostOptions)
@@ -405,9 +412,13 @@ public final class Diagnostic: BebopRecord, BebopReflectable, @unchecked Sendabl
         var hint: String? = nil
         var file: String? = nil
         var span: InlineArray<4, Int32>? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 severity = try DiagnosticSeverity.decode(from: &reader)
@@ -422,6 +433,9 @@ public final class Diagnostic: BebopRecord, BebopReflectable, @unchecked Sendabl
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:Diagnostic)
         return Diagnostic(severity: severity, text: text, hint: hint, file: file, span: span)
@@ -593,9 +607,13 @@ public final class GeneratedFile: BebopRecord, BebopReflectable, @unchecked Send
         var insertionPoint: String? = nil
         var content: String? = nil
         var generatedCodeInfo: SourceCodeInfo? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 name = try reader.readString()
@@ -608,6 +626,9 @@ public final class GeneratedFile: BebopRecord, BebopReflectable, @unchecked Send
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:GeneratedFile)
         return GeneratedFile(name: name, insertionPoint: insertionPoint, content: content, generatedCodeInfo: generatedCodeInfo)
@@ -735,9 +756,13 @@ public final class CodeGeneratorResponse: BebopRecord, BebopReflectable, @unchec
         var error: String? = nil
         var files: [GeneratedFile]? = nil
         var diagnostics: [Diagnostic]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 error = try reader.readString()
@@ -748,6 +773,9 @@ public final class CodeGeneratorResponse: BebopRecord, BebopReflectable, @unchec
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:CodeGeneratorResponse)
         return CodeGeneratorResponse(error: error, files: files, diagnostics: diagnostics)

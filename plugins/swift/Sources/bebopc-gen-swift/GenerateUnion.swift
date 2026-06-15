@@ -38,7 +38,7 @@ enum GenerateUnion {
             "let end = reader.position + Int(length)",
             "let disc = try reader.readByte()",
         ]
-        var decodeSwitchLines = ["switch disc {"]
+        var decodeSwitchLines = ["let result: \(name)", "switch disc {"]
         for branch in branches {
             guard let disc = branch.discriminator else {
                 throw CodegenError.malformedDefinition("union '\(defName)' branch missing discriminator")
@@ -46,16 +46,20 @@ enum GenerateUnion {
             let caseName = try branchCaseName(branch, unionName: defName)
             let typeName = try branchTypeName(branch, unionName: defName)
             decodeSwitchLines.append("case \(disc):")
-            decodeSwitchLines.append("    return .\(caseName)(try \(typeName).decode(from: &reader))")
+            decodeSwitchLines.append("    result = .\(caseName)(try \(typeName).decode(from: &reader))")
         }
         decodeSwitchLines.append("// @@bebop_insertion_point(decode_switch:\(defName))")
         decodeSwitchLines.append("default:")
         decodeSwitchLines.append("    let remaining = end - reader.position")
         decodeSwitchLines.append("    let data = try reader.readBytes(remaining)")
-        decodeSwitchLines.append("    return .unknown(discriminator: disc, data: data)")
+        decodeSwitchLines.append("    result = .unknown(discriminator: disc, data: data)")
         decodeSwitchLines.append("}")
         decodeBody.append(decodeSwitchLines.joined(separator: "\n"))
+        decodeBody.append("guard reader.position == end else {")
+        decodeBody.append("    throw BebopDecodingError.trailingData")
+        decodeBody.append("}")
         decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
+        decodeBody.append("return result")
         let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
         body.append(
             "\(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {\n\(decodeBodyStr)\n}"

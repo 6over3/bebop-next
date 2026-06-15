@@ -14,6 +14,7 @@ public struct BebopRouterConfig: Sendable {
     public var maxBatchStreamElements: UInt = .max
     public var maxPendingFutures: UInt = .max
     public var maxCompletedFutures: UInt = 10000
+    public var allowUnauthenticatedFutureOwners: Bool = false
 
     public init() {}
 }
