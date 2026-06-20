@@ -1,0 +1,26 @@
+{
+  "name": "@bebop/plugin",
+  "version": "0.0.0",
+  "description": "TypeScript helpers and schema codecs for Bebop compiler plugins.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@bebop/runtime": "workspace:*"
+  },
+  "license": "Apache-2.0"
+}

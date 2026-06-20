@@ -1,0 +1,19 @@
+{
+  "name": "@bebop/typescript-workspace",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/runtime",
+    "packages/plugin",
+    "packages/generator"
+  ],
+  "scripts": {
+    "build": "bun run --cwd packages/runtime build && bun run --cwd packages/plugin build && bun run --cwd packages/generator build",
+    "check": "bun run --cwd packages/runtime check && bun run --cwd packages/plugin check && bun run --cwd packages/generator check",
+    "test": "bun test packages/runtime/test packages/plugin/test packages/generator/test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@bebop/generator-typescript",
+  "version": "0.0.0",
+  "description": "Bebop TypeScript code generator plugin.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "bebopc-gen-typescript": "./dist/bebopc-gen-typescript"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && rm -rf dist && bun build ./src/cli.ts --compile --minify --sourcemap --bytecode --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile ./dist/bebopc-gen-typescript",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@bebop/plugin": "workspace:*",
+    "@bebop/runtime": "workspace:*"
+  },
+  "license": "Apache-2.0"
+}
