@@ -1,0 +1,36 @@
+{
+  "name": "tree-sitter-bebop",
+  "version": "0.1.0",
+  "description": "Bebop schema language grammar for tree-sitter",
+  "repository": "https://github.com/6over3/bebop-next",
+  "license": "Apache-2.0",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "incremental",
+    "parsing",
+    "tree-sitter",
+    "bebop"
+  ],
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "src/**",
+    "queries/*"
+  ],
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.0"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.bebop",
+      "file-types": [
+        "bop"
+      ]
+    }
+  ]
+}
