@@ -557,8 +557,6 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
       return (bebop_token_t) {.kind = BEBOP_TOKEN_RBRACE,
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
     case '[': {
-      // Raw blocks use Lua-style leveled long brackets: [[ ]], [=[ ]=],
-      // [==[ ]==]. Content runs to the first closer of the same level.
       size_t level = 0;
       while (bebop__scan_peek_char_at(s, level) == '=') {
         level++;

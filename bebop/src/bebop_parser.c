@@ -2157,7 +2157,6 @@ static const char* bebop__parse_lua_block(
   const char* content = BEBOP_STR(p->ctx, tok->lexeme);
   const size_t content_len = BEBOP_STR_LEN(p->ctx, tok->lexeme);
 
-  // Delimiters are [=*[ and ]=*]; the token span covers both.
   const uint32_t level = (uint32_t)((tok->span.len - content_len - 4) / 2);
 
   *span_out = (bebop_span_t) {

@@ -1,7 +1,3 @@
-// Raw blocks use Lua-style leveled long brackets: [[ ]], [=[ ]=], ...
-// The closer must match the opener's level, which regex tokens cannot
-// express, so start/content/end are external tokens sharing the level.
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,8 +85,6 @@ static bool scan_block_start(Scanner* scanner, TSLexer* lexer)
   return true;
 }
 
-// Returns true when the lookahead is `]` followed by level `=`s and `]`,
-// leaving the lexer past the final `]`.
 static bool scan_closer(Scanner* scanner, TSLexer* lexer)
 {
   advance(lexer);
@@ -127,8 +121,8 @@ bool tree_sitter_bebop_external_scanner_scan(
       return false;
     }
 
-    // Consume content up to the closer or EOF. mark_end pins the token
-    // end before each candidate closer so rejected closers stay content.
+    // mark_end pins the token end before each candidate closer so
+    // rejected closers stay content.
     bool has_content = false;
     lexer->mark_end(lexer);
     for (;;) {
