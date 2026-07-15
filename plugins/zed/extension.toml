@@ -1,7 +1,7 @@
 id = "bebop"
 name = "Bebop"
 description = "Bebop support for Zed"
-version = "0.1.0"
+version = "2026.0.0-alpha.3"
 schema_version = 1
 authors = ["6OVER3 INSTITUTE"]
 repository = "https://github.com/6over3/bebop-next"
