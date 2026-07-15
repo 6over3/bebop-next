@@ -1,0 +1,16 @@
+id = "bebop"
+name = "Bebop"
+description = "Bebop support for Zed"
+version = "0.1.0"
+schema_version = 1
+authors = ["6OVER3 INSTITUTE"]
+repository = "https://github.com/6over3/bebop-next"
+
+[language_servers.bebopc]
+name = "bebopc"
+languages = ["Bebop"]
+
+[grammars.bebop]
+repository = "https://github.com/6over3/bebop-next"
+path = "plugins/tree-sitter-bebop"
+rev = "9cb324b6a8841939c7b0f9d34aa554de977c6097"
