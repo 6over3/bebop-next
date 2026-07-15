@@ -922,6 +922,34 @@ Export blocks return structured data that plugins can access. Return a Lua table
 
 Plugins receive the exported table and can use it to generate appropriate code.
 
+### Raw block delimiters
+
+`validate` and `export` blocks are raw: there is no escaping, and content
+runs to the closing delimiter. Like Lua long brackets, delimiters take an
+optional level — `=` signs between the brackets — and the block ends only
+at a closer of the same level:
+
+```bebop
+#decorator(range) {
+    targets = FIELD
+    param min!: int32
+
+    validate [=[
+        if t[x[1]] > 0 then
+            error("nested brackets are fine at level 1")
+        end
+    ]=]
+
+    export [==[
+        return { note = "even ]=] is fine at level 2" }
+    ]==]
+}
+```
+
+A plain `[[ ... ]]` block cannot contain `]]` anywhere, including inside
+Lua strings or nested indexing like `t[x[1]]`. Raise the level when the
+code needs it.
+
 ### Qualified decorator names
 
 Reference decorators from imported packages:

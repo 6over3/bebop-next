@@ -2141,7 +2141,8 @@ static bebop_decorator_target_t bebop__parse_target_expr(bebop_parser_t* p)
 }
 
 static const char* bebop__parse_lua_block(
-    bebop_parser_t* p, size_t* len_out, bebop_span_t* span_out, const char* block_name
+    bebop_parser_t* p, size_t* len_out, bebop_span_t* span_out, uint32_t* level_out,
+    const char* block_name
 )
 {
   const bebop_token_t* tok = BEBOP_PARSE_CURRENT(p);
@@ -2156,13 +2157,19 @@ static const char* bebop__parse_lua_block(
   const char* content = BEBOP_STR(p->ctx, tok->lexeme);
   const size_t content_len = BEBOP_STR_LEN(p->ctx, tok->lexeme);
 
+  // Delimiters are [=*[ and ]=*]; the token span covers both.
+  const uint32_t level = (uint32_t)((tok->span.len - content_len - 4) / 2);
+
   *span_out = (bebop_span_t) {
-      .off = tok->span.off + 2,
+      .off = tok->span.off + 2 + level,
       .len = (uint32_t)content_len,
       .start_line = tok->span.start_line,
-      .start_col = tok->span.start_col + 2,
+      .start_col = tok->span.start_col + 2 + level,
   };
   *len_out = content_len;
+  if (level_out) {
+    *level_out = level;
+  }
 
   return content;
 }
@@ -2357,6 +2364,8 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
   bool allow_multiple = false;
   bebop_span_t validate_span = BEBOP_SPAN_INVALID;
   bebop_span_t export_span = BEBOP_SPAN_INVALID;
+  uint32_t validate_level = 0;
+  uint32_t export_level = 0;
 
   bebop_macro_param_def_t params[32];
   uint32_t param_count = 0;
@@ -2425,7 +2434,7 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
       BEBOP_PARSE_ADVANCE(p);
       size_t validate_len;
       const char* validate_src =
-          bebop__parse_lua_block(p, &validate_len, &validate_span, "validate");
+          bebop__parse_lua_block(p, &validate_len, &validate_span, &validate_level, "validate");
       if (!validate_src) {
         bebop__parse_synchronize_in_decorator(p);
         continue;
@@ -2434,7 +2443,8 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
     } else if (BEBOP_STREQ(item_name, item_len, "export")) {
       BEBOP_PARSE_ADVANCE(p);
       size_t export_len;
-      const char* export_src = bebop__parse_lua_block(p, &export_len, &export_span, "export");
+      const char* export_src =
+          bebop__parse_lua_block(p, &export_len, &export_span, &export_level, "export");
       if (!export_src) {
         bebop__parse_synchronize_in_decorator(p);
         continue;
@@ -2480,6 +2490,8 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
   def->decorator_def.allow_multiple = allow_multiple;
   def->decorator_def.validate_span = validate_span;
   def->decorator_def.export_span = export_span;
+  def->decorator_def.validate_level = validate_level;
+  def->decorator_def.export_level = export_level;
   def->decorator_def.validate_ref = BEBOP_LUA_NOREF;
   def->decorator_def.export_ref = BEBOP_LUA_NOREF;
 
