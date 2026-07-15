@@ -46,6 +46,12 @@ module.exports = grammar({
 
   word: $ => $.identifier,
 
+  externals: $ => [
+    $._lua_block_start,
+    $.lua_source,
+    $._lua_block_end,
+  ],
+
   extras: $ => [
     /\s/,
     $.doc_comment,
@@ -313,13 +319,10 @@ module.exports = grammar({
     export_block: $ => seq('export', field('code', $.lua_block)),
 
     lua_block: $ => seq(
-      '[[',
+      alias($._lua_block_start, '[['),
       optional($.lua_source),
-      ']]',
+      alias($._lua_block_end, ']]'),
     ),
-
-    // Runs to the first `]]`, matching the compiler's raw block scan.
-    lua_source: _ => token(prec(1, /([^\]]|\][^\]])+/)),
 
     _type: $ => choice(
       $.primitive_type,
