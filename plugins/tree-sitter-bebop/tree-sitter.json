@@ -1,26 +1,17 @@
 {
-  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
   "grammars": [
     {
       "name": "bebop",
-      "camelcase": "Bebop",
-      "title": "Bebop",
       "scope": "source.bebop",
       "file-types": [
         "bop"
-      ],
-      "injection-regex": "^bebop$"
+      ]
     }
   ],
   "metadata": {
     "version": "0.1.0",
     "license": "Apache-2.0",
-    "description": "Bebop schema language grammar for tree-sitter",
-    "authors": [
-      {
-        "name": "6over3 Institute"
-      }
-    ],
+    "description": "Bebop grammar for tree-sitter",
     "links": {
       "repository": "https://github.com/6over3/bebop-next"
     }

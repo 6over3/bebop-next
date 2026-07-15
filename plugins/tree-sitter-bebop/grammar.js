@@ -1,11 +1,3 @@
-/**
- * Tree-sitter grammar for the Bebop schema language (edition 2026).
- *
- * Mirrors bebop/src/bebop_scanner.c and bebop/src/bebop_parser.c. Editor
- * grammars favor error tolerance over strictness: file-section ordering,
- * enum zero members, tag ranges, and similar rules are left to beboplsp.
- */
-
 const PRIMITIVE_TYPES = [
   'bool',
   'byte',
@@ -33,7 +25,6 @@ const PRIMITIVE_TYPES = [
   'duration',
 ];
 
-// Binary operator precedence, loosest to tightest.
 const PREC = {
   OR: 1,
   AND: 2,
@@ -74,7 +65,6 @@ module.exports = grammar({
       $._definition,
     ),
 
-    // Trailing semicolons on preamble statements are optional.
     edition_declaration: $ => seq(
       'edition',
       '=',
@@ -94,9 +84,6 @@ module.exports = grammar({
       optional(';'),
     ),
 
-    // Visibility and mutability modifiers precede the definition keyword.
-    // `readonly` is reserved and rejected by the compiler; accepting it
-    // here keeps the tree intact so the LSP can diagnose it.
     _definition: $ => seq(
       repeat($.modifier),
       choice(
@@ -110,8 +97,6 @@ module.exports = grammar({
     ),
 
     modifier: _ => choice('export', 'local', 'mut', 'readonly'),
-
-    // #region Definitions
 
     struct_definition: $ => seq(
       'struct',
@@ -252,10 +237,6 @@ module.exports = grammar({
       ';',
     ),
 
-    // #endregion
-
-    // #region Decorators
-
     decorator: $ => seq(
       '@',
       field('name', $.qualified_identifier),
@@ -273,7 +254,6 @@ module.exports = grammar({
       field('value', $._literal),
     ),
 
-    // #decorator(name) { targets = ... param ... validate [[...]] }
     decorator_definition: $ => seq(
       '#',
       'decorator',
@@ -332,20 +312,14 @@ module.exports = grammar({
 
     export_block: $ => seq('export', field('code', $.lua_block)),
 
-    // Content runs to the first `]]`, matching the compiler's raw block
-    // scan. A lone `]` directly before the terminator is unrepresentable,
-    // exactly as in bebop_scanner.c.
     lua_block: $ => seq(
       '[[',
       optional($.lua_source),
       ']]',
     ),
 
+    // Runs to the first `]]`, matching the compiler's raw block scan.
     lua_source: _ => token(prec(1, /([^\]]|\][^\]])+/)),
-
-    // #endregion
-
-    // #region Types
 
     _type: $ => choice(
       $.primitive_type,
@@ -365,18 +339,12 @@ module.exports = grammar({
       ']',
     ),
 
-    // Postfix, left-associative: `int32[][3]` is a fixed array of
-    // dynamic arrays.
     array_type: $ => prec.left(seq(
       field('element', $._type),
       '[',
       optional(field('size', $.number)),
       ']',
     )),
-
-    // #endregion
-
-    // #region Expressions
 
     _expression: $ => choice(
       $.number,
@@ -409,10 +377,6 @@ module.exports = grammar({
     ),
 
     parenthesized_expression: $ => seq('(', $._expression, ')'),
-
-    // #endregion
-
-    // #region Literals
 
     _literal: $ => choice(
       $.string,
@@ -466,10 +430,7 @@ module.exports = grammar({
       /\\(u\{[0-9a-fA-F]{1,6}\}|x[0-9a-fA-F]{2}|.)/,
     ),
 
-    // $(VAR) substituted at compile time from the environment.
     env_variable: _ => token.immediate(/\$\([A-Za-z_][A-Za-z0-9_]*\)/),
-
-    // #endregion
 
     qualified_identifier: $ => seq(
       $.identifier,
