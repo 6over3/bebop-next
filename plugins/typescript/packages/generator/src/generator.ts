@@ -2,6 +2,7 @@ import {
   CodeGeneratorRequest,
   CodeGeneratorResponse,
   DefinitionKind,
+  MethodType as DescriptorMethodType,
   TypeKind,
   type DefinitionDescriptor,
   type EnumMemberDescriptor,
@@ -13,8 +14,8 @@ import {
   type UnionBranchDescriptor,
   LiteralKind,
 } from "@bebop/plugin";
-import { decode, encode } from "@bebop/runtime";
-import { IndentedStringBuilder } from "./indented-string-builder";
+import { decode, encode } from "@bebop/runtime/codec";
+import { IndentedStringBuilder } from "./indented-string-builder.js";
 
 type DefinitionInfo = {
   readonly schema: SchemaDescriptor;
@@ -32,11 +33,28 @@ type FieldInfo = {
   readonly index: number;
 };
 
+type ServiceMethodInfo = {
+  readonly originalName: string;
+  readonly name: string;
+  readonly id: number;
+  readonly methodType: DescriptorMethodType;
+  readonly runtimeMethodType: "UNARY" | "SERVER_STREAM" | "CLIENT_STREAM" | "DUPLEX_STREAM";
+  readonly requestType: string;
+  readonly requestCodec: string;
+  readonly requestTypeUrl: string;
+  readonly responseType: string;
+  readonly responseCodec: string;
+  readonly responseTypeUrl: string;
+};
+
 type ImportState = {
+  readonly state: GeneratorState;
+  readonly schema: SchemaDescriptor;
   readonly runtimeImport: RuntimeImport;
   readonly runtimeValues: Set<string>;
   readonly runtimeTypes: Set<string>;
   readonly localValues: Map<string, Set<string>>;
+  nextTemporary: number;
 };
 
 type GeneratorState = {
@@ -91,14 +109,44 @@ const reservedIdentifiers = new Set([
   "while",
   "with",
   "yield",
+  "abstract",
+  "any",
+  "as",
+  "asserts",
+  "async",
+  "await",
+  "bigint",
+  "boolean",
+  "constructor",
+  "declare",
+  "from",
+  "get",
+  "infer",
+  "is",
+  "keyof",
   "let",
+  "module",
+  "namespace",
+  "never",
+  "number",
+  "object",
+  "of",
+  "readonly",
+  "require",
+  "set",
   "static",
+  "string",
+  "symbol",
+  "type",
+  "unknown",
   "implements",
   "interface",
   "private",
   "protected",
   "public",
 ]);
+
+const reservedClientMembers = new Set(["batch", "channel", "futures"]);
 
 export function runGenerator(input: Uint8Array): Uint8Array {
   if (input.length === 0) {
@@ -167,18 +215,21 @@ function collectDefinition(
   schema: SchemaDescriptor,
   definitions: Map<string, DefinitionInfo>,
 ): void {
-  if (def.fqn !== undefined) {
-    const typeName = exportedTypeName(def, schema);
-    const kind = required(def.kind, `definition ${typeName} missing kind`);
-    if (kind === DefinitionKind.ENUM) {
-      const enumBaseType = required(required(def.enumDef, `enum ${typeName} missing body`).baseType, `enum ${typeName} missing base type`);
-      definitions.set(def.fqn, { schema, typeName, kind, enumBaseType });
-    } else {
-      definitions.set(def.fqn, { schema, typeName, kind });
+  const pending = [def];
+  while (pending.length !== 0) {
+    const current = pending.pop()!;
+    if (current.fqn !== undefined) {
+      const typeName = exportedTypeName(current, schema);
+      const kind = required(current.kind, `definition ${typeName} missing kind`);
+      if (kind === DefinitionKind.ENUM) {
+        const enumBaseType = required(required(current.enumDef, `enum ${typeName} missing body`).baseType, `enum ${typeName} missing base type`);
+        definitions.set(current.fqn, { schema, typeName, kind, enumBaseType });
+      } else {
+        definitions.set(current.fqn, { schema, typeName, kind });
+      }
     }
-  }
-  for (const child of def.nested ?? []) {
-    collectDefinition(child, schema, definitions);
+    const nested = current.nested ?? [];
+    for (let index = nested.length - 1; index >= 0; index--) pending.push(nested[index]!);
   }
 }
 
@@ -189,23 +240,17 @@ function generateSchema(
   compilerVersion: { readonly major: number; readonly minor: number; readonly patch: number; readonly suffix: string } | undefined,
 ): string {
   const imports: ImportState = {
+    state,
+    schema,
     runtimeImport: options.runtimeImport,
     runtimeValues: new Set(),
-    runtimeTypes: new Set(["BebopReader", "BebopWriter", "BebopReflectableCodec"]),
+    runtimeTypes: new Set(["BebopReader", "BebopWriter"]),
     localValues: new Map(),
+    nextTemporary: 0,
   };
   const declarations: string[] = [];
-  const previousState = activeState;
-  const previousSchema = activeSchema;
-  activeState = state;
-  activeSchema = schema;
-  try {
-    for (const def of schema.definitions ?? []) {
-      declarations.push(...generateDefinition(def, schema, state, imports));
-    }
-  } finally {
-    activeState = previousState;
-    activeSchema = previousSchema;
+  for (const def of schema.definitions ?? []) {
+    declarations.push(...generateDefinition(def, schema, state, imports));
   }
 
   const out = new IndentedStringBuilder();
@@ -232,32 +277,54 @@ function generateDefinition(
   state: GeneratorState,
   imports: ImportState,
 ): string[] {
-  const nested = (def.nested ?? []).flatMap((child) => generateDefinition(child, schema, state, imports));
-  switch (def.kind) {
-    case DefinitionKind.ENUM:
-      return [...nested, generateEnum(def, schema, imports)];
-    case DefinitionKind.STRUCT:
-      return [...nested, generateRecord(def, schema, state, imports, "struct")];
-    case DefinitionKind.MESSAGE:
-      return [...nested, generateRecord(def, schema, state, imports, "message")];
-    case DefinitionKind.UNION:
-      return [...nested, generateUnion(def, schema, state, imports)];
-    case DefinitionKind.CONST:
-      return [...nested, generateConst(def, state, imports)];
-    case DefinitionKind.SERVICE:
-      return [...nested, generateService(def, state, imports)];
-    case DefinitionKind.DECORATOR:
-      return nested;
-    default:
-      throw new CodegenError(`unknown definition kind ${String(def.kind)}`);
+  const result: string[] = [];
+  const pending: { readonly definition: DefinitionDescriptor; readonly expanded: boolean }[] = [
+    { definition: def, expanded: false },
+  ];
+  while (pending.length !== 0) {
+    const { definition, expanded } = pending.pop()!;
+    if (!expanded) {
+      pending.push({ definition, expanded: true });
+      const nested = definition.nested ?? [];
+      for (let index = nested.length - 1; index >= 0; index--) {
+        pending.push({ definition: nested[index]!, expanded: false });
+      }
+      continue;
+    }
+    switch (definition.kind) {
+      case DefinitionKind.ENUM:
+        result.push(generateEnum(definition, schema, imports));
+        break;
+      case DefinitionKind.STRUCT:
+        result.push(generateRecord(definition, schema, state, imports, "struct"));
+        break;
+      case DefinitionKind.MESSAGE:
+        result.push(generateRecord(definition, schema, state, imports, "message"));
+        break;
+      case DefinitionKind.UNION:
+        result.push(generateUnion(definition, schema, state, imports));
+        break;
+      case DefinitionKind.CONST:
+        result.push(generateConst(definition, state, imports));
+        break;
+      case DefinitionKind.SERVICE:
+        result.push(generateService(definition, schema, state, imports));
+        break;
+      case DefinitionKind.DECORATOR:
+        break;
+      default:
+        throw new CodegenError(`unknown definition kind ${String(definition.kind)}`);
+    }
   }
+  return result;
 }
 
-function generateEnum(def: DefinitionDescriptor, schema: SchemaDescriptor, _imports: ImportState): string {
+function generateEnum(def: DefinitionDescriptor, schema: SchemaDescriptor, imports: ImportState): string {
   const name = exportedTypeName(def, schema);
   const enumDef = required(def.enumDef, `enum ${name} missing body`);
   const baseType = required(enumDef.baseType, `enum ${name} missing base type`);
   const members = enumDef.members ?? [];
+  imports.runtimeTypes.add("BebopTypeReflection");
 
   const out = new IndentedStringBuilder();
   out.block(`export const ${name} =`, (b) => {
@@ -266,6 +333,22 @@ function generateEnum(def: DefinitionDescriptor, schema: SchemaDescriptor, _impo
     }
   }, "} as const;");
   out.line(`export type ${name} = ${enumTypeExpression(name, baseType, enumDef.isFlags === true)};`);
+  out.line();
+  out.block(`export const ${name}Reflection =`, (reflection) => {
+    reflection.line(`name: ${stringLiteral(required(def.name, "enum missing name"))},`);
+    reflection.line(`fqn: ${stringLiteral(required(def.fqn, `enum ${name} missing fqn`))},`);
+    reflection.line('kind: "enum",');
+    reflection.block("detail:", (detail) => {
+      detail.line("members: [");
+      detail.indented((array) => {
+        for (const member of members) {
+          array.line(`{ name: ${stringLiteral(required(member.name, `enum ${name} member missing name`))}, value: ${enumMemberLiteral(required(member.value, `enum ${name} member missing value`), baseType)} },`);
+        }
+      });
+      detail.line("],");
+      detail.line(`isFlags: ${enumDef.isFlags === true},`);
+    }, "},");
+  }, "} as const satisfies BebopTypeReflection;");
   return out.trimEnd().toString();
 }
 
@@ -277,7 +360,9 @@ function generateRecord(
   kind: "struct" | "message",
 ): string {
   const name = exportedTypeName(def, schema);
+  requireGeneratedCodecImports(imports);
   const fields = recordFields(def, kind).map((field) => fieldInfo(field, state, imports));
+  requireUniqueNames(fields.map((field) => field.name), `${kind} ${name} field`);
   const out = new IndentedStringBuilder();
   out.block(`export type ${name} =`, (type) => {
     for (const field of fields) {
@@ -288,6 +373,7 @@ function generateRecord(
   }, "};");
   out.line();
   out.block(`export const ${name} =`, (codec) => {
+    writeGeneratedCodecConvenience(codec, name);
     if (kind === "struct") {
       writeStructRead(codec, name, fields, imports);
       writeStructWrite(codec, name, fields, imports);
@@ -297,9 +383,25 @@ function generateRecord(
       writeMessageWrite(codec, name, fields, imports);
       writeMessageSize(codec, name, fields, imports);
     }
-    writeReflection(codec, def, name, kind, fields, imports);
-  }, `} satisfies BebopReflectableCodec<${name}>;`);
+    writeReflection(codec, def, name, kind, fields);
+  }, `} satisfies BebopGeneratedCodec<${name}>;`);
   return out.trimEnd().toString();
+}
+
+function writeGeneratedCodecConvenience(codec: IndentedStringBuilder, name: string): void {
+  codec.block(`encode(value: ${name}): Uint8Array`, (body) => {
+    body.line(`return encode(${name}, value);`);
+  }, "},");
+  codec.block(`decode(bytes: Uint8Array, options?: BebopReaderOptions): ${name}`, (body) => {
+    body.line(`return decode(${name}, bytes, options);`);
+  }, "},");
+}
+
+function requireGeneratedCodecImports(imports: ImportState): void {
+  imports.runtimeValues.add("decode");
+  imports.runtimeValues.add("encode");
+  imports.runtimeTypes.add("BebopGeneratedCodec");
+  imports.runtimeTypes.add("BebopReaderOptions");
 }
 
 function writeStructRead(
@@ -308,7 +410,8 @@ function writeStructRead(
   fields: readonly FieldInfo[],
   imports: ImportState,
 ): void {
-  codec.block(`readFrom(reader: BebopReader): ${name}`, (body) => {
+  const reader = fields.length === 0 ? "_reader" : "reader";
+  codec.block(`readFrom(${reader}: BebopReader): ${name}`, (body) => {
     if (fields.length === 0) {
       body.line("return {};");
       return;
@@ -316,7 +419,7 @@ function writeStructRead(
     body.line("return {");
     body.indented((object) => {
       for (const field of fields) {
-        object.line(`${propertyKey(field.name)}: ${readExpression(field.type, "reader", imports)},`);
+        object.line(`${propertyKey(field.name)}: ${readExpression(field.type, reader, imports)},`);
       }
     });
     body.line("};");
@@ -329,9 +432,11 @@ function writeStructWrite(
   fields: readonly FieldInfo[],
   imports: ImportState,
 ): void {
-  codec.block(`writeInto(writer: BebopWriter, value: ${name}): void`, (body) => {
+  const writer = fields.length === 0 ? "_writer" : "writer";
+  const value = fields.length === 0 ? "_value" : "value";
+  codec.block(`writeInto(${writer}: BebopWriter, ${value}: ${name}): void`, (body) => {
     for (const field of fields) {
-      writeStatement(body, field.type, "writer", memberAccess("value", field.name), imports);
+      writeStatement(body, field.type, writer, memberAccess(value, field.name), imports);
     }
   }, "},");
 }
@@ -342,14 +447,16 @@ function writeStructSize(
   fields: readonly FieldInfo[],
   imports: ImportState,
 ): void {
-  codec.block(`encodedSize(value: ${name}): number`, (body) => {
+  const usesValue = fields.some((field) => encodedSizeUsesValue(field.type, imports));
+  const value = usesValue ? "value" : "_value";
+  codec.block(`encodedSize(${value}: ${name}): number`, (body) => {
     if (fields.length === 0) {
       body.line("return 0;");
       return;
     }
     body.line("let size = 0;");
     for (const field of fields) {
-      writeAddSizeStatements(body, field.type, memberAccess("value", field.name), imports);
+      writeAddSizeStatements(body, field.type, memberAccess(value, field.name), imports);
     }
     body.line("return size;");
   }, "},");
@@ -431,13 +538,11 @@ function writeReflection(
   name: string,
   kind: "struct" | "message",
   fields: readonly FieldInfo[],
-  imports: ImportState,
 ): void {
-  imports.runtimeValues.add("BebopDefinitionKind");
   codec.block("reflection:", (reflection) => {
     reflection.line(`name: ${stringLiteral(required(def.name, `${kind} missing name`))},`);
     reflection.line(`fqn: ${stringLiteral(required(def.fqn, `${kind} ${name} missing fqn`))},`);
-    reflection.line(`kind: BebopDefinitionKind.${kind},`);
+    reflection.line(`kind: ${stringLiteral(kind)},`);
     reflection.block("detail:", (detail) => {
       detail.line("fields: [");
       detail.indented((array) => {
@@ -457,19 +562,26 @@ function generateUnion(
   imports: ImportState,
 ): string {
   const name = exportedTypeName(def, schema);
+  requireGeneratedCodecImports(imports);
   const branches = required(def.unionDef, `union ${name} missing body`).branches ?? [];
   const branchInfos = branches.map((branch) => unionBranchInfo(branch, name, state, imports));
+  requireUniqueNames(branchInfos.map((branch) => branch.caseName), `union ${name} branch`);
   const out = new IndentedStringBuilder();
   out.line(`export type ${name} =`);
   out.indented((type) => {
-    type.line(`| { readonly kind: "unknown"; readonly discriminator: number; readonly data: Uint8Array }`);
-    for (const branch of branchInfos) {
-      type.line(`| { readonly kind: ${stringLiteral(branch.caseName)}; readonly value: ${branch.typeName} }`);
+    const variants = [
+      '{ readonly kind: "unknown"; readonly discriminator: number; readonly data: Uint8Array }',
+      ...branchInfos.map(
+        (branch) => `{ readonly kind: ${stringLiteral(branch.caseName)}; readonly value: ${branch.typeName} }`,
+      ),
+    ];
+    for (let index = 0; index < variants.length; index++) {
+      type.line(`| ${variants[index]!}${index === variants.length - 1 ? ";" : ""}`);
     }
   });
-  out.line(";");
   out.line();
   out.block(`export const ${name} =`, (codec) => {
+    writeGeneratedCodecConvenience(codec, name);
     codec.block(`readFrom(reader: BebopReader): ${name}`, (body) => {
       body.line("const end = reader.readMessageEnd();");
       body.line("const discriminator = reader.readByte();");
@@ -508,22 +620,21 @@ function generateUnion(
         sw.line('case "unknown": return 5 + value.data.length;');
       });
     }, "},");
-    imports.runtimeValues.add("BebopDefinitionKind");
     codec.block("reflection:", (reflection) => {
       reflection.line(`name: ${stringLiteral(required(def.name, "union missing name"))},`);
       reflection.line(`fqn: ${stringLiteral(required(def.fqn, `union ${name} missing fqn`))},`);
-      reflection.line("kind: BebopDefinitionKind.union,");
+      reflection.line('kind: "union",');
       reflection.block("detail:", (detail) => {
         detail.line("branches: [");
         detail.indented((array) => {
           for (const branch of branchInfos) {
-            array.line(`{ discriminator: ${branch.discriminator}, name: ${stringLiteral(branch.caseName)}, typeName: ${stringLiteral(branch.typeName)} },`);
+            array.line(`{ discriminator: ${branch.discriminator}, name: ${stringLiteral(branch.originalName)}, typeName: ${stringLiteral(branch.typeName)} },`);
           }
         });
         detail.line("],");
       }, "},");
     }, "},");
-  }, `} satisfies BebopReflectableCodec<${name}>;`);
+  }, `} satisfies BebopGeneratedCodec<${name}>;`);
   return out.trimEnd().toString();
 }
 
@@ -532,32 +643,253 @@ function generateConst(def: DefinitionDescriptor, state: GeneratorState, imports
   const body = required(def.constDef, `const ${name} missing body`);
   const type = required(body.type, `const ${name} missing type`);
   const value = required(body.value, `const ${name} missing value`);
-  return `export const ${name}: ${typeName(type, state, imports)} = ${literalExpression(value)};`;
+  return `export const ${name}: ${typeName(type, state, imports)} = ${literalExpression(value, type)};`;
 }
 
-function generateService(def: DefinitionDescriptor, state: GeneratorState, imports: ImportState): string {
-  const name = exportedTypeName(def, { package: packageFromFqn(def.fqn), definitions: [def] });
+function generateService(
+  def: DefinitionDescriptor,
+  schema: SchemaDescriptor,
+  state: GeneratorState,
+  imports: ImportState,
+): string {
+  const name = exportedTypeName(def, schema);
   const service = required(def.serviceDef, `service ${name} missing body`);
+  const methods = (service.methods ?? []).map((method) => serviceMethodInfo(method, name, state, imports));
+  requireUniqueNames(methods.map((method) => method.name), `service ${name} method`);
+  imports.runtimeValues.add("defineService");
+  imports.runtimeValues.add("MethodType");
+  imports.runtimeValues.add("RpcContext");
+  imports.runtimeTypes.add("Awaitable");
+  imports.runtimeTypes.add("BebopChannel");
+  imports.runtimeTypes.add("RpcMetadata");
+  imports.runtimeTypes.add("RpcResponse");
+  imports.runtimeTypes.add("StreamResponse");
+  imports.runtimeTypes.add("StreamSource");
+  for (const method of methods) imports.runtimeValues.add(clientHelper(method.methodType));
+  const batchMethods = methods.filter(({ methodType }) =>
+    methodType === DescriptorMethodType.UNARY || methodType === DescriptorMethodType.SERVER_STREAM);
+  const futureMethods = methods.filter(({ methodType }) => methodType === DescriptorMethodType.UNARY);
+  if (batchMethods.length > 0) {
+    imports.runtimeValues.add("Batch");
+    imports.runtimeTypes.add("BatchResults");
+    imports.runtimeTypes.add("CallRef");
+    imports.runtimeTypes.add("StreamRef");
+  }
+  if (futureMethods.length > 0) {
+    imports.runtimeValues.add("FutureDispatcher");
+    imports.runtimeTypes.add("BebopFuture");
+    imports.runtimeTypes.add("DispatchOptions");
+  }
   const out = new IndentedStringBuilder();
-  out.block(`export const ${name} =`, (svc) => {
-    svc.line(`serviceName: ${stringLiteral(required(def.name, "service missing name"))},`);
-    svc.line("methods: [");
-    svc.indented((methods) => {
-      for (const method of service.methods ?? []) {
-        methods.line("{");
-        methods.indented((m) => {
-          m.line(`name: ${stringLiteral(required(method.name, `service ${name} method missing name`))},`);
-          m.line(`methodId: ${required(method.id, `service ${name} method missing id`)},`);
-          m.line(`methodType: ${required(method.methodType, `service ${name} method missing type`)},`);
-          m.line(`requestType: ${stringLiteral(typeName(required(method.requestType, `service ${name} method missing request`), state, imports))},`);
-          m.line(`responseType: ${stringLiteral(typeName(required(method.responseType, `service ${name} method missing response`), state, imports))},`);
+  out.block(`export interface ${name}Handler`, (handler) => {
+    for (const method of methods) {
+      handler.line(`${method.name}${handlerSignature(method)};`);
+    }
+  });
+  out.line();
+  out.line(`export const ${name} = defineService(`);
+  out.indented((definition) => {
+    definition.line(`${stringLiteral(required(def.name, "service missing name"))},`);
+    definition.block("", (methodDefinitions) => {
+      for (const method of methods) {
+        methodDefinitions.block(`${method.name}:`, (descriptor) => {
+          descriptor.line(`id: ${hexUint32(method.id)},`);
+          descriptor.line(`name: ${stringLiteral(method.originalName)},`);
+          descriptor.line(`methodType: MethodType.${method.runtimeMethodType},`);
+          descriptor.line(`request: ${method.requestCodec},`);
+          descriptor.line(`response: ${method.responseCodec},`);
+          descriptor.line(`requestTypeUrl: ${stringLiteral(method.requestTypeUrl)},`);
+          descriptor.line(`responseTypeUrl: ${stringLiteral(method.responseTypeUrl)},`);
+        }, "},");
+      }
+    }, "},");
+    definition.block(`(builder, handler: ${name}Handler) =>`, (register) => {
+      for (const method of methods) {
+        const registration = registrationMethod(method.methodType);
+        const args = method.methodType === DescriptorMethodType.UNARY || method.methodType === DescriptorMethodType.SERVER_STREAM
+          ? "request, context"
+          : "requests, context";
+        register.line(`builder.${registration}(${name}.methods.${method.name}, (${args}) => handler.${method.name}(${args}));`);
+      }
+      register.line("return builder;");
+    }, "},");
+  });
+  out.line(");");
+  out.line();
+  if (batchMethods.length > 0) {
+    out.block(`export class ${name}Batch<Metadata = RpcMetadata>`, (batch) => {
+      batch.line("constructor(readonly batch: Batch<Metadata>) {}");
+      for (const method of batchMethods) {
+        batch.line();
+        const reference = method.methodType === DescriptorMethodType.UNARY
+          ? `CallRef<${method.responseType}>`
+          : `StreamRef<${method.responseType}>`;
+        const add = method.methodType === DescriptorMethodType.UNARY ? "addUnary" : "addServerStream";
+        batch.block(`${method.name}(request: ${method.requestType} | CallRef<${method.requestType}>): ${reference}`, (body) => {
+          body.line(`return this.batch.${add}(${name}.methods.${method.name}, request);`);
         });
-        methods.line("},");
+      }
+      batch.line();
+      batch.block("execute(context = new RpcContext()): Promise<BatchResults>", (body) => {
+        body.line("return this.batch.execute(context);");
+      });
+    });
+    out.line();
+  }
+  if (futureMethods.length > 0) {
+    out.block(`export class ${name}Futures<Metadata = RpcMetadata>`, (futures) => {
+      futures.line("constructor(readonly dispatcher: FutureDispatcher<Metadata>) {}");
+      for (const method of futureMethods) {
+        futures.line();
+        futures.block(
+          `${method.name}(request: ${method.requestType}, options: DispatchOptions = {}, context = new RpcContext()): Promise<BebopFuture<${method.responseType}, Metadata>>`,
+          (body) => {
+            body.line(`return this.dispatcher.dispatch(${name}.methods.${method.name}, request, options, context);`);
+          },
+        );
       }
     });
-    svc.line("],");
-  }, "} as const;");
+    out.line();
+  }
+  out.block(`export class ${name}Client<Payload = Uint8Array, Metadata = RpcMetadata>`, (client) => {
+    client.line("constructor(readonly channel: BebopChannel<Payload, Metadata>) {}");
+    for (const method of methods) {
+      client.line();
+      client.block(`${clientSignature(method)}`, (body) => {
+        const helper = clientHelper(method.methodType);
+        const request = method.methodType === DescriptorMethodType.UNARY || method.methodType === DescriptorMethodType.SERVER_STREAM
+          ? "request, "
+          : "requests, ";
+        body.line(`return ${helper}(this.channel, ${name}.methods.${method.name}, ${request}context);`);
+      });
+    }
+    if (batchMethods.length > 0) {
+      client.line();
+      client.block(`batch(this: ${name}Client<Uint8Array, Metadata>, metadata: RpcMetadata = new Map()): ${name}Batch<Metadata>`, (body) => {
+        body.line(`return new ${name}Batch(new Batch(this.channel, metadata));`);
+      });
+    }
+    if (futureMethods.length > 0) {
+      client.line();
+      client.block(`futures(this: ${name}Client<Uint8Array, Metadata>): ${name}Futures<Metadata>`, (body) => {
+        body.line(`return new ${name}Futures(new FutureDispatcher(this.channel));`);
+      });
+    }
+  });
   return out.trimEnd().toString();
+}
+
+function serviceMethodInfo(
+  method: NonNullable<NonNullable<DefinitionDescriptor["serviceDef"]>["methods"]>[number],
+  serviceName: string,
+  state: GeneratorState,
+  imports: ImportState,
+): ServiceMethodInfo {
+  const originalName = required(method.name, `service ${serviceName} method missing name`);
+  const methodType = required(method.methodType, `service ${serviceName} method ${originalName} missing type`);
+  const request = serviceTypeInfo(
+    required(method.requestType, `service ${serviceName} method ${originalName} missing request`),
+    state,
+    imports,
+  );
+  const response = serviceTypeInfo(
+    required(method.responseType, `service ${serviceName} method ${originalName} missing response`),
+    state,
+    imports,
+  );
+  return {
+    originalName,
+    name: serviceMethodName(originalName),
+    id: required(method.id, `service ${serviceName} method ${originalName} missing id`),
+    methodType,
+    runtimeMethodType: runtimeMethodType(methodType),
+    requestType: request.type,
+    requestCodec: request.codec,
+    requestTypeUrl: request.typeUrl,
+    responseType: response.type,
+    responseCodec: response.codec,
+    responseTypeUrl: response.typeUrl,
+  };
+}
+
+function serviceTypeInfo(
+  type: TypeDescriptor,
+  state: GeneratorState,
+  imports: ImportState,
+): { readonly type: string; readonly codec: string; readonly typeUrl: string } {
+  if (type.kind !== TypeKind.DEFINED) {
+    throw new CodegenError("service request and response types must be defined Bebop records");
+  }
+  const fqn = required(type.definedFqn, "service type missing fqn");
+  const name = definedTypeName(fqn, state, imports);
+  return {
+    type: name,
+    codec: name,
+    typeUrl: `type.bebop.sh/${fqn}`,
+  };
+}
+
+function runtimeMethodType(methodType: DescriptorMethodType): ServiceMethodInfo["runtimeMethodType"] {
+  switch (methodType) {
+    case DescriptorMethodType.UNARY: return "UNARY";
+    case DescriptorMethodType.SERVER_STREAM: return "SERVER_STREAM";
+    case DescriptorMethodType.CLIENT_STREAM: return "CLIENT_STREAM";
+    case DescriptorMethodType.DUPLEX_STREAM: return "DUPLEX_STREAM";
+    case DescriptorMethodType.UNKNOWN: throw new CodegenError("service method type must not be unknown");
+    default: return assertNever(methodType);
+  }
+}
+
+function registrationMethod(methodType: DescriptorMethodType): string {
+  switch (methodType) {
+    case DescriptorMethodType.UNARY: return "registerUnary";
+    case DescriptorMethodType.SERVER_STREAM: return "registerServerStream";
+    case DescriptorMethodType.CLIENT_STREAM: return "registerClientStream";
+    case DescriptorMethodType.DUPLEX_STREAM: return "registerDuplexStream";
+    case DescriptorMethodType.UNKNOWN: throw new CodegenError("service method type must not be unknown");
+    default: return assertNever(methodType);
+  }
+}
+
+function handlerSignature(method: ServiceMethodInfo): string {
+  switch (method.methodType) {
+    case DescriptorMethodType.UNARY:
+      return `(request: ${method.requestType}, context: RpcContext): Awaitable<${method.responseType}>`;
+    case DescriptorMethodType.SERVER_STREAM:
+      return `(request: ${method.requestType}, context: RpcContext): Awaitable<StreamSource<${method.responseType}>>`;
+    case DescriptorMethodType.CLIENT_STREAM:
+      return `(requests: ReadableStream<${method.requestType}>, context: RpcContext): Awaitable<${method.responseType}>`;
+    case DescriptorMethodType.DUPLEX_STREAM:
+      return `(requests: ReadableStream<${method.requestType}>, context: RpcContext): Awaitable<StreamSource<${method.responseType}>>`;
+    case DescriptorMethodType.UNKNOWN: throw new CodegenError("service method type must not be unknown");
+    default: return assertNever(method.methodType);
+  }
+}
+
+function clientSignature(method: ServiceMethodInfo): string {
+  switch (method.methodType) {
+    case DescriptorMethodType.UNARY:
+      return `${method.name}(request: ${method.requestType}, context = new RpcContext()): Promise<RpcResponse<${method.responseType}, Metadata>>`;
+    case DescriptorMethodType.SERVER_STREAM:
+      return `${method.name}(request: ${method.requestType}, context = new RpcContext()): Promise<StreamResponse<${method.responseType}, Metadata>>`;
+    case DescriptorMethodType.CLIENT_STREAM:
+      return `${method.name}(requests: StreamSource<${method.requestType}>, context = new RpcContext()): Promise<RpcResponse<${method.responseType}, Metadata>>`;
+    case DescriptorMethodType.DUPLEX_STREAM:
+      return `${method.name}(requests: StreamSource<${method.requestType}>, context = new RpcContext()): Promise<StreamResponse<${method.responseType}, Metadata>>`;
+    case DescriptorMethodType.UNKNOWN: throw new CodegenError("service method type must not be unknown");
+    default: return assertNever(method.methodType);
+  }
+}
+
+function clientHelper(methodType: DescriptorMethodType): string {
+  switch (methodType) {
+    case DescriptorMethodType.UNARY: return "unaryCall";
+    case DescriptorMethodType.SERVER_STREAM: return "serverStreamCall";
+    case DescriptorMethodType.CLIENT_STREAM: return "clientStreamCall";
+    case DescriptorMethodType.DUPLEX_STREAM: return "duplexStreamCall";
+    case DescriptorMethodType.UNKNOWN: throw new CodegenError("service method type must not be unknown");
+    default: return assertNever(methodType);
+  }
 }
 
 function recordFields(def: DefinitionDescriptor, kind: "struct" | "message"): readonly FieldDescriptor[] {
@@ -570,12 +902,13 @@ function recordFields(def: DefinitionDescriptor, kind: "struct" | "message"): re
 function fieldInfo(field: FieldDescriptor, state: GeneratorState, imports: ImportState): FieldInfo {
   const originalName = required(field.name, "field missing name");
   const name = fieldName(originalName);
+  const type = required(field.type, `field ${originalName} missing type`);
   return {
     originalName,
     name,
     variable: `${safeIdentifier(name)}Value`,
-    type: required(field.type, `field ${originalName} missing type`),
-    typeName: typeName(required(field.type, `field ${originalName} missing type`), state, imports),
+    type,
+    typeName: typeName(type, state, imports),
     index: field.index ?? 0,
   };
 }
@@ -585,13 +918,20 @@ function unionBranchInfo(
   unionName: string,
   state: GeneratorState,
   imports: ImportState,
-): { readonly caseName: string; readonly typeName: string; readonly discriminator: number } {
+): {
+  readonly originalName: string;
+  readonly caseName: string;
+  readonly typeName: string;
+  readonly discriminator: number;
+} {
   const fqn = branch.typeRefFqn ?? branch.inlineFqn;
   if (fqn === undefined) {
     throw new CodegenError(`union ${unionName} branch missing type`);
   }
+  const originalName = branch.name ?? lastFqnPart(fqn);
   return {
-    caseName: fieldName(branch.name ?? lastFqnPart(fqn)),
+    originalName,
+    caseName: fieldName(originalName),
     typeName: definedTypeName(fqn, state, imports),
     discriminator: required(branch.discriminator, `union ${unionName} branch missing discriminator`),
   };
@@ -658,8 +998,12 @@ function arrayType(element: TypeDescriptor, state: GeneratorState, imports: Impo
     case TypeKind.BFLOAT16:
       imports.runtimeValues.add("BFloat16Array");
       return "BFloat16Array";
-    default:
-      return `readonly ${typeName(element, state, imports)}[]`;
+    default: {
+      const elementType = typeName(element, state, imports);
+      return elementType.startsWith("readonly ")
+        ? `readonly (${elementType})[]`
+        : `readonly ${elementType}[]`;
+    }
   }
 }
 
@@ -680,8 +1024,8 @@ function definedTypeName(fqn: string, state: GeneratorState, imports: ImportStat
     }
     throw new CodegenError(`unknown type ${fqn}`);
   }
-  if (activeSchema !== undefined && info.schema.path !== activeSchema.path) {
-    addLocalImport(imports, `./${baseNameWithoutExtension(info.schema.path ?? "schema")}.bb`, info.typeName);
+  if (info.schema.path !== imports.schema.path) {
+    addLocalImport(imports, `./${baseNameWithoutExtension(info.schema.path ?? "schema")}.bb.js`, info.typeName);
   }
   return info.typeName;
 }
@@ -691,8 +1035,8 @@ function definedInfo(fqn: string, state: GeneratorState, imports: ImportState): 
   if (info === undefined) {
     return undefined;
   }
-  if (activeSchema !== undefined && info.schema.path !== activeSchema.path) {
-    addLocalImport(imports, `./${baseNameWithoutExtension(info.schema.path ?? "schema")}.bb`, info.typeName);
+  if (info.schema.path !== imports.schema.path) {
+    addLocalImport(imports, `./${baseNameWithoutExtension(info.schema.path ?? "schema")}.bb.js`, info.typeName);
   }
   return info;
 }
@@ -739,7 +1083,7 @@ function readExpression(type: TypeDescriptor, reader: string, imports: ImportSta
 }
 
 function readDefinedExpression(fqn: string, reader: string, imports: ImportState): string {
-  const info = definedInfo(fqn, globalStateForDefinedType(), imports);
+  const info = definedInfo(fqn, imports.state, imports);
   if (info === undefined) {
     if (fqn === "bebop.Any") {
       imports.runtimeValues.add("BebopAny");
@@ -755,16 +1099,6 @@ function readDefinedExpression(fqn: string, reader: string, imports: ImportState
     return `${scalarRead(required(info.enumBaseType, `enum ${info.typeName} missing base type`), reader, imports)} as ${info.typeName}`;
   }
   return `${info.typeName}.readFrom(${reader})`;
-}
-
-let activeState: GeneratorState | undefined;
-let activeSchema: SchemaDescriptor | undefined;
-
-function globalStateForDefinedType(): GeneratorState {
-  if (activeState === undefined) {
-    throw new CodegenError("generator state not active");
-  }
-  return activeState;
 }
 
 function readArrayExpression(element: TypeDescriptor, reader: string, imports: ImportState): string {
@@ -806,7 +1140,7 @@ function readFixedArrayExpression(
     case TypeKind.FLOAT64: return `${reader}.readFloat64Array(${length})`;
     case TypeKind.BFLOAT16: return `${reader}.readBFloat16Array(${length})`;
     default: {
-      const elementType = typeName(element, globalStateForDefinedType(), imports);
+      const elementType = typeName(element, imports.state, imports);
       return `(() => {
   const values = new Array<${elementType}>(${length});
   for (let i = 0; i < ${length}; i++) values[i] = ${readExpression(element, reader, imports)};
@@ -880,7 +1214,7 @@ function writeDefinedStatement(
   value: string,
   imports: ImportState,
 ): void {
-  const info = definedInfo(fqn, globalStateForDefinedType(), imports);
+  const info = definedInfo(fqn, imports.state, imports);
   if (info === undefined) {
     if (fqn === "bebop.Any") {
       imports.runtimeValues.add("BebopAny");
@@ -933,9 +1267,11 @@ function writeFixedArrayStatement(
   }
   imports.runtimeValues.add("BebopRuntimeError");
   out.line(`if (${value}.length !== ${length}) throw new BebopRuntimeError(\`expected fixed length ${length}, got \${${value}.length}\`);`);
-  out.block(`for (let i = 0; i < ${value}.length; i++)`, (body) => {
-    body.line(`const item = ${value}[i]!;`);
-    writeStatement(body, element, writer, "item", imports);
+  const index = temporary(imports, "i");
+  const item = temporary(imports, "item");
+  out.block(`for (let ${index} = 0; ${index} < ${value}.length; ${index}++)`, (body) => {
+    body.line(`const ${item} = ${value}[${index}]!;`);
+    writeStatement(body, element, writer, item, imports);
   });
 }
 
@@ -974,7 +1310,8 @@ function writeAddSizeStatements(
   }
   switch (type.kind) {
     case TypeKind.STRING:
-      out.line(`size += 4 + new TextEncoder().encode(${value}).length + 1;`);
+      imports.runtimeValues.add("utf8ByteLength");
+      out.line(`size += 5 + utf8ByteLength(${value});`);
       return;
     case TypeKind.UUID:
       out.line("size += 16;");
@@ -999,10 +1336,10 @@ function writeAddSizeStatements(
       return;
     case TypeKind.MAP:
       out.line("size += 4;");
-      out.block(`${value}.forEach((_v, _k) =>`, (body) => {
+      out.block(`for (const [_k, _v] of ${value})`, (body) => {
         writeAddSizeStatements(body, required(type.mapKey, "map missing key"), "_k", imports);
         writeAddSizeStatements(body, required(type.mapValue, "map missing value"), "_v", imports);
-      }, "});");
+      });
       return;
     case TypeKind.DEFINED:
       writeAddDefinedSizeStatement(out, required(type.definedFqn, "defined type missing fqn"), value, imports);
@@ -1018,7 +1355,7 @@ function writeAddDefinedSizeStatement(
   value: string,
   imports: ImportState,
 ): void {
-  const info = definedInfo(fqn, globalStateForDefinedType(), imports);
+  const info = definedInfo(fqn, imports.state, imports);
   if (info === undefined) {
     if (fqn === "bebop.Any") {
       imports.runtimeValues.add("BebopAny");
@@ -1055,9 +1392,11 @@ function writeAddArraySizeStatements(
     return;
   }
   out.line("size += 4;");
-  out.block(`for (let i = 0; i < ${value}.length; i++)`, (body) => {
-    body.line(`const item = ${value}[i]!;`);
-    writeAddSizeStatements(body, element, "item", imports);
+  const index = temporary(imports, "i");
+  const item = temporary(imports, "item");
+  out.block(`for (let ${index} = 0; ${index} < ${value}.length; ${index}++)`, (body) => {
+    body.line(`const ${item} = ${value}[${index}]!;`);
+    writeAddSizeStatements(body, element, item, imports);
   });
 }
 
@@ -1075,9 +1414,11 @@ function writeAddFixedArraySizeStatements(
     out.line(`size += ${length * scalar};`);
     return;
   }
-  out.block(`for (let i = 0; i < ${value}.length; i++)`, (body) => {
-    body.line(`const item = ${value}[i]!;`);
-    writeAddSizeStatements(body, element, "item", imports);
+  const index = temporary(imports, "i");
+  const item = temporary(imports, "item");
+  out.block(`for (let ${index} = 0; ${index} < ${value}.length; ${index}++)`, (body) => {
+    body.line(`const ${item} = ${value}[${index}]!;`);
+    writeAddSizeStatements(body, element, item, imports);
   });
 }
 
@@ -1102,12 +1443,25 @@ function fixedScalarSize(kind: TypeKind | undefined): number | undefined {
       return 8;
     case TypeKind.INT128:
     case TypeKind.UINT128:
+    case TypeKind.UUID:
     case TypeKind.TIMESTAMP:
       return 16;
     case TypeKind.DURATION:
       return 12;
     default:
       return undefined;
+  }
+}
+
+function encodedSizeUsesValue(type: TypeDescriptor, imports: ImportState): boolean {
+  if (fixedScalarSize(type.kind) !== undefined) return false;
+  switch (type.kind) {
+    case TypeKind.DEFINED: {
+      const info = imports.state.definitions.get(required(type.definedFqn, "defined type missing fqn"));
+      return info?.kind !== DefinitionKind.ENUM;
+    }
+    default:
+      return true;
   }
 }
 
@@ -1136,12 +1490,12 @@ function enumMemberLiteral(value: bigint, kind: TypeKind): string {
   }
 }
 
-function literalExpression(value: LiteralValue): string {
+function literalExpression(value: LiteralValue, type: TypeDescriptor): string {
   switch (value.kind) {
     case LiteralKind.BOOL:
       return value.boolValue === true ? "true" : "false";
     case LiteralKind.INT:
-      return `${required(value.intValue, "int literal missing value")}n`;
+      return integerLiteral(required(value.intValue, "int literal missing value"), type.kind);
     case LiteralKind.FLOAT:
       return numberLiteral(required(value.floatValue, "float literal missing value"));
     case LiteralKind.STRING:
@@ -1152,25 +1506,45 @@ function literalExpression(value: LiteralValue): string {
       return `new Uint8Array([${[...(value.bytesValue ?? [])].join(", ")}])`;
     case LiteralKind.TIMESTAMP: {
       const v = required(value.timestampValue, "timestamp literal missing value");
-      return `{ seconds: ${v.seconds}n, nanoseconds: ${v.nanoseconds}, offsetMs: ${v.offsetMs} }`;
+      return `Temporal.ZonedDateTime.from(${stringLiteral(v.toString())})`;
     }
     case LiteralKind.DURATION: {
       const v = required(value.durationValue, "duration literal missing value");
-      return `{ seconds: ${v.seconds}n, nanoseconds: ${v.nanoseconds} }`;
+      return `Temporal.Duration.from(${stringLiteral(v.toString())})`;
     }
     default:
       throw new CodegenError(`unsupported literal kind ${String(value.kind)}`);
   }
 }
 
+function integerLiteral(value: bigint, kind: TypeKind | undefined): string {
+  switch (kind) {
+    case TypeKind.INT64:
+    case TypeKind.UINT64:
+    case TypeKind.INT128:
+    case TypeKind.UINT128:
+      return `${value}n`;
+    default:
+      return String(Number(value));
+  }
+}
+
 function writeImports(out: IndentedStringBuilder, imports: ImportState): void {
   const runtimeValueImports = groupRuntimeImports(imports.runtimeValues, imports.runtimeImport);
   const runtimeTypeImports = groupRuntimeImports(imports.runtimeTypes, imports.runtimeImport);
-  for (const [module, symbols] of [...runtimeValueImports.entries()].sort(([a], [b]) => compareString(a, b))) {
-    out.line(`import { ${[...symbols].sort().join(", ")} } from ${stringLiteral(module)};`);
-  }
-  for (const [module, symbols] of [...runtimeTypeImports.entries()].sort(([a], [b]) => compareString(a, b))) {
-    out.line(`import type { ${[...symbols].sort().join(", ")} } from ${stringLiteral(module)};`);
+  const runtimeModules = new Set([...runtimeValueImports.keys(), ...runtimeTypeImports.keys()]);
+  for (const module of [...runtimeModules].sort(compareString)) {
+    const values = [...(runtimeValueImports.get(module) ?? [])].sort(compareString);
+    const valueSet = new Set(values);
+    const types = [...(runtimeTypeImports.get(module) ?? [])]
+      .filter((symbol) => !valueSet.has(symbol))
+      .sort(compareString);
+    if (values.length === 0) {
+      out.line(`import type { ${types.join(", ")} } from ${stringLiteral(module)};`);
+    } else {
+      const specifiers = [...values, ...types.map((symbol) => `type ${symbol}`)];
+      out.line(`import { ${specifiers.join(", ")} } from ${stringLiteral(module)};`);
+    }
   }
   for (const [module, symbols] of [...imports.localValues.entries()].sort(([a], [b]) => compareString(a, b))) {
     out.line(`import { ${[...symbols].sort().join(", ")} } from ${stringLiteral(module)};`);
@@ -1190,30 +1564,104 @@ function groupRuntimeImports(symbols: ReadonlySet<string>, runtimeImport: Runtim
 
 function runtimeModuleForSymbol(symbol: string, runtimeImport: RuntimeImport): string {
   if (runtimeImport.kind === "module") {
-    return runtimeImport.module;
+    if (runtimeImport.module !== "@bebop/runtime") return runtimeImport.module;
+    switch (symbol) {
+      case "BEBOP_TYPE_URL_PREFIX":
+      case "BebopAny": return "@bebop/runtime/any";
+      case "BFloat16":
+      case "BFloat16Array": return "@bebop/runtime/bfloat16";
+      case "BebopEmpty": return "@bebop/runtime/empty";
+      case "BebopRuntimeError": return "@bebop/runtime/error";
+      case "BebopDefinitionKind":
+      case "BebopGeneratedCodec":
+      case "BebopReflectableCodec":
+      case "BebopTypeReflection": return "@bebop/runtime/reflection";
+      case "decode":
+      case "encode": return "@bebop/runtime/codec";
+      case "BebopDuration":
+      case "BebopTimestamp": return "@bebop/runtime/temporal";
+      case "Awaitable":
+      case "Batch":
+      case "BatchResults":
+      case "BebopChannel":
+      case "BebopFuture":
+      case "CallRef":
+      case "ClientStreamCall":
+      case "DispatchOptions":
+      case "DuplexStreamCall":
+      case "FutureDispatcher":
+      case "MethodType":
+      case "RpcContext":
+      case "RpcMetadata":
+      case "RpcResponse":
+      case "StreamResponse":
+      case "StreamRef":
+      case "StreamSource":
+      case "clientStreamCall":
+      case "defineService":
+      case "duplexStreamCall":
+      case "serverStreamCall":
+      case "unaryCall": return "@bebop/runtime/rpc";
+      case "BebopReader":
+      case "BebopReaderOptions":
+      case "BebopWriter":
+      case "utf8ByteLength": return "@bebop/runtime/wire";
+      case "BebopUUID": return "@bebop/runtime/uuid";
+      default: throw new CodegenError(`unknown runtime symbol ${symbol}`);
+    }
   }
   switch (symbol) {
     case "BEBOP_TYPE_URL_PREFIX":
     case "BebopAny":
-      return "./any";
+      return "./any.js";
     case "BFloat16":
     case "BFloat16Array":
-      return "./bfloat16";
+      return "./bfloat16.js";
     case "BebopEmpty":
-      return "./empty";
+      return "./empty.js";
     case "BebopRuntimeError":
-      return "./error";
+      return "./error.js";
     case "BebopDefinitionKind":
+    case "BebopGeneratedCodec":
     case "BebopReflectableCodec":
-      return "./reflection";
+    case "BebopTypeReflection":
+      return "./reflection.js";
+    case "decode":
+    case "encode":
+      return "./codec.js";
     case "BebopDuration":
     case "BebopTimestamp":
-      return "./temporal";
+      return "./temporal.js";
+    case "Awaitable":
+    case "Batch":
+    case "BatchResults":
+    case "BebopChannel":
+    case "BebopFuture":
+    case "CallRef":
+    case "ClientStreamCall":
+    case "DispatchOptions":
+    case "DuplexStreamCall":
+    case "FutureDispatcher":
+    case "MethodType":
+    case "RpcContext":
+    case "RpcMetadata":
+    case "RpcResponse":
+    case "StreamResponse":
+    case "StreamRef":
+    case "StreamSource":
+    case "clientStreamCall":
+    case "defineService":
+    case "duplexStreamCall":
+    case "serverStreamCall":
+    case "unaryCall":
+      return "./rpc/index.js";
     case "BebopReader":
+    case "BebopReaderOptions":
     case "BebopWriter":
-      return "./wire";
+    case "utf8ByteLength":
+      return "./wire.js";
     case "BebopUUID":
-      return "./uuid";
+      return "./uuid.js";
     default:
       throw new CodegenError(`unknown runtime symbol ${symbol}`);
   }
@@ -1252,7 +1700,14 @@ function typeIdentifier(value: string): string {
 }
 
 function fieldName(value: string): string {
-  return value.replace(/_([a-zA-Z0-9])/gu, (_, char: string) => char.toUpperCase());
+  const normalized = /^[A-Z0-9_]+$/u.test(value) ? value.toLowerCase() : value;
+  const camel = normalized.replace(/_([a-zA-Z0-9])/gu, (_, char: string) => char.toUpperCase());
+  return camel.length === 0 ? camel : camel[0]!.toLowerCase() + camel.slice(1);
+}
+
+function serviceMethodName(value: string): string {
+  const name = safeIdentifier(fieldName(value));
+  return reservedClientMembers.has(name) ? `${name}_` : name;
 }
 
 function enumMemberName(member: EnumMemberDescriptor): string {
@@ -1274,7 +1729,7 @@ function memberAccess(receiver: string, name: string): string {
 }
 
 function propertyKey(name: string): string {
-  return isIdentifier(name) && !reservedIdentifiers.has(name) ? name : stringLiteral(name);
+  return isIdentifier(name) ? name : stringLiteral(name);
 }
 
 function isIdentifier(value: string): boolean {
@@ -1297,12 +1752,6 @@ function lastFqnPart(fqn: string): string {
   return fqn.slice(fqn.lastIndexOf(".") + 1);
 }
 
-function packageFromFqn(fqn: string | undefined): string | undefined {
-  if (fqn === undefined) return undefined;
-  const index = fqn.lastIndexOf(".");
-  return index < 0 ? undefined : fqn.slice(0, index);
-}
-
 function baseNameWithoutExtension(path: string): string {
   const last = path.split(/[\\/]/u).at(-1) ?? path;
   const dot = last.lastIndexOf(".");
@@ -1313,11 +1762,23 @@ function readerArg(): string {
   return "_r";
 }
 
+function temporary(imports: ImportState, prefix: string): string {
+  return `_${prefix}${imports.nextTemporary++}`;
+}
+
 function required<T>(value: T | undefined, message: string): T {
   if (value === undefined) {
     throw new CodegenError(message);
   }
   return value;
+}
+
+function hexUint32(value: number): string {
+  return `0x${value.toString(16).padStart(8, "0").toUpperCase()}`;
+}
+
+function assertNever(value: never): never {
+  throw new CodegenError(`unexpected value ${String(value)}`);
 }
 
 function errorMessage(error: unknown): string {
@@ -1326,6 +1787,16 @@ function errorMessage(error: unknown): string {
 
 function compareString(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function requireUniqueNames(names: readonly string[], context: string): void {
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new CodegenError(`${context} name collision after TypeScript normalization: ${name}`);
+    }
+    seen.add(name);
+  }
 }
 
 class CodegenError extends Error {

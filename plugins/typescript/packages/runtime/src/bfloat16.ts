@@ -1,6 +1,6 @@
-import type { BebopCodec } from "./codec";
-import { BebopRuntimeError } from "./error";
-import type { BebopReader, BebopWriter } from "./wire";
+import type { BebopCodec } from "./codec.js";
+import { BebopRuntimeError } from "./error.js";
+import type { BebopReader, BebopWriter } from "./wire.js";
 
 export type BFloat16ArrayFromOptions =
   | { readonly as?: "values" }
@@ -44,8 +44,10 @@ function bfloat16BitsFromValue(value: BFloat16 | number): number {
   return value instanceof BFloat16Value ? value.bitPattern : bfloat16BitsFromNumber(value);
 }
 
+declare const bfloat16Brand: unique symbol;
+
 class BFloat16Value {
-  private readonly __brand!: void;
+  declare private readonly [bfloat16Brand]: void;
 
   constructor(readonly bitPattern: number) {
     if (!Number.isInteger(bitPattern) || bitPattern < 0 || bitPattern > 0xffff) {

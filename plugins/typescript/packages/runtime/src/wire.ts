@@ -1,6 +1,6 @@
-import { BFloat16, BFloat16Array } from "./bfloat16";
-import { BebopRuntimeError } from "./error";
-import type { BebopDuration, BebopTimestamp } from "./temporal";
+import { BFloat16, BFloat16Array } from "./bfloat16.js";
+import { BebopRuntimeError } from "./error.js";
+import { BebopDuration, BebopTimestamp } from "./temporal.js";
 
 const emptyBytes = new Uint8Array(0);
 const emptyArrayBuffer = new ArrayBuffer(0);
@@ -24,6 +24,8 @@ export type BebopReaderOptions = {
    * decoded value and is never mutated or reused. Default `true`.
    */
   readonly copyArrays?: boolean;
+  /** Reject dynamic arrays and maps larger than this many elements. */
+  readonly maxCollectionLength?: number;
 };
 
 function invalidUtf8(cause?: TypeError): never {
@@ -40,16 +42,42 @@ function fatalTextDecoder(): TextDecoder {
   return (sharedFatalTextDecoder ??= new TextDecoder("utf-8", { fatal: true }));
 }
 
+/** Returns the exact UTF-8 byte length without allocating an encoded buffer. */
+export function utf8ByteLength(value: string): number {
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index++) {
+    const first = value.charCodeAt(index);
+    if (first < 0x80) {
+      byteLength += 1;
+    } else if (first < 0x800) {
+      byteLength += 2;
+    } else if (first >= 0xd800 && first <= 0xdbff) {
+      const second = index + 1 < value.length ? value.charCodeAt(index + 1) : 0;
+      if (second >= 0xdc00 && second <= 0xdfff) {
+        index++;
+        byteLength += 4;
+      } else {
+        byteLength += 3;
+      }
+    } else {
+      byteLength += 3;
+    }
+  }
+  return byteLength;
+}
+
 export class BebopReader {
   readonly buffer: Uint8Array;
   readonly view: DataView;
   readonly copyArrays: boolean;
+  readonly maxCollectionLength: number;
   index = 0;
 
   constructor(buffer: Uint8Array, options?: BebopReaderOptions) {
     this.buffer = buffer;
     this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
     this.copyArrays = options?.copyArrays !== false;
+    this.maxCollectionLength = validCollectionLength(options?.maxCollectionLength);
   }
 
   get length(): number {
@@ -176,13 +204,13 @@ export class BebopReader {
     const seconds = this.readInt64();
     const nanoseconds = this.readInt32();
     const offsetMs = this.readInt32();
-    return { seconds, nanoseconds, offsetMs };
+    return BebopTimestamp.fromWire(seconds, nanoseconds, offsetMs);
   }
 
   readDuration(): BebopDuration {
     const seconds = this.readInt64();
     const nanoseconds = this.readInt32();
-    return { seconds, nanoseconds };
+    return BebopDuration.fromWire(seconds, nanoseconds);
   }
 
   /**
@@ -197,7 +225,9 @@ export class BebopReader {
     const start = this.index;
     const end = start + byteCount;
     this.index = end;
-    return this.copyArrays ? this.buffer.slice(start, end) : this.buffer.subarray(start, end);
+    return this.copyArrays
+      ? new Uint8Array(this.buffer.subarray(start, end))
+      : this.buffer.subarray(start, end);
   }
 
   /** Reads a length-prefixed byte array, or exactly `length` bytes for fixed arrays. */
@@ -327,7 +357,7 @@ export class BebopReader {
   }
 
   readDynamicArray<T>(readElement: (reader: BebopReader) => T): T[] {
-    const count = this.readUint32();
+    const count = this.readCollectionLength();
     const values: T[] = new Array(Math.min(count, this.buffer.length - this.index));
     for (let i = 0; i < count; i++) {
       values[i] = readElement(this);
@@ -339,7 +369,7 @@ export class BebopReader {
     readKey: (reader: BebopReader) => K,
     readValue: (reader: BebopReader) => V,
   ): Map<K, V> {
-    const count = this.readUint32();
+    const count = this.readCollectionLength();
     const values = new Map<K, V>();
     for (let i = 0; i < count; i++) {
       const key = readKey(this);
@@ -363,13 +393,23 @@ export class BebopReader {
     this.index += byteCount;
 
     if (this.copyArrays) {
-      const bytes = this.buffer.slice(start, start + byteCount);
+      const bytes = new Uint8Array(this.buffer.subarray(start, start + byteCount));
       return new ctor(bytes.buffer, 0, count);
     }
     const byteOffset = this.buffer.byteOffset + start;
-    return byteOffset % ctor.BYTES_PER_ELEMENT === 0
-      ? new ctor(this.buffer.buffer, byteOffset, count)
-      : new ctor(this.buffer.slice(start, start + byteCount).buffer, 0, count);
+    if (byteOffset % ctor.BYTES_PER_ELEMENT === 0) {
+      return new ctor(this.buffer.buffer, byteOffset, count);
+    }
+    const bytes = new Uint8Array(this.buffer.subarray(start, start + byteCount));
+    return new ctor(bytes.buffer, 0, count);
+  }
+
+  private readCollectionLength(): number {
+    const count = this.readUint32();
+    if (count > this.maxCollectionLength) {
+      throw new BebopRuntimeError("collection exceeds configured limit");
+    }
+    return count;
   }
 
   private readContinuationByte(end: number): number {
@@ -378,6 +418,14 @@ export class BebopReader {
     if ((byte & 0xc0) !== 0x80) invalidUtf8();
     return byte;
   }
+}
+
+function validCollectionLength(value: number | undefined): number {
+  if (value === undefined || value === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`maxCollectionLength must be a non-negative safe integer: ${value}`);
+  }
+  return value;
 }
 
 export class BebopWriter {
@@ -534,14 +582,16 @@ export class BebopWriter {
   }
 
   writeTimestamp(value: BebopTimestamp): void {
-    this.writeInt64(value.seconds);
-    this.writeInt32(value.nanoseconds);
-    this.writeInt32(value.offsetMs);
+    const wire = BebopTimestamp.toWire(value);
+    this.writeInt64(wire.seconds);
+    this.writeInt32(wire.nanoseconds);
+    this.writeInt32(wire.offsetMs);
   }
 
   writeDuration(value: BebopDuration): void {
-    this.writeInt64(value.seconds);
-    this.writeInt32(value.nanoseconds);
+    const wire = BebopDuration.toWire(value);
+    this.writeInt64(wire.seconds);
+    this.writeInt32(wire.nanoseconds);
   }
 
   writeBytes(value: Uint8Array): void {
@@ -580,14 +630,7 @@ export class BebopWriter {
 
   writeString(value: string): void {
     const stringLength = value.length;
-    if (stringLength === 0) {
-      this.writeUint32(0);
-      this.writeByte(0);
-      return;
-    }
-
-    this.guaranteeBufferLength(this.length + 4 + stringLength * 3 + 1);
-    const start = this.length;
+    const start = this.reserve(4);
     const writeStart = start + 4;
     let writeIndex = writeStart;
 
@@ -607,15 +650,19 @@ export class BebopWriter {
       }
 
       if (codePoint < 0x80) {
+        if (writeIndex === this.buffer.length) this.guaranteeBufferLength(writeIndex + 1);
         this.buffer[writeIndex++] = codePoint;
       } else if (codePoint < 0x800) {
+        if (writeIndex + 2 > this.buffer.length) this.guaranteeBufferLength(writeIndex + 2);
         this.buffer[writeIndex++] = ((codePoint >> 6) & 0x1f) | 0xc0;
         this.buffer[writeIndex++] = (codePoint & 0x3f) | 0x80;
       } else if (codePoint < 0x10000) {
+        if (writeIndex + 3 > this.buffer.length) this.guaranteeBufferLength(writeIndex + 3);
         this.buffer[writeIndex++] = ((codePoint >> 12) & 0x0f) | 0xe0;
         this.buffer[writeIndex++] = ((codePoint >> 6) & 0x3f) | 0x80;
         this.buffer[writeIndex++] = (codePoint & 0x3f) | 0x80;
       } else {
+        if (writeIndex + 4 > this.buffer.length) this.guaranteeBufferLength(writeIndex + 4);
         this.buffer[writeIndex++] = ((codePoint >> 18) & 0x07) | 0xf0;
         this.buffer[writeIndex++] = ((codePoint >> 12) & 0x3f) | 0x80;
         this.buffer[writeIndex++] = ((codePoint >> 6) & 0x3f) | 0x80;
@@ -623,6 +670,7 @@ export class BebopWriter {
       }
     }
 
+    if (writeIndex === this.buffer.length) this.guaranteeBufferLength(writeIndex + 1);
     this.view.setUint32(start, writeIndex - writeStart, true);
     this.buffer[writeIndex++] = 0;
     this.length = writeIndex;

@@ -1,20 +1,43 @@
 {
   "name": "@bebop/generator-typescript",
-  "version": "0.0.0",
+  "version": "2026.0.0-alpha.4",
   "description": "Bebop TypeScript code generator plugin.",
   "type": "module",
-  "private": true,
-  "bin": {
-    "bebopc-gen-typescript": "./dist/bebopc-gen-typescript"
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
+  "bin": {
+    "bebopc-gen-typescript": "./dist/cli.js"
+  },
+  "files": ["dist", "README.md"],
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit && rm -rf dist && bun build ./src/cli.ts --compile --minify --sourcemap --bytecode --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile ./dist/bebopc-gen-typescript",
+    "build": "tsc -p tsconfig.json",
+    "build:binary": "bun run build && bun build ./src/cli.ts --compile --minify --sourcemap --bytecode --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile ./dist/bebopc-gen-typescript",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "bun test test"
   },
   "dependencies": {
-    "@bebop/plugin": "workspace:*",
-    "@bebop/runtime": "workspace:*"
+    "@bebop/plugin": "^2026.0.0-alpha.4",
+    "@bebop/runtime": "^2026.0.0-alpha.4"
   },
+  "engines": {
+    "node": ">=26"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/6over3/bebop.git",
+    "directory": "plugins/typescript/packages/generator"
+  },
+  "keywords": ["bebop", "codegen", "generator", "typescript"],
   "license": "Apache-2.0"
 }

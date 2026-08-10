@@ -1,18 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
-import { CodeGeneratorResponse } from "@bebop/plugin";
-import { encode } from "@bebop/runtime";
-import { runGenerator } from "./generator";
+import { readFileSync, writeFileSync } from "node:fs";
+import { runGenerator } from "./generator.js";
 
-void main();
-
-async function main(): Promise<void> {
-  try {
-    const input = new Uint8Array(await Bun.stdin.arrayBuffer());
-    Bun.stdout.write(runGenerator(input));
-  } catch (error) {
-    Bun.stdout.write(encode(CodeGeneratorResponse, {
-      error: `bebopc-gen-typescript: ${error instanceof Error ? error.message : String(error)}`,
-    }));
-  }
-}
+writeFileSync(1, runGenerator(readFileSync(0)));

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { afterEach, describe, expect, test } from "vitest";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { decode, encode } from "@bebop/runtime";
 import {
@@ -6,6 +7,7 @@ import {
   CodeGeneratorResponse,
   DefinitionKind,
   LiteralKind,
+  MethodType,
   TypeKind,
   type CodeGeneratorRequest as CodeGeneratorRequestValue,
 } from "@bebop/plugin";
@@ -43,21 +45,55 @@ describe("bebopc-gen-typescript bootstrap", () => {
       include: ["*.ts"],
     }, null, 2));
 
-    const result = Bun.spawnSync({
-      cmd: ["bun", "run", "tsc", "-p", new URL("tsconfig.json", tempDir).pathname],
-      cwd: new URL("../../..", import.meta.url).pathname,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const result = spawnSync(
+      process.execPath,
+      [new URL("../../../node_modules/typescript/bin/tsc", import.meta.url).pathname, "-p", new URL("tsconfig.json", tempDir).pathname],
+      {
+        cwd: new URL("../../..", import.meta.url),
+        encoding: "utf8",
+      },
+    );
 
-    expect(result.exitCode, `${result.stdout.toString()}\n${result.stderr.toString()}`).toBe(0);
-    expect(response.files?.[1]?.content).toContain(`import { Paint, Point } from "./base.bb";`);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(response.files?.[1]?.content).toContain(
+      `import { Paint, Point } from "./base.bb.js";`,
+    );
     expect(response.files?.[0]?.content).toContain("export const Color =");
     expect(response.files?.[0]?.content).toContain("} as const;");
     expect(response.files?.[0]?.content).toContain("export type Color = (typeof Color)[keyof typeof Color];");
+    expect(response.files?.[0]?.content).toContain("export const ColorReflection =");
+    expect(response.files?.[0]?.content).toContain('kind: "enum",');
+    expect(response.files?.[0]?.content).toContain("encode(value: Point): Uint8Array");
+    expect(response.files?.[0]?.content).toContain("decode(bytes: Uint8Array, options?: BebopReaderOptions): Point");
+    expect(response.files?.[0]?.content).toContain("return encode(Point, value);");
+    expect(response.files?.[0]?.content).toContain("return decode(Point, bytes, options);");
     expect(response.files?.[0]?.content).not.toContain("export const ColorCodec");
+    expect(response.files?.[0]?.content).toContain("export const ANSWER: number = 42;");
+    expect(response.files?.[0]?.content).toContain("export const LARGE: bigint = 42n;");
     expect(response.files?.[1]?.content).toContain(`export type Shape =`);
+    expect(response.files?.[1]?.content).not.toContain("ShapeKind");
+    expect(response.files?.[1]?.content).toContain(`readonly kind: "circle"`);
     expect(response.files?.[1]?.content).toContain(`case "circle":`);
+    expect(response.files?.[1]?.content).toContain("export interface CanvasServiceHandler");
+    expect(response.files?.[1]?.content).toContain("export const CanvasService = defineService(");
+    expect(response.files?.[1]?.content).toContain(
+      "export class CanvasServiceClient<Payload = Uint8Array, Metadata = RpcMetadata>",
+    );
+    expect(response.files?.[1]?.content).toContain("export class CanvasServiceBatch<Metadata = RpcMetadata>");
+    expect(response.files?.[1]?.content).toContain("export class CanvasServiceFutures<Metadata = RpcMetadata>");
+    expect(response.files?.[1]?.content).toContain(
+      "batch(this: CanvasServiceClient<Uint8Array, Metadata>, metadata: RpcMetadata = new Map()): CanvasServiceBatch<Metadata>",
+    );
+    expect(response.files?.[1]?.content).toContain(
+      "futures(this: CanvasServiceClient<Uint8Array, Metadata>): CanvasServiceFutures<Metadata>",
+    );
+    expect(response.files?.[1]?.content).toContain("methodType: MethodType.DUPLEX_STREAM");
+    expect(response.files?.[1]?.content).toContain(
+      "sync(requests: StreamSource<Paint>, context = new RpcContext()): Promise<StreamResponse<Canvas, Metadata>>",
+    );
+    expect(response.files?.[1]?.content).toContain(
+      "return duplexStreamCall(this.channel, CanvasService.methods.sync, requests, context);",
+    );
   });
 
   test("reads and writes encoded plugin protocol messages", () => {
@@ -77,8 +113,8 @@ describe("bebopc-gen-typescript bootstrap", () => {
     });
 
     expect(response.error).toBeUndefined();
-    expect(response.files?.[0]?.content).toContain(`from "./error";`);
-    expect(response.files?.[0]?.content).toContain(`from "./wire";`);
+    expect(response.files?.[0]?.content).toContain(`from "./error.js";`);
+    expect(response.files?.[0]?.content).toContain(`from "./wire.js";`);
     expect(response.files?.[0]?.content).not.toContain("function stringSize");
     expect(response.files?.[0]?.content).not.toContain("function readFixedArray");
     expect(response.files?.[0]?.content).not.toContain("package_");
@@ -149,6 +185,24 @@ function bootstrapRequest(): CodeGeneratorRequestValue {
               value: { kind: LiteralKind.STRING, stringValue: "hello" },
             },
           },
+          {
+            kind: DefinitionKind.CONST,
+            name: "ANSWER",
+            fqn: "base.ANSWER",
+            constDef: {
+              type: { kind: TypeKind.INT32 },
+              value: { kind: LiteralKind.INT, intValue: 42n },
+            },
+          },
+          {
+            kind: DefinitionKind.CONST,
+            name: "LARGE",
+            fqn: "base.LARGE",
+            constDef: {
+              type: { kind: TypeKind.INT64 },
+              value: { kind: LiteralKind.INT, intValue: 42n },
+            },
+          },
         ],
       },
       {
@@ -187,6 +241,43 @@ function bootstrapRequest(): CodeGeneratorRequestValue {
               fields: [
                 { name: "shapes", index: 1, type: { kind: TypeKind.ARRAY, arrayElement: { kind: TypeKind.DEFINED, definedFqn: "main.Shape" } } },
                 { name: "paints", index: 2, type: { kind: TypeKind.MAP, mapKey: { kind: TypeKind.STRING }, mapValue: { kind: TypeKind.DEFINED, definedFqn: "base.Paint" } } },
+              ],
+            },
+          },
+          {
+            kind: DefinitionKind.SERVICE,
+            name: "CanvasService",
+            fqn: "main.CanvasService",
+            serviceDef: {
+              methods: [
+                {
+                  name: "Get",
+                  id: 0xA3F7_3AA7,
+                  methodType: MethodType.UNARY,
+                  requestType: { kind: TypeKind.DEFINED, definedFqn: "base.Paint" },
+                  responseType: { kind: TypeKind.DEFINED, definedFqn: "main.Canvas" },
+                },
+                {
+                  name: "Watch",
+                  id: 0xBB7F_3698,
+                  methodType: MethodType.SERVER_STREAM,
+                  requestType: { kind: TypeKind.DEFINED, definedFqn: "base.Paint" },
+                  responseType: { kind: TypeKind.DEFINED, definedFqn: "main.Canvas" },
+                },
+                {
+                  name: "Upload",
+                  id: 0xC1A3_0C3B,
+                  methodType: MethodType.CLIENT_STREAM,
+                  requestType: { kind: TypeKind.DEFINED, definedFqn: "base.Paint" },
+                  responseType: { kind: TypeKind.DEFINED, definedFqn: "main.Canvas" },
+                },
+                {
+                  name: "Sync",
+                  id: 0x317F_5C17,
+                  methodType: MethodType.DUPLEX_STREAM,
+                  requestType: { kind: TypeKind.DEFINED, definedFqn: "base.Paint" },
+                  responseType: { kind: TypeKind.DEFINED, definedFqn: "main.Canvas" },
+                },
               ],
             },
           },

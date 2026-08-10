@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { IndentedStringBuilder } from "../src/indented-string-builder";
 
 describe("IndentedStringBuilder", () => {

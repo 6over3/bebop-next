@@ -1,8 +1,7 @@
-import { decode, encode } from "./codec";
-import { BebopRuntimeError } from "./error";
-import type { BebopReflectableCodec } from "./reflection";
-import { BebopDefinitionKind } from "./reflection";
-import type { BebopReader, BebopWriter } from "./wire";
+import { decode, encode } from "./codec.js";
+import { BebopRuntimeError } from "./error.js";
+import type { BebopReflectableCodec } from "./reflection.js";
+import { utf8ByteLength, type BebopReader, type BebopWriter } from "./wire.js";
 
 export const BEBOP_TYPE_URL_PREFIX = "type.bebop.sh/";
 
@@ -10,10 +9,6 @@ export type BebopAny = {
   readonly typeUrl: string;
   readonly value: Uint8Array;
 };
-
-function stringSize(value: string): number {
-  return 4 + new TextEncoder().encode(value).length + 1;
-}
 
 export const BebopAny = {
   typeUrlPrefix: BEBOP_TYPE_URL_PREFIX,
@@ -31,7 +26,7 @@ export const BebopAny = {
   },
 
   encodedSize(value: BebopAny): number {
-    return stringSize(value.typeUrl) + 4 + value.value.length;
+    return 5 + utf8ByteLength(value.typeUrl) + 4 + value.value.length;
   },
 
   pack<T>(
@@ -66,7 +61,7 @@ export const BebopAny = {
   reflection: {
     name: "BebopAny",
     fqn: "bebop.Any",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "type_url", index: 0, typeName: "string" },

@@ -2,11 +2,11 @@
 // source: bebop/schemas/bebop/rpc.bop
 // bebopc 2026.0.0-alpha.3
 
-import { BebopDefinitionKind } from "./reflection";
-import { BebopTimestamp } from "./temporal";
-import { BebopUUID } from "./uuid";
-import type { BebopReflectableCodec } from "./reflection";
-import type { BebopReader, BebopWriter } from "./wire";
+import { decode, encode } from "./codec.js";
+import type { BebopGeneratedCodec, BebopTypeReflection } from "./reflection.js";
+import { BebopTimestamp } from "./temporal.js";
+import { BebopUUID } from "./uuid.js";
+import { utf8ByteLength, type BebopReader, type BebopReaderOptions, type BebopWriter } from "./wire.js";
 
 
 export const StatusCode = {
@@ -25,6 +25,29 @@ export const StatusCode = {
 } as const;
 export type StatusCode = (typeof StatusCode)[keyof typeof StatusCode];
 
+export const StatusCodeReflection = {
+  name: "StatusCode",
+  fqn: "bebop.StatusCode",
+  kind: "enum",
+  detail: {
+    members: [
+      { name: "OK", value: 0 },
+      { name: "CANCELLED", value: 1 },
+      { name: "UNKNOWN", value: 2 },
+      { name: "INVALID_ARGUMENT", value: 3 },
+      { name: "DEADLINE_EXCEEDED", value: 4 },
+      { name: "NOT_FOUND", value: 5 },
+      { name: "PERMISSION_DENIED", value: 7 },
+      { name: "RESOURCE_EXHAUSTED", value: 8 },
+      { name: "UNIMPLEMENTED", value: 12 },
+      { name: "INTERNAL", value: 13 },
+      { name: "UNAVAILABLE", value: 14 },
+      { name: "UNAUTHENTICATED", value: 16 },
+    ],
+    isFlags: false,
+  },
+} as const satisfies BebopTypeReflection;
+
 export const FrameFlags = {
   NONE: 0,
   END_STREAM: 1,
@@ -35,6 +58,23 @@ export const FrameFlags = {
 } as const;
 export type FrameFlags = number;
 
+export const FrameFlagsReflection = {
+  name: "FrameFlags",
+  fqn: "bebop.FrameFlags",
+  kind: "enum",
+  detail: {
+    members: [
+      { name: "NONE", value: 0 },
+      { name: "END_STREAM", value: 1 },
+      { name: "ERROR", value: 2 },
+      { name: "COMPRESSED", value: 4 },
+      { name: "TRAILER", value: 8 },
+      { name: "CURSOR", value: 16 },
+    ],
+    isFlags: true,
+  },
+} as const satisfies BebopTypeReflection;
+
 export const MethodType = {
   UNARY: 0,
   SERVER_STREAM: 1,
@@ -43,6 +83,21 @@ export const MethodType = {
 } as const;
 export type MethodType = (typeof MethodType)[keyof typeof MethodType];
 
+export const MethodTypeReflection = {
+  name: "MethodType",
+  fqn: "bebop.MethodType",
+  kind: "enum",
+  detail: {
+    members: [
+      { name: "UNARY", value: 0 },
+      { name: "SERVER_STREAM", value: 1 },
+      { name: "CLIENT_STREAM", value: 2 },
+      { name: "DUPLEX_STREAM", value: 3 },
+    ],
+    isFlags: false,
+  },
+} as const satisfies BebopTypeReflection;
+
 export type FrameHeader = {
   readonly length: number;
   readonly flags: FrameFlags;
@@ -50,6 +105,12 @@ export type FrameHeader = {
 };
 
 export const FrameHeader = {
+  encode(value: FrameHeader): Uint8Array {
+    return encode(FrameHeader, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FrameHeader {
+    return decode(FrameHeader, bytes, options);
+  },
   readFrom(reader: BebopReader): FrameHeader {
     return {
       length: reader.readUint32(),
@@ -62,7 +123,7 @@ export const FrameHeader = {
     writer.writeByte(value.flags);
     writer.writeUint32(value.streamId);
   },
-  encodedSize(value: FrameHeader): number {
+  encodedSize(_value: FrameHeader): number {
     let size = 0;
     size += 4;
     size += 1;
@@ -72,7 +133,7 @@ export const FrameHeader = {
   reflection: {
     name: "FrameHeader",
     fqn: "bebop.FrameHeader",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "length", index: 0, typeName: "number" },
@@ -81,7 +142,7 @@ export const FrameHeader = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<FrameHeader>;
+} satisfies BebopGeneratedCodec<FrameHeader>;
 
 export type CallHeader = {
   readonly methodId?: number | undefined;
@@ -91,6 +152,12 @@ export type CallHeader = {
 };
 
 export const CallHeader = {
+  encode(value: CallHeader): Uint8Array {
+    return encode(CallHeader, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): CallHeader {
+    return decode(CallHeader, bytes, options);
+  },
   readFrom(reader: BebopReader): CallHeader {
     const end = reader.readMessageEnd();
     let methodIdValue: number | undefined;
@@ -152,10 +219,10 @@ export const CallHeader = {
     if (value.metadata !== undefined) {
       size += 1;
       size += 4;
-      value.metadata.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
-        size += 4 + new TextEncoder().encode(_v).length + 1;
-      });
+      for (const [_k, _v] of value.metadata) {
+        size += 5 + utf8ByteLength(_k);
+        size += 5 + utf8ByteLength(_v);
+      }
     }
     if (value.cursor !== undefined) {
       size += 1;
@@ -166,7 +233,7 @@ export const CallHeader = {
   reflection: {
     name: "CallHeader",
     fqn: "bebop.CallHeader",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "method_id", index: 1, typeName: "number" },
@@ -176,7 +243,7 @@ export const CallHeader = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<CallHeader>;
+} satisfies BebopGeneratedCodec<CallHeader>;
 
 export type RpcError = {
   readonly code?: StatusCode | undefined;
@@ -185,6 +252,12 @@ export type RpcError = {
 };
 
 export const RpcError = {
+  encode(value: RpcError): Uint8Array {
+    return encode(RpcError, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): RpcError {
+    return decode(RpcError, bytes, options);
+  },
   readFrom(reader: BebopReader): RpcError {
     const end = reader.readMessageEnd();
     let codeValue: StatusCode | undefined;
@@ -234,22 +307,22 @@ export const RpcError = {
     }
     if (value.detail !== undefined) {
       size += 1;
-      size += 4 + new TextEncoder().encode(value.detail).length + 1;
+      size += 5 + utf8ByteLength(value.detail);
     }
     if (value.metadata !== undefined) {
       size += 1;
       size += 4;
-      value.metadata.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
-        size += 4 + new TextEncoder().encode(_v).length + 1;
-      });
+      for (const [_k, _v] of value.metadata) {
+        size += 5 + utf8ByteLength(_k);
+        size += 5 + utf8ByteLength(_v);
+      }
     }
     return size;
   },
   reflection: {
     name: "RpcError",
     fqn: "bebop.RpcError",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "code", index: 1, typeName: "StatusCode" },
@@ -258,13 +331,19 @@ export const RpcError = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<RpcError>;
+} satisfies BebopGeneratedCodec<RpcError>;
 
 export type TrailingMetadata = {
   readonly metadata?: ReadonlyMap<string, string> | undefined;
 };
 
 export const TrailingMetadata = {
+  encode(value: TrailingMetadata): Uint8Array {
+    return encode(TrailingMetadata, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): TrailingMetadata {
+    return decode(TrailingMetadata, bytes, options);
+  },
   readFrom(reader: BebopReader): TrailingMetadata {
     const end = reader.readMessageEnd();
     let metadataValue: ReadonlyMap<string, string> | undefined;
@@ -297,24 +376,24 @@ export const TrailingMetadata = {
     if (value.metadata !== undefined) {
       size += 1;
       size += 4;
-      value.metadata.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
-        size += 4 + new TextEncoder().encode(_v).length + 1;
-      });
+      for (const [_k, _v] of value.metadata) {
+        size += 5 + utf8ByteLength(_k);
+        size += 5 + utf8ByteLength(_v);
+      }
     }
     return size;
   },
   reflection: {
     name: "TrailingMetadata",
     fqn: "bebop.TrailingMetadata",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "metadata", index: 1, typeName: "ReadonlyMap<string, string>" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<TrailingMetadata>;
+} satisfies BebopGeneratedCodec<TrailingMetadata>;
 
 export type MethodInfo = {
   readonly name: string;
@@ -325,6 +404,12 @@ export type MethodInfo = {
 };
 
 export const MethodInfo = {
+  encode(value: MethodInfo): Uint8Array {
+    return encode(MethodInfo, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): MethodInfo {
+    return decode(MethodInfo, bytes, options);
+  },
   readFrom(reader: BebopReader): MethodInfo {
     return {
       name: reader.readString(),
@@ -343,17 +428,17 @@ export const MethodInfo = {
   },
   encodedSize(value: MethodInfo): number {
     let size = 0;
-    size += 4 + new TextEncoder().encode(value.name).length + 1;
+    size += 5 + utf8ByteLength(value.name);
     size += 4;
     size += 1;
-    size += 4 + new TextEncoder().encode(value.requestTypeUrl).length + 1;
-    size += 4 + new TextEncoder().encode(value.responseTypeUrl).length + 1;
+    size += 5 + utf8ByteLength(value.requestTypeUrl);
+    size += 5 + utf8ByteLength(value.responseTypeUrl);
     return size;
   },
   reflection: {
     name: "MethodInfo",
     fqn: "bebop.MethodInfo",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "name", index: 0, typeName: "string" },
@@ -364,7 +449,7 @@ export const MethodInfo = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<MethodInfo>;
+} satisfies BebopGeneratedCodec<MethodInfo>;
 
 export type ServiceInfo = {
   readonly name: string;
@@ -372,6 +457,12 @@ export type ServiceInfo = {
 };
 
 export const ServiceInfo = {
+  encode(value: ServiceInfo): Uint8Array {
+    return encode(ServiceInfo, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): ServiceInfo {
+    return decode(ServiceInfo, bytes, options);
+  },
   readFrom(reader: BebopReader): ServiceInfo {
     return {
       name: reader.readString(),
@@ -386,18 +477,18 @@ export const ServiceInfo = {
   },
   encodedSize(value: ServiceInfo): number {
     let size = 0;
-    size += 4 + new TextEncoder().encode(value.name).length + 1;
+    size += 5 + utf8ByteLength(value.name);
     size += 4;
-    for (let i = 0; i < value.methods.length; i++) {
-      const item = value.methods[i]!;
-      size += MethodInfo.encodedSize(item);
+    for (let _i0 = 0; _i0 < value.methods.length; _i0++) {
+      const _item1 = value.methods[_i0]!;
+      size += MethodInfo.encodedSize(_item1);
     }
     return size;
   },
   reflection: {
     name: "ServiceInfo",
     fqn: "bebop.ServiceInfo",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "name", index: 0, typeName: "string" },
@@ -405,13 +496,19 @@ export const ServiceInfo = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<ServiceInfo>;
+} satisfies BebopGeneratedCodec<ServiceInfo>;
 
 export type DiscoveryResponse = {
   readonly services: readonly ServiceInfo[];
 };
 
 export const DiscoveryResponse = {
+  encode(value: DiscoveryResponse): Uint8Array {
+    return encode(DiscoveryResponse, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): DiscoveryResponse {
+    return decode(DiscoveryResponse, bytes, options);
+  },
   readFrom(reader: BebopReader): DiscoveryResponse {
     return {
       services: reader.readDynamicArray((_r) => ServiceInfo.readFrom(_r)),
@@ -425,23 +522,23 @@ export const DiscoveryResponse = {
   encodedSize(value: DiscoveryResponse): number {
     let size = 0;
     size += 4;
-    for (let i = 0; i < value.services.length; i++) {
-      const item = value.services[i]!;
-      size += ServiceInfo.encodedSize(item);
+    for (let _i2 = 0; _i2 < value.services.length; _i2++) {
+      const _item3 = value.services[_i2]!;
+      size += ServiceInfo.encodedSize(_item3);
     }
     return size;
   },
   reflection: {
     name: "DiscoveryResponse",
     fqn: "bebop.DiscoveryResponse",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "services", index: 0, typeName: "readonly ServiceInfo[]" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<DiscoveryResponse>;
+} satisfies BebopGeneratedCodec<DiscoveryResponse>;
 
 export type BatchCall = {
   readonly callId: number;
@@ -451,6 +548,12 @@ export type BatchCall = {
 };
 
 export const BatchCall = {
+  encode(value: BatchCall): Uint8Array {
+    return encode(BatchCall, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchCall {
+    return decode(BatchCall, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchCall {
     return {
       callId: reader.readInt32(),
@@ -476,7 +579,7 @@ export const BatchCall = {
   reflection: {
     name: "BatchCall",
     fqn: "bebop.BatchCall",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "call_id", index: 0, typeName: "number" },
@@ -486,7 +589,7 @@ export const BatchCall = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchCall>;
+} satisfies BebopGeneratedCodec<BatchCall>;
 
 export type BatchRequest = {
   readonly calls: readonly BatchCall[];
@@ -494,6 +597,12 @@ export type BatchRequest = {
 };
 
 export const BatchRequest = {
+  encode(value: BatchRequest): Uint8Array {
+    return encode(BatchRequest, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchRequest {
+    return decode(BatchRequest, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchRequest {
     return {
       calls: reader.readDynamicArray((_r) => BatchCall.readFrom(_r)),
@@ -512,21 +621,21 @@ export const BatchRequest = {
   encodedSize(value: BatchRequest): number {
     let size = 0;
     size += 4;
-    for (let i = 0; i < value.calls.length; i++) {
-      const item = value.calls[i]!;
-      size += BatchCall.encodedSize(item);
+    for (let _i4 = 0; _i4 < value.calls.length; _i4++) {
+      const _item5 = value.calls[_i4]!;
+      size += BatchCall.encodedSize(_item5);
     }
     size += 4;
-    value.metadata.forEach((_v, _k) => {
-      size += 4 + new TextEncoder().encode(_k).length + 1;
-      size += 4 + new TextEncoder().encode(_v).length + 1;
-    });
+    for (const [_k, _v] of value.metadata) {
+      size += 5 + utf8ByteLength(_k);
+      size += 5 + utf8ByteLength(_v);
+    }
     return size;
   },
   reflection: {
     name: "BatchRequest",
     fqn: "bebop.BatchRequest",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "calls", index: 0, typeName: "readonly BatchCall[]" },
@@ -534,7 +643,7 @@ export const BatchRequest = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchRequest>;
+} satisfies BebopGeneratedCodec<BatchRequest>;
 
 export type BatchSuccess = {
   readonly payloads: readonly Uint8Array[];
@@ -542,6 +651,12 @@ export type BatchSuccess = {
 };
 
 export const BatchSuccess = {
+  encode(value: BatchSuccess): Uint8Array {
+    return encode(BatchSuccess, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchSuccess {
+    return decode(BatchSuccess, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchSuccess {
     return {
       payloads: reader.readDynamicArray((_r) => _r.readUint8Array()),
@@ -560,21 +675,21 @@ export const BatchSuccess = {
   encodedSize(value: BatchSuccess): number {
     let size = 0;
     size += 4;
-    for (let i = 0; i < value.payloads.length; i++) {
-      const item = value.payloads[i]!;
-      size += 4 + item.length;
+    for (let _i6 = 0; _i6 < value.payloads.length; _i6++) {
+      const _item7 = value.payloads[_i6]!;
+      size += 4 + _item7.length;
     }
     size += 4;
-    value.metadata.forEach((_v, _k) => {
-      size += 4 + new TextEncoder().encode(_k).length + 1;
-      size += 4 + new TextEncoder().encode(_v).length + 1;
-    });
+    for (const [_k, _v] of value.metadata) {
+      size += 5 + utf8ByteLength(_k);
+      size += 5 + utf8ByteLength(_v);
+    }
     return size;
   },
   reflection: {
     name: "BatchSuccess",
     fqn: "bebop.BatchSuccess",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "payloads", index: 0, typeName: "readonly Uint8Array[]" },
@@ -582,32 +697,37 @@ export const BatchSuccess = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchSuccess>;
+} satisfies BebopGeneratedCodec<BatchSuccess>;
 
 export type BatchOutcome =
   | { readonly kind: "unknown"; readonly discriminator: number; readonly data: Uint8Array }
-  | { readonly kind: "Success"; readonly value: BatchSuccess }
-  | { readonly kind: "Error"; readonly value: RpcError }
-;
+  | { readonly kind: "success"; readonly value: BatchSuccess }
+  | { readonly kind: "error"; readonly value: RpcError };
 
 export const BatchOutcome = {
+  encode(value: BatchOutcome): Uint8Array {
+    return encode(BatchOutcome, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchOutcome {
+    return decode(BatchOutcome, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchOutcome {
     const end = reader.readMessageEnd();
     const discriminator = reader.readByte();
     switch (discriminator) {
-      case 1: return { kind: "Success", value: BatchSuccess.readFrom(reader) };
-      case 2: return { kind: "Error", value: RpcError.readFrom(reader) };
+      case 1: return { kind: "success", value: BatchSuccess.readFrom(reader) };
+      case 2: return { kind: "error", value: RpcError.readFrom(reader) };
       default: return { kind: "unknown", discriminator, data: reader.readBytes(end - reader.index) };
     }
   },
   writeInto(writer: BebopWriter, value: BatchOutcome): void {
     const pos = writer.reserveMessageLength();
     switch (value.kind) {
-      case "Success":
+      case "success":
         writer.writeByte(1);
         BatchSuccess.writeInto(writer, value.value);
         break;
-      case "Error":
+      case "error":
         writer.writeByte(2);
         RpcError.writeInto(writer, value.value);
         break;
@@ -620,15 +740,15 @@ export const BatchOutcome = {
   },
   encodedSize(value: BatchOutcome): number {
     switch (value.kind) {
-      case "Success": return 5 + BatchSuccess.encodedSize(value.value);
-      case "Error": return 5 + RpcError.encodedSize(value.value);
+      case "success": return 5 + BatchSuccess.encodedSize(value.value);
+      case "error": return 5 + RpcError.encodedSize(value.value);
       case "unknown": return 5 + value.data.length;
     }
   },
   reflection: {
     name: "BatchOutcome",
     fqn: "bebop.BatchOutcome",
-    kind: BebopDefinitionKind.union,
+    kind: "union",
     detail: {
       branches: [
         { discriminator: 1, name: "Success", typeName: "BatchSuccess" },
@@ -636,7 +756,7 @@ export const BatchOutcome = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchOutcome>;
+} satisfies BebopGeneratedCodec<BatchOutcome>;
 
 export type BatchResult = {
   readonly callId: number;
@@ -644,6 +764,12 @@ export type BatchResult = {
 };
 
 export const BatchResult = {
+  encode(value: BatchResult): Uint8Array {
+    return encode(BatchResult, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchResult {
+    return decode(BatchResult, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchResult {
     return {
       callId: reader.readInt32(),
@@ -663,7 +789,7 @@ export const BatchResult = {
   reflection: {
     name: "BatchResult",
     fqn: "bebop.BatchResult",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "call_id", index: 0, typeName: "number" },
@@ -671,13 +797,19 @@ export const BatchResult = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchResult>;
+} satisfies BebopGeneratedCodec<BatchResult>;
 
 export type BatchResponse = {
   readonly results: readonly BatchResult[];
 };
 
 export const BatchResponse = {
+  encode(value: BatchResponse): Uint8Array {
+    return encode(BatchResponse, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): BatchResponse {
+    return decode(BatchResponse, bytes, options);
+  },
   readFrom(reader: BebopReader): BatchResponse {
     return {
       results: reader.readDynamicArray((_r) => BatchResult.readFrom(_r)),
@@ -691,23 +823,23 @@ export const BatchResponse = {
   encodedSize(value: BatchResponse): number {
     let size = 0;
     size += 4;
-    for (let i = 0; i < value.results.length; i++) {
-      const item = value.results[i]!;
-      size += BatchResult.encodedSize(item);
+    for (let _i8 = 0; _i8 < value.results.length; _i8++) {
+      const _item9 = value.results[_i8]!;
+      size += BatchResult.encodedSize(_item9);
     }
     return size;
   },
   reflection: {
     name: "BatchResponse",
     fqn: "bebop.BatchResponse",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "results", index: 0, typeName: "readonly BatchResult[]" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<BatchResponse>;
+} satisfies BebopGeneratedCodec<BatchResponse>;
 
 export type FutureDispatchRequest = {
   readonly methodId?: number | undefined;
@@ -719,6 +851,12 @@ export type FutureDispatchRequest = {
 };
 
 export const FutureDispatchRequest = {
+  encode(value: FutureDispatchRequest): Uint8Array {
+    return encode(FutureDispatchRequest, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureDispatchRequest {
+    return decode(FutureDispatchRequest, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureDispatchRequest {
     const end = reader.readMessageEnd();
     let methodIdValue: number | undefined;
@@ -798,10 +936,10 @@ export const FutureDispatchRequest = {
     if (value.metadata !== undefined) {
       size += 1;
       size += 4;
-      value.metadata.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
-        size += 4 + new TextEncoder().encode(_v).length + 1;
-      });
+      for (const [_k, _v] of value.metadata) {
+        size += 5 + utf8ByteLength(_k);
+        size += 5 + utf8ByteLength(_v);
+      }
     }
     if (value.deadline !== undefined) {
       size += 1;
@@ -816,7 +954,7 @@ export const FutureDispatchRequest = {
   reflection: {
     name: "FutureDispatchRequest",
     fqn: "bebop.FutureDispatchRequest",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "method_id", index: 1, typeName: "number" },
@@ -828,13 +966,19 @@ export const FutureDispatchRequest = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureDispatchRequest>;
+} satisfies BebopGeneratedCodec<FutureDispatchRequest>;
 
 export type FutureHandle = {
   readonly id: BebopUUID;
 };
 
 export const FutureHandle = {
+  encode(value: FutureHandle): Uint8Array {
+    return encode(FutureHandle, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureHandle {
+    return decode(FutureHandle, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureHandle {
     return {
       id: BebopUUID.readFrom(reader),
@@ -843,7 +987,7 @@ export const FutureHandle = {
   writeInto(writer: BebopWriter, value: FutureHandle): void {
     BebopUUID.writeInto(writer, value.id);
   },
-  encodedSize(value: FutureHandle): number {
+  encodedSize(_value: FutureHandle): number {
     let size = 0;
     size += 16;
     return size;
@@ -851,20 +995,26 @@ export const FutureHandle = {
   reflection: {
     name: "FutureHandle",
     fqn: "bebop.FutureHandle",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "id", index: 0, typeName: "BebopUUID" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureHandle>;
+} satisfies BebopGeneratedCodec<FutureHandle>;
 
 export type FutureResolveRequest = {
   readonly ids?: readonly BebopUUID[] | undefined;
 };
 
 export const FutureResolveRequest = {
+  encode(value: FutureResolveRequest): Uint8Array {
+    return encode(FutureResolveRequest, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureResolveRequest {
+    return decode(FutureResolveRequest, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureResolveRequest {
     const end = reader.readMessageEnd();
     let idsValue: readonly BebopUUID[] | undefined;
@@ -895,25 +1045,21 @@ export const FutureResolveRequest = {
     let size = 5;
     if (value.ids !== undefined) {
       size += 1;
-      size += 4;
-      for (let i = 0; i < value.ids.length; i++) {
-        const item = value.ids[i]!;
-        size += 16;
-      }
+      size += 4 + value.ids.length * 16;
     }
     return size;
   },
   reflection: {
     name: "FutureResolveRequest",
     fqn: "bebop.FutureResolveRequest",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "ids", index: 1, typeName: "readonly BebopUUID[]" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureResolveRequest>;
+} satisfies BebopGeneratedCodec<FutureResolveRequest>;
 
 export type FutureSuccess = {
   readonly payload: Uint8Array;
@@ -921,6 +1067,12 @@ export type FutureSuccess = {
 };
 
 export const FutureSuccess = {
+  encode(value: FutureSuccess): Uint8Array {
+    return encode(FutureSuccess, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureSuccess {
+    return decode(FutureSuccess, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureSuccess {
     return {
       payload: reader.readUint8Array(),
@@ -938,16 +1090,16 @@ export const FutureSuccess = {
     let size = 0;
     size += 4 + value.payload.length;
     size += 4;
-    value.metadata.forEach((_v, _k) => {
-      size += 4 + new TextEncoder().encode(_k).length + 1;
-      size += 4 + new TextEncoder().encode(_v).length + 1;
-    });
+    for (const [_k, _v] of value.metadata) {
+      size += 5 + utf8ByteLength(_k);
+      size += 5 + utf8ByteLength(_v);
+    }
     return size;
   },
   reflection: {
     name: "FutureSuccess",
     fqn: "bebop.FutureSuccess",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "payload", index: 0, typeName: "Uint8Array" },
@@ -955,32 +1107,37 @@ export const FutureSuccess = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureSuccess>;
+} satisfies BebopGeneratedCodec<FutureSuccess>;
 
 export type FutureOutcome =
   | { readonly kind: "unknown"; readonly discriminator: number; readonly data: Uint8Array }
-  | { readonly kind: "Success"; readonly value: FutureSuccess }
-  | { readonly kind: "Error"; readonly value: RpcError }
-;
+  | { readonly kind: "success"; readonly value: FutureSuccess }
+  | { readonly kind: "error"; readonly value: RpcError };
 
 export const FutureOutcome = {
+  encode(value: FutureOutcome): Uint8Array {
+    return encode(FutureOutcome, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureOutcome {
+    return decode(FutureOutcome, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureOutcome {
     const end = reader.readMessageEnd();
     const discriminator = reader.readByte();
     switch (discriminator) {
-      case 1: return { kind: "Success", value: FutureSuccess.readFrom(reader) };
-      case 2: return { kind: "Error", value: RpcError.readFrom(reader) };
+      case 1: return { kind: "success", value: FutureSuccess.readFrom(reader) };
+      case 2: return { kind: "error", value: RpcError.readFrom(reader) };
       default: return { kind: "unknown", discriminator, data: reader.readBytes(end - reader.index) };
     }
   },
   writeInto(writer: BebopWriter, value: FutureOutcome): void {
     const pos = writer.reserveMessageLength();
     switch (value.kind) {
-      case "Success":
+      case "success":
         writer.writeByte(1);
         FutureSuccess.writeInto(writer, value.value);
         break;
-      case "Error":
+      case "error":
         writer.writeByte(2);
         RpcError.writeInto(writer, value.value);
         break;
@@ -993,15 +1150,15 @@ export const FutureOutcome = {
   },
   encodedSize(value: FutureOutcome): number {
     switch (value.kind) {
-      case "Success": return 5 + FutureSuccess.encodedSize(value.value);
-      case "Error": return 5 + RpcError.encodedSize(value.value);
+      case "success": return 5 + FutureSuccess.encodedSize(value.value);
+      case "error": return 5 + RpcError.encodedSize(value.value);
       case "unknown": return 5 + value.data.length;
     }
   },
   reflection: {
     name: "FutureOutcome",
     fqn: "bebop.FutureOutcome",
-    kind: BebopDefinitionKind.union,
+    kind: "union",
     detail: {
       branches: [
         { discriminator: 1, name: "Success", typeName: "FutureSuccess" },
@@ -1009,7 +1166,7 @@ export const FutureOutcome = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureOutcome>;
+} satisfies BebopGeneratedCodec<FutureOutcome>;
 
 export type FutureResult = {
   readonly id: BebopUUID;
@@ -1017,6 +1174,12 @@ export type FutureResult = {
 };
 
 export const FutureResult = {
+  encode(value: FutureResult): Uint8Array {
+    return encode(FutureResult, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureResult {
+    return decode(FutureResult, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureResult {
     return {
       id: BebopUUID.readFrom(reader),
@@ -1036,7 +1199,7 @@ export const FutureResult = {
   reflection: {
     name: "FutureResult",
     fqn: "bebop.FutureResult",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "id", index: 0, typeName: "BebopUUID" },
@@ -1044,13 +1207,19 @@ export const FutureResult = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureResult>;
+} satisfies BebopGeneratedCodec<FutureResult>;
 
 export type FutureCancelRequest = {
   readonly id: BebopUUID;
 };
 
 export const FutureCancelRequest = {
+  encode(value: FutureCancelRequest): Uint8Array {
+    return encode(FutureCancelRequest, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): FutureCancelRequest {
+    return decode(FutureCancelRequest, bytes, options);
+  },
   readFrom(reader: BebopReader): FutureCancelRequest {
     return {
       id: BebopUUID.readFrom(reader),
@@ -1059,7 +1228,7 @@ export const FutureCancelRequest = {
   writeInto(writer: BebopWriter, value: FutureCancelRequest): void {
     BebopUUID.writeInto(writer, value.id);
   },
-  encodedSize(value: FutureCancelRequest): number {
+  encodedSize(_value: FutureCancelRequest): number {
     let size = 0;
     size += 16;
     return size;
@@ -1067,12 +1236,12 @@ export const FutureCancelRequest = {
   reflection: {
     name: "FutureCancelRequest",
     fqn: "bebop.FutureCancelRequest",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
         { name: "id", index: 0, typeName: "BebopUUID" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<FutureCancelRequest>;
+} satisfies BebopGeneratedCodec<FutureCancelRequest>;
 

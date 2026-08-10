@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { decode, encode } from "@bebop/runtime";
 import {
   CodeGeneratorRequest,
@@ -8,7 +8,11 @@ import {
   Diagnostic,
   DiagnosticSeverity,
   Edition,
+  ResponseBuilder,
   TypeKind,
+  composePlugin,
+  createContributorKey,
+  defineContributor,
 } from "../src";
 
 describe("@bebop/plugin bootstrap codecs", () => {
@@ -98,5 +102,84 @@ describe("@bebop/plugin bootstrap codecs", () => {
     expect(view.getInt32(17, true)).toBe(4);
     expect(encoded[21]).toBe(0);
     expect(decode(Diagnostic, encoded)).toEqual(diagnostic);
+  });
+});
+
+describe("@bebop/plugin contributor composition", () => {
+  test("orders dependencies and shares typed state", async () => {
+    const namesKey = createContributorKey<string[]>("generated names");
+    const extension = defineContributor({
+      name: "extension",
+      requires: ["base"],
+      contribute({ response, state }) {
+        response.insert("models.ts", "model_scope", `export const count = ${state.get(namesKey)?.length ?? 0};\n`);
+      },
+    });
+    const base = defineContributor({
+      name: "base",
+      async contribute({ response, state }) {
+        await Promise.resolve();
+        state.set(namesKey, ["User"]);
+        response.addFile("models.ts", "// @@bebopc_insertion_point(model_scope)\n");
+      },
+    });
+
+    const result = await composePlugin(extension, base)({});
+
+    expect(result.error).toBeUndefined();
+    expect(result.files).toEqual([
+      { name: "models.ts", content: "// @@bebopc_insertion_point(model_scope)\n" },
+      { name: "models.ts", insertionPoint: "model_scope", content: "export const count = 1;\n" },
+    ]);
+  });
+
+  test("reports dependency mistakes when composing", () => {
+    const first = defineContributor({
+      name: "first",
+      after: ["second"],
+      contribute() {},
+    });
+    const second = defineContributor({
+      name: "second",
+      after: ["first"],
+      contribute() {},
+    });
+
+    expect(() => composePlugin(first, second)).toThrow("contributor dependency cycle: first, second");
+    expect(() => composePlugin({
+      name: "dependent",
+      requires: ["missing"],
+      contribute() {},
+    })).toThrow("requires missing contributor 'missing'");
+  });
+
+  test("orders deeply composed contributors without recursive graph walks", () => {
+    const contributors = Array.from({ length: 8_000 }, (_, index) => defineContributor({
+      name: `contributor-${index}`,
+      ...(index === 0 ? {} : { requires: [`contributor-${index - 1}`] }),
+      contribute() {},
+    })).reverse();
+
+    expect(() => composePlugin(...contributors)).not.toThrow();
+  });
+
+  test("rejects ambiguous complete files while allowing insertion fragments", () => {
+    const response = new ResponseBuilder()
+      .addFile("models.ts", "export {};\n")
+      .insert("models.ts", "scope", "export type Id = string;\n");
+
+    expect(() => response.addFile("models.ts", "export {};\n"))
+      .toThrow("generated file 'models.ts' was added more than once");
+  });
+
+  test("attributes contributor failures in protocol responses", async () => {
+    const plugin = composePlugin({
+      name: "broken",
+      contribute() {
+        throw new Error("invalid schema");
+      },
+    });
+
+    await expect(plugin({})).resolves.toMatchObject({ error: "broken: invalid schema" });
   });
 });

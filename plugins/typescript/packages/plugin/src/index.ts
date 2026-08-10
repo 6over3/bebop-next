@@ -1,2 +1,3 @@
-export * from "./descriptor.bb";
-export * from "./plugin.bb";
+export * from "./descriptor.bb.js";
+export * from "./plugin.bb.js";
+export * from "./sdk.js";

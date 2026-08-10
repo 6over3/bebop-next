@@ -81,12 +81,23 @@ jobs:
     needs: [validate]
     uses: ./.github/workflows/swift.yml
 
+  typescript:
+    needs: [validate]
+    uses: ./.github/workflows/typescript.yml
+
   codegen-c:
     needs: [linux-x64]
     uses: ./.github/workflows/codegen.yml
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: c
+
+  codegen-typescript:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: typescript
 
   vscode:
     needs: [validate]
@@ -122,7 +133,7 @@ jobs:
           retention-days: 1
 
   package:
-    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, codegen-c]
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript]
     runs-on: ubuntu-latest
     env:
       V: ${{ needs.validate.outputs.version }}
@@ -169,6 +180,7 @@ jobs:
             tar -czf "dist/${archive}" -C "${staging}" .
             rm -rf "${staging}"
           done
+          cp artifacts/bebop-typescript/*.tgz dist/
 
       - name: Generate manifest
         run: |

@@ -1,4 +1,4 @@
-import { BebopReader, BebopWriter } from "./wire";
+import { BebopReader, BebopWriter, type BebopReaderOptions } from "./wire.js";
 
 export interface BebopCodec<T> {
   readFrom(reader: BebopReader): T;
@@ -9,16 +9,16 @@ export interface BebopCodec<T> {
 export function encode<T>(codec: BebopCodec<T>, value: T): Uint8Array {
   const writer = new BebopWriter(codec.encodedSize(value));
   codec.writeInto(writer, value);
-  return writer.toArray();
+  return writer.toArrayView();
 }
 
 /**
  * Encodes `value` into a caller-owned writer and returns the number of bytes
  * written.
  *
- * @remarks Keeps the safe `encode()` default intact while letting callers who
- * own a writer's lifecycle reuse its buffer and pack multiple messages back to
- * back (advancing their own cursor by the returned count). The bytes live in
+ * @remarks Lets callers who own a writer's lifecycle reuse its buffer and pack
+ * multiple messages back to back (advancing their own cursor by the returned
+ * count). The bytes live in
  * the writer's buffer and are not copied; read them with `writer.toArray()`
  * (copy) or `writer.toArrayView()` (view, valid only until the next write,
  * reset, or pool reuse of the same writer).
@@ -29,6 +29,10 @@ export function encodeInto<T>(codec: BebopCodec<T>, value: T, writer: BebopWrite
   return writer.length - start;
 }
 
-export function decode<T>(codec: BebopCodec<T>, bytes: Uint8Array): T {
-  return codec.readFrom(new BebopReader(bytes));
+export function decode<T>(
+  codec: BebopCodec<T>,
+  bytes: Uint8Array,
+  options?: BebopReaderOptions,
+): T {
+  return codec.readFrom(new BebopReader(bytes, options));
 }

@@ -42,3 +42,38 @@ jobs:
             -Wno-deprecated-declarations \
             -I dist/include \
             generated/*.c
+
+      - uses: actions/setup-node@v4
+        if: inputs.generator == 'typescript'
+        with:
+          node-version: 26
+
+      - uses: oven-sh/setup-bun@v2
+        if: inputs.generator == 'typescript'
+
+      - name: Compile (TypeScript)
+        if: inputs.generator == 'typescript'
+        run: |
+          cd plugins/typescript
+          bun install --frozen-lockfile
+          bun run build
+          cd ../..
+          cat > generated/tsconfig.json <<'EOF'
+          {
+            "compilerOptions": {
+              "target": "ESNext",
+              "module": "Preserve",
+              "moduleResolution": "bundler",
+              "strict": true,
+              "noUncheckedIndexedAccess": true,
+              "exactOptionalPropertyTypes": true,
+              "noEmit": true,
+              "paths": {
+                "@bebop/runtime": ["../plugins/typescript/packages/runtime/src/index.ts"],
+                "@bebop/runtime/*": ["../plugins/typescript/packages/runtime/src/*"]
+              }
+            },
+            "include": ["*.ts"]
+          }
+          EOF
+          node plugins/typescript/node_modules/typescript/bin/tsc -p generated/tsconfig.json

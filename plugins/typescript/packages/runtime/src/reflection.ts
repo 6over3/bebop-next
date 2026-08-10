@@ -1,14 +1,11 @@
-import type { BebopCodec } from "./codec";
-
-export const BebopDefinitionKind = {
-  struct: "struct",
-  message: "message",
-  enum: "enum",
-  union: "union",
-} as const;
+import type { BebopCodec } from "./codec.js";
+import type { BebopReaderOptions } from "./wire.js";
 
 export type BebopDefinitionKind =
-  (typeof BebopDefinitionKind)[keyof typeof BebopDefinitionKind];
+  | "struct"
+  | "message"
+  | "enum"
+  | "union";
 
 export type BebopFieldReflection = {
   readonly name: string;
@@ -20,19 +17,19 @@ export type BebopTypeReflection =
   | {
       readonly name: string;
       readonly fqn: string;
-      readonly kind: typeof BebopDefinitionKind.struct;
+      readonly kind: "struct";
       readonly detail: { readonly fields: readonly BebopFieldReflection[] };
     }
   | {
       readonly name: string;
       readonly fqn: string;
-      readonly kind: typeof BebopDefinitionKind.message;
+      readonly kind: "message";
       readonly detail: { readonly fields: readonly BebopFieldReflection[] };
     }
   | {
       readonly name: string;
       readonly fqn: string;
-      readonly kind: typeof BebopDefinitionKind.enum;
+      readonly kind: "enum";
       readonly detail: {
         readonly members: readonly { readonly name: string; readonly value: bigint | number }[];
         readonly isFlags: boolean;
@@ -41,7 +38,7 @@ export type BebopTypeReflection =
   | {
       readonly name: string;
       readonly fqn: string;
-      readonly kind: typeof BebopDefinitionKind.union;
+      readonly kind: "union";
       readonly detail: {
         readonly branches: readonly {
           readonly discriminator: number;
@@ -53,4 +50,10 @@ export type BebopTypeReflection =
 
 export type BebopReflectableCodec<T> = BebopCodec<T> & {
   readonly reflection: BebopTypeReflection;
+};
+
+/** The self-contained codec surface exposed by generated Bebop types. */
+export type BebopGeneratedCodec<T> = BebopReflectableCodec<T> & {
+  encode(value: T): Uint8Array;
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): T;
 };

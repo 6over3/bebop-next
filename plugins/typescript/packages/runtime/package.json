@@ -1,23 +1,52 @@
 {
   "name": "@bebop/runtime",
-  "version": "0.0.0",
+  "version": "2026.0.0-alpha.4",
   "description": "Tree-shakeable runtime primitives for Bebop-generated TypeScript.",
   "type": "module",
   "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./any": { "types": "./dist/any.d.ts", "import": "./dist/any.js" },
+    "./bfloat16": { "types": "./dist/bfloat16.d.ts", "import": "./dist/bfloat16.js" },
+    "./codec": { "types": "./dist/codec.d.ts", "import": "./dist/codec.js" },
+    "./empty": { "types": "./dist/empty.d.ts", "import": "./dist/empty.js" },
+    "./error": { "types": "./dist/error.d.ts", "import": "./dist/error.js" },
+    "./json": { "types": "./dist/json.bb.d.ts", "import": "./dist/json.bb.js" },
+    "./reflection": { "types": "./dist/reflection.d.ts", "import": "./dist/reflection.js" },
+    "./rpc": { "types": "./dist/rpc/index.d.ts", "import": "./dist/rpc/index.js" },
+    "./rpc/protocol": { "types": "./dist/rpc.bb.d.ts", "import": "./dist/rpc.bb.js" },
+    "./rpc/*": { "types": "./dist/rpc/*.d.ts", "import": "./dist/rpc/*.js" },
+    "./temporal": { "types": "./dist/temporal.d.ts", "import": "./dist/temporal.js" },
+    "./uuid": { "types": "./dist/uuid.d.ts", "import": "./dist/uuid.js" },
+    "./wire": { "types": "./dist/wire.d.ts", "import": "./dist/wire.js" },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "bun test test"
   },
+  "engines": {
+    "node": ">=26"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/6over3/bebop.git",
+    "directory": "plugins/typescript/packages/runtime"
+  },
+  "keywords": ["bebop", "serialization", "rpc", "typescript"],
   "license": "Apache-2.0"
 }

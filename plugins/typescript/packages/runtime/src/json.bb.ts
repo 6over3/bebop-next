@@ -2,39 +2,51 @@
 // source: bebop/schemas/bebop/json.bop
 // bebopc 2026.0.0-alpha.3
 
-import { BebopDefinitionKind } from "./reflection";
-import type { BebopReflectableCodec } from "./reflection";
-import type { BebopReader, BebopWriter } from "./wire";
+import { decode, encode } from "./codec.js";
+import type { BebopGeneratedCodec } from "./reflection.js";
+import { utf8ByteLength, type BebopReader, type BebopReaderOptions, type BebopWriter } from "./wire.js";
 
 
 export type Null = {
 };
 
 export const Null = {
-  readFrom(reader: BebopReader): Null {
+  encode(value: Null): Uint8Array {
+    return encode(Null, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Null {
+    return decode(Null, bytes, options);
+  },
+  readFrom(_reader: BebopReader): Null {
     return {};
   },
-  writeInto(writer: BebopWriter, value: Null): void {
+  writeInto(_writer: BebopWriter, _value: Null): void {
   },
-  encodedSize(value: Null): number {
+  encodedSize(_value: Null): number {
     return 0;
   },
   reflection: {
     name: "Null",
     fqn: "bebop.Null",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: {
       fields: [
       ],
     },
   },
-} satisfies BebopReflectableCodec<Null>;
+} satisfies BebopGeneratedCodec<Null>;
 
 export type Value_Bool = {
   readonly value?: boolean | undefined;
 };
 
 export const Value_Bool = {
+  encode(value: Value_Bool): Uint8Array {
+    return encode(Value_Bool, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value_Bool {
+    return decode(Value_Bool, bytes, options);
+  },
   readFrom(reader: BebopReader): Value_Bool {
     const end = reader.readMessageEnd();
     let valueValue: boolean | undefined;
@@ -70,20 +82,26 @@ export const Value_Bool = {
   reflection: {
     name: "Bool",
     fqn: "bebop.Value.Bool",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "value", index: 1, typeName: "boolean" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value_Bool>;
+} satisfies BebopGeneratedCodec<Value_Bool>;
 
 export type Value_Number = {
   readonly value?: number | undefined;
 };
 
 export const Value_Number = {
+  encode(value: Value_Number): Uint8Array {
+    return encode(Value_Number, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value_Number {
+    return decode(Value_Number, bytes, options);
+  },
   readFrom(reader: BebopReader): Value_Number {
     const end = reader.readMessageEnd();
     let valueValue: number | undefined;
@@ -119,20 +137,26 @@ export const Value_Number = {
   reflection: {
     name: "Number",
     fqn: "bebop.Value.Number",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "value", index: 1, typeName: "number" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value_Number>;
+} satisfies BebopGeneratedCodec<Value_Number>;
 
 export type Value_String = {
   readonly value?: string | undefined;
 };
 
 export const Value_String = {
+  encode(value: Value_String): Uint8Array {
+    return encode(Value_String, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value_String {
+    return decode(Value_String, bytes, options);
+  },
   readFrom(reader: BebopReader): Value_String {
     const end = reader.readMessageEnd();
     let valueValue: string | undefined;
@@ -161,27 +185,33 @@ export const Value_String = {
     let size = 5;
     if (value.value !== undefined) {
       size += 1;
-      size += 4 + new TextEncoder().encode(value.value).length + 1;
+      size += 5 + utf8ByteLength(value.value);
     }
     return size;
   },
   reflection: {
     name: "String",
     fqn: "bebop.Value.String",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "value", index: 1, typeName: "string" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value_String>;
+} satisfies BebopGeneratedCodec<Value_String>;
 
 export type Value_List = {
   readonly values?: readonly Value[] | undefined;
 };
 
 export const Value_List = {
+  encode(value: Value_List): Uint8Array {
+    return encode(Value_List, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value_List {
+    return decode(Value_List, bytes, options);
+  },
   readFrom(reader: BebopReader): Value_List {
     const end = reader.readMessageEnd();
     let valuesValue: readonly Value[] | undefined;
@@ -213,9 +243,9 @@ export const Value_List = {
     if (value.values !== undefined) {
       size += 1;
       size += 4;
-      for (let i = 0; i < value.values.length; i++) {
-        const item = value.values[i]!;
-        size += Value.encodedSize(item);
+      for (let _i0 = 0; _i0 < value.values.length; _i0++) {
+        const _item1 = value.values[_i0]!;
+        size += Value.encodedSize(_item1);
       }
     }
     return size;
@@ -223,20 +253,26 @@ export const Value_List = {
   reflection: {
     name: "List",
     fqn: "bebop.Value.List",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "values", index: 1, typeName: "readonly Value[]" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value_List>;
+} satisfies BebopGeneratedCodec<Value_List>;
 
 export type Value_Map = {
   readonly fields?: ReadonlyMap<string, Value> | undefined;
 };
 
 export const Value_Map = {
+  encode(value: Value_Map): Uint8Array {
+    return encode(Value_Map, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value_Map {
+    return decode(Value_Map, bytes, options);
+  },
   readFrom(reader: BebopReader): Value_Map {
     const end = reader.readMessageEnd();
     let fieldsValue: ReadonlyMap<string, Value> | undefined;
@@ -269,73 +305,78 @@ export const Value_Map = {
     if (value.fields !== undefined) {
       size += 1;
       size += 4;
-      value.fields.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
+      for (const [_k, _v] of value.fields) {
+        size += 5 + utf8ByteLength(_k);
         size += Value.encodedSize(_v);
-      });
+      }
     }
     return size;
   },
   reflection: {
     name: "Map",
     fqn: "bebop.Value.Map",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "fields", index: 1, typeName: "ReadonlyMap<string, Value>" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value_Map>;
+} satisfies BebopGeneratedCodec<Value_Map>;
 
 export type Value =
   | { readonly kind: "unknown"; readonly discriminator: number; readonly data: Uint8Array }
-  | { readonly kind: "Null"; readonly value: Null }
-  | { readonly kind: "Bool"; readonly value: Value_Bool }
-  | { readonly kind: "Number"; readonly value: Value_Number }
-  | { readonly kind: "String"; readonly value: Value_String }
-  | { readonly kind: "List"; readonly value: Value_List }
-  | { readonly kind: "Map"; readonly value: Value_Map }
-;
+  | { readonly kind: "null"; readonly value: Null }
+  | { readonly kind: "bool"; readonly value: Value_Bool }
+  | { readonly kind: "number"; readonly value: Value_Number }
+  | { readonly kind: "string"; readonly value: Value_String }
+  | { readonly kind: "list"; readonly value: Value_List }
+  | { readonly kind: "map"; readonly value: Value_Map };
 
 export const Value = {
+  encode(value: Value): Uint8Array {
+    return encode(Value, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Value {
+    return decode(Value, bytes, options);
+  },
   readFrom(reader: BebopReader): Value {
     const end = reader.readMessageEnd();
     const discriminator = reader.readByte();
     switch (discriminator) {
-      case 1: return { kind: "Null", value: Null.readFrom(reader) };
-      case 2: return { kind: "Bool", value: Value_Bool.readFrom(reader) };
-      case 3: return { kind: "Number", value: Value_Number.readFrom(reader) };
-      case 4: return { kind: "String", value: Value_String.readFrom(reader) };
-      case 5: return { kind: "List", value: Value_List.readFrom(reader) };
-      case 6: return { kind: "Map", value: Value_Map.readFrom(reader) };
+      case 1: return { kind: "null", value: Null.readFrom(reader) };
+      case 2: return { kind: "bool", value: Value_Bool.readFrom(reader) };
+      case 3: return { kind: "number", value: Value_Number.readFrom(reader) };
+      case 4: return { kind: "string", value: Value_String.readFrom(reader) };
+      case 5: return { kind: "list", value: Value_List.readFrom(reader) };
+      case 6: return { kind: "map", value: Value_Map.readFrom(reader) };
       default: return { kind: "unknown", discriminator, data: reader.readBytes(end - reader.index) };
     }
   },
   writeInto(writer: BebopWriter, value: Value): void {
     const pos = writer.reserveMessageLength();
     switch (value.kind) {
-      case "Null":
+      case "null":
         writer.writeByte(1);
         Null.writeInto(writer, value.value);
         break;
-      case "Bool":
+      case "bool":
         writer.writeByte(2);
         Value_Bool.writeInto(writer, value.value);
         break;
-      case "Number":
+      case "number":
         writer.writeByte(3);
         Value_Number.writeInto(writer, value.value);
         break;
-      case "String":
+      case "string":
         writer.writeByte(4);
         Value_String.writeInto(writer, value.value);
         break;
-      case "List":
+      case "list":
         writer.writeByte(5);
         Value_List.writeInto(writer, value.value);
         break;
-      case "Map":
+      case "map":
         writer.writeByte(6);
         Value_Map.writeInto(writer, value.value);
         break;
@@ -348,19 +389,19 @@ export const Value = {
   },
   encodedSize(value: Value): number {
     switch (value.kind) {
-      case "Null": return 5 + Null.encodedSize(value.value);
-      case "Bool": return 5 + Value_Bool.encodedSize(value.value);
-      case "Number": return 5 + Value_Number.encodedSize(value.value);
-      case "String": return 5 + Value_String.encodedSize(value.value);
-      case "List": return 5 + Value_List.encodedSize(value.value);
-      case "Map": return 5 + Value_Map.encodedSize(value.value);
+      case "null": return 5 + Null.encodedSize(value.value);
+      case "bool": return 5 + Value_Bool.encodedSize(value.value);
+      case "number": return 5 + Value_Number.encodedSize(value.value);
+      case "string": return 5 + Value_String.encodedSize(value.value);
+      case "list": return 5 + Value_List.encodedSize(value.value);
+      case "map": return 5 + Value_Map.encodedSize(value.value);
       case "unknown": return 5 + value.data.length;
     }
   },
   reflection: {
     name: "Value",
     fqn: "bebop.Value",
-    kind: BebopDefinitionKind.union,
+    kind: "union",
     detail: {
       branches: [
         { discriminator: 1, name: "Null", typeName: "Null" },
@@ -372,13 +413,19 @@ export const Value = {
       ],
     },
   },
-} satisfies BebopReflectableCodec<Value>;
+} satisfies BebopGeneratedCodec<Value>;
 
 export type Object = {
   readonly fields?: ReadonlyMap<string, Value> | undefined;
 };
 
 export const Object = {
+  encode(value: Object): Uint8Array {
+    return encode(Object, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): Object {
+    return decode(Object, bytes, options);
+  },
   readFrom(reader: BebopReader): Object {
     const end = reader.readMessageEnd();
     let fieldsValue: ReadonlyMap<string, Value> | undefined;
@@ -411,30 +458,36 @@ export const Object = {
     if (value.fields !== undefined) {
       size += 1;
       size += 4;
-      value.fields.forEach((_v, _k) => {
-        size += 4 + new TextEncoder().encode(_k).length + 1;
+      for (const [_k, _v] of value.fields) {
+        size += 5 + utf8ByteLength(_k);
         size += Value.encodedSize(_v);
-      });
+      }
     }
     return size;
   },
   reflection: {
     name: "Object",
     fqn: "bebop.Object",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "fields", index: 1, typeName: "ReadonlyMap<string, Value>" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<Object>;
+} satisfies BebopGeneratedCodec<Object>;
 
 export type List = {
   readonly values?: readonly Value[] | undefined;
 };
 
 export const List = {
+  encode(value: List): Uint8Array {
+    return encode(List, value);
+  },
+  decode(bytes: Uint8Array, options?: BebopReaderOptions): List {
+    return decode(List, bytes, options);
+  },
   readFrom(reader: BebopReader): List {
     const end = reader.readMessageEnd();
     let valuesValue: readonly Value[] | undefined;
@@ -466,9 +519,9 @@ export const List = {
     if (value.values !== undefined) {
       size += 1;
       size += 4;
-      for (let i = 0; i < value.values.length; i++) {
-        const item = value.values[i]!;
-        size += Value.encodedSize(item);
+      for (let _i2 = 0; _i2 < value.values.length; _i2++) {
+        const _item3 = value.values[_i2]!;
+        size += Value.encodedSize(_item3);
       }
     }
     return size;
@@ -476,12 +529,12 @@ export const List = {
   reflection: {
     name: "List",
     fqn: "bebop.List",
-    kind: BebopDefinitionKind.message,
+    kind: "message",
     detail: {
       fields: [
         { name: "values", index: 1, typeName: "readonly Value[]" },
       ],
     },
   },
-} satisfies BebopReflectableCodec<List>;
+} satisfies BebopGeneratedCodec<List>;
 

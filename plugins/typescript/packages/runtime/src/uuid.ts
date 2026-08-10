@@ -1,7 +1,6 @@
-import { BebopRuntimeError } from "./error";
-import type { BebopReflectableCodec } from "./reflection";
-import { BebopDefinitionKind } from "./reflection";
-import type { BebopReader, BebopWriter } from "./wire";
+import { BebopRuntimeError } from "./error.js";
+import type { BebopReflectableCodec } from "./reflection.js";
+import type { BebopReader, BebopWriter } from "./wire.js";
 
 export type BebopUUID = string;
 
@@ -88,7 +87,7 @@ export const BebopUUID = {
   reflection: {
     name: "BebopUUID",
     fqn: "bebop.UUID",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: { fields: [] },
   },
 } satisfies BebopReflectableCodec<BebopUUID>;

@@ -1,7 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   BebopReader,
   BebopRuntimeError,
+  BebopDuration,
+  BebopTimestamp,
   BebopAny,
   BebopEmpty,
   BebopUUID,
@@ -11,9 +13,17 @@ import {
   decode,
   encode,
   encodeInto,
+  utf8ByteLength,
 } from "../src";
 
 describe("Bebop wire primitives", () => {
+  test("computes UTF-8 sizes without allocating an encoded buffer", () => {
+    const encoder = new TextEncoder();
+    for (const value of ["", "ascii", "café", "東京", "😀", "\ud800", "\udc00", "a😀東京z"]) {
+      expect(utf8ByteLength(value)).toBe(encoder.encode(value).byteLength);
+    }
+  });
+
   test("round-trips integer and floating primitives", () => {
     const writer = new BebopWriter();
     writer.writeBool(true);
@@ -31,8 +41,10 @@ describe("Bebop wire primitives", () => {
     writer.writeFloat32(3.5);
     writer.writeFloat64(Math.PI);
     writer.writeBFloat16(BFloat16.fromNumber(-2.25));
-    writer.writeTimestamp({ seconds: -1n, nanoseconds: 123, offsetMs: 540_000 });
-    writer.writeDuration({ seconds: 12n, nanoseconds: 345 });
+    const timestamp = BebopTimestamp.fromWire(-1n, -500_000_000, 540_000);
+    const duration = BebopDuration.fromWire(12n, 345);
+    writer.writeTimestamp(timestamp);
+    writer.writeDuration(duration);
 
     const reader = new BebopReader(writer.toArray());
     expect(reader.readBool()).toBe(true);
@@ -52,8 +64,15 @@ describe("Bebop wire primitives", () => {
     const bfloat16 = reader.readBFloat16();
     expect(BFloat16.toBitPattern(bfloat16)).toBe(0xc010);
     expect(BFloat16.toNumber(bfloat16)).toBe(-2.25);
-    expect(reader.readTimestamp()).toEqual({ seconds: -1n, nanoseconds: 123, offsetMs: 540_000 });
-    expect(reader.readDuration()).toEqual({ seconds: 12n, nanoseconds: 345 });
+    const decodedTimestamp = reader.readTimestamp();
+    expect(decodedTimestamp.epochNanoseconds).toBe(timestamp.epochNanoseconds);
+    expect(decodedTimestamp.offsetNanoseconds).toBe(540_000_000_000);
+    expect(BebopTimestamp.toWire(decodedTimestamp)).toEqual({
+      seconds: -1n,
+      nanoseconds: -500_000_000,
+      offsetMs: 540_000,
+    });
+    expect(BebopDuration.toWire(reader.readDuration())).toEqual({ seconds: 12n, nanoseconds: 345 });
   });
 
   test("round-trips typed scalar arrays", () => {
@@ -134,6 +153,26 @@ describe("Bebop wire primitives", () => {
     expect([...viewedInts]).toEqual([42, 2]);
   });
 
+  test("copies Node Buffer inputs and handles unaligned Buffer slabs", () => {
+    const writer = new BebopWriter();
+    writer.writeUint8Array(new Uint8Array([10, 20, 30]));
+    writer.writeUint32Array(new Uint32Array([0x1122_3344, 0xaabb_ccdd]));
+    const encoded = writer.toArrayView();
+    const slab = Buffer.allocUnsafe(encoded.byteLength + 7);
+    const input = slab.subarray(7);
+    input.set(encoded);
+
+    const reader = new BebopReader(input);
+    const bytes = reader.readUint8Array();
+    const integers = reader.readUint32Array();
+    input.fill(0);
+
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(Buffer.isBuffer(bytes)).toBe(false);
+    expect([...bytes]).toEqual([10, 20, 30]);
+    expect([...integers]).toEqual([0x1122_3344, 0xaabb_ccdd]);
+  });
+
   test("reusing a writer invalidates unsafe views but not copied arrays", () => {
     const writer = new BebopWriter();
     writer.writeByte(1);
@@ -174,6 +213,17 @@ describe("Bebop wire primitives", () => {
     expect([...decoded]).toEqual([...values]);
   });
 
+  test("enforces configured buffered collection limits", () => {
+    const writer = new BebopWriter();
+    writer.writeUint32(2);
+    writer.writeByte(1);
+    writer.writeByte(2);
+
+    expect(() => new BebopReader(writer.toArrayView(), { maxCollectionLength: 1 })
+      .readDynamicArray((reader) => reader.readByte()))
+      .toThrow("collection exceeds configured limit");
+  });
+
   test("writes vnext strings with a NUL terminator", () => {
     const writer = new BebopWriter();
     writer.writeString("bebop");
@@ -192,6 +242,16 @@ describe("Bebop wire primitives", () => {
     const reader = new BebopReader(writer.toArray());
     expect(reader.readString()).toBe(short);
     expect(reader.readString()).toBe(long);
+  });
+
+  test("writes strings into exact caller-owned buffers", () => {
+    for (const value of ["", "plain ascii", "café 東京 😀", "\ud800"]) {
+      const writer = BebopWriter.fromBuffer(new Uint8Array(utf8ByteLength(value) + 5));
+      writer.writeString(value);
+      expect(new BebopReader(writer.toArrayView()).readString()).toBe(
+        new TextDecoder().decode(new TextEncoder().encode(value)),
+      );
+    }
   });
 
   test("rejects strings missing their NUL terminator", () => {

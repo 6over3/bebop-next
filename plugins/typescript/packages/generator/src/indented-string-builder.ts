@@ -1,3 +1,5 @@
+const textEncoder = new TextEncoder();
+
 export class IndentedStringBuilder {
   private readonly chunks: string[] = [];
 
@@ -5,13 +7,17 @@ export class IndentedStringBuilder {
 
   append(text: string): this {
     const indent = " ".repeat(this.spaces);
+    if (!containsLineBreak(text)) {
+      this.chunks.push(`${indent}${text}`.trimEnd());
+      return this;
+    }
     const lines = getLines(text);
     this.chunks.push(lines.map((line) => `${indent}${line}`.trimEnd()).join("\n").trimEnd());
     return this;
   }
 
   appendMid(text: string): this {
-    if (getLines(text).length > 1) {
+    if (containsLineBreak(text)) {
       throw new Error("appendMid must not contain multiple lines");
     }
     this.chunks.push(text);
@@ -19,7 +25,7 @@ export class IndentedStringBuilder {
   }
 
   appendEnd(text: string): this {
-    if (getLines(text).length > 1) {
+    if (containsLineBreak(text)) {
       throw new Error("appendEnd must not contain multiple lines");
     }
     this.chunks.push(`${text.trimEnd()}\n`);
@@ -29,6 +35,10 @@ export class IndentedStringBuilder {
   line(text = ""): this {
     if (text.length === 0) {
       this.chunks.push("\n");
+      return this;
+    }
+    if (!containsLineBreak(text)) {
+      this.chunks.push(`${" ".repeat(this.spaces)}${text.trimEnd()}\n`);
       return this;
     }
     this.append(text);
@@ -90,7 +100,7 @@ export class IndentedStringBuilder {
   }
 
   encode(): Uint8Array {
-    return new TextEncoder().encode(this.toString());
+    return textEncoder.encode(this.toString());
   }
 
   toString(): string {
@@ -100,4 +110,8 @@ export class IndentedStringBuilder {
 
 function getLines(text: string): string[] {
   return text.split(/\r\n|\n|\r/u);
+}
+
+function containsLineBreak(text: string): boolean {
+  return text.includes("\n") || text.includes("\r");
 }

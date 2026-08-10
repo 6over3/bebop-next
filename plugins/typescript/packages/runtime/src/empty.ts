@@ -1,5 +1,4 @@
-import type { BebopReflectableCodec } from "./reflection";
-import { BebopDefinitionKind } from "./reflection";
+import type { BebopReflectableCodec } from "./reflection.js";
 
 export type BebopEmpty = Record<string, never>;
 
@@ -17,7 +16,7 @@ export const BebopEmpty = {
   reflection: {
     name: "BebopEmpty",
     fqn: "bebop.Empty",
-    kind: BebopDefinitionKind.struct,
+    kind: "struct",
     detail: { fields: [] },
   },
 } satisfies BebopReflectableCodec<BebopEmpty>;

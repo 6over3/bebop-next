@@ -46,9 +46,19 @@ jobs:
   swift:
     uses: ./.github/workflows/swift.yml
 
+  typescript:
+    uses: ./.github/workflows/typescript.yml
+
   codegen-c:
     needs: [linux-x64]
     uses: ./.github/workflows/codegen.yml
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: c
+
+  codegen-typescript:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: typescript
