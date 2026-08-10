@@ -204,6 +204,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
         var value = value
         value.withUTF8 { utf8 in
             let length = utf8.count
+            precondition(length <= Int(UInt32.max), "string exceeds uint32 length")
             ensureCapacity(for: 4 + length + 1)
             storage.storeBytes(
                 of: UInt32(length).littleEndian, toByteOffset: _count, as: UInt32.self
@@ -341,6 +342,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     public mutating func writeDynamicArray<C: Collection>(
         _ values: C, _ body: (inout BebopWriter, C.Element) -> Void
     ) {
+        precondition(values.count <= Int(UInt32.max), "array exceeds uint32 element count")
         writeUInt32(UInt32(values.count))
         for value in values {
             body(&self, value)
@@ -352,6 +354,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     public mutating func writeDynamicMap<K, V>(
         _ map: [K: V], _ body: (inout BebopWriter, K, V) -> Void
     ) {
+        precondition(map.count <= Int(UInt32.max), "map exceeds uint32 entry count")
         writeUInt32(UInt32(map.count))
         for (k, v) in map {
             body(&self, k, v)
@@ -360,6 +363,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @inlinable
     public mutating func writeLengthPrefixedArray(_ values: [some BebopScalar]) {
+        precondition(values.count <= Int(UInt32.max), "array exceeds uint32 element count")
         writeUInt32(UInt32(values.count))
         writeArray(values)
     }
@@ -391,6 +395,7 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     /// Backfill the message length at the offset returned by `reserveMessageLength()`.
     @inlinable
     public mutating func fillMessageLength(at position: Int) {
+        precondition(_count - position - 4 <= Int(UInt32.max), "message exceeds uint32 length")
         let length = UInt32(_count - position - 4)
         storage.storeBytes(
             of: length.littleEndian, toByteOffset: position, as: UInt32.self

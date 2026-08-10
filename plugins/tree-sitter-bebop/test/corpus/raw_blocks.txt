@@ -1,0 +1,56 @@
+================================================================================
+Leveled raw blocks: nested brackets and closers as content
+================================================================================
+
+#decorator(range) {
+    targets = FIELD
+    validate [=[
+        if t[x[1]] > 0 then end
+    ]=]
+    export [==[
+        return { s = "]=] stays" }
+    ]==]
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (decorator_definition
+    (identifier)
+    (decorator_body
+      (targets_setting
+        (target_expression
+          (target
+            (identifier))))
+      (validate_block
+        (lua_block
+          (lua_source)))
+      (export_block
+        (lua_block
+          (lua_source))))))
+
+================================================================================
+Raw blocks: empty and level zero with lone brackets
+================================================================================
+
+#decorator(a) {
+    targets = ALL
+    validate [[]]
+    export [[ return t[1] + x ]]
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (decorator_definition
+    (identifier)
+    (decorator_body
+      (targets_setting
+        (target_expression
+          (target
+            (identifier))))
+      (validate_block
+        (lua_block))
+      (export_block
+        (lua_block
+          (lua_source))))))

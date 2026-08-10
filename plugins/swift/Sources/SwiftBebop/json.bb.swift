@@ -82,26 +82,31 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         let disc = try reader.readByte()
+        let result: Value
         switch disc {
         case 1:
-            return try .null(Null.decode(from: &reader))
+            result = .null(try Null.decode(from: &reader))
         case 2:
-            return try .bool(Bool.decode(from: &reader))
+            result = .bool(try Bool.decode(from: &reader))
         case 3:
-            return try .number(Number.decode(from: &reader))
+            result = .number(try Number.decode(from: &reader))
         case 4:
-            return try .string(String.decode(from: &reader))
+            result = .string(try String.decode(from: &reader))
         case 5:
-            return try .list(List.decode(from: &reader))
+            result = .list(try List.decode(from: &reader))
         case 6:
-            return try .map(Map.decode(from: &reader))
+            result = .map(try Map.decode(from: &reader))
         // @@bebop_insertion_point(decode_switch:Value)
         default:
             let remaining = end - reader.position
             let data = try reader.readBytes(remaining)
-            return .unknown(discriminator: disc, data: data)
+            result = .unknown(discriminator: disc, data: data)
+        }
+        guard reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:Value)
+        return result
     }
 
     public func encode(to writer: inout BebopWriter) {
@@ -242,15 +247,22 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
             let length = try reader.readMessageLength()
             let end = reader.position + Int(length)
             var value: Swift.Bool? = nil
+            var sawEndMarker = false
             while reader.position < end {
                 let tag = try reader.readTag()
-                if tag == 0 { break }
+                if tag == 0 {
+                    sawEndMarker = true
+                    break
+                }
                 switch tag {
                 case 1:
                     value = try reader.readBool()
                 default:
                     try reader.skip(end - reader.position)
                 }
+            }
+            guard sawEndMarker && reader.position == end else {
+                throw BebopDecodingError.trailingData
             }
             // @@bebop_insertion_point(decode_end:Bool)
             return Bool(value: value)
@@ -318,15 +330,22 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
             let length = try reader.readMessageLength()
             let end = reader.position + Int(length)
             var value: Double? = nil
+            var sawEndMarker = false
             while reader.position < end {
                 let tag = try reader.readTag()
-                if tag == 0 { break }
+                if tag == 0 {
+                    sawEndMarker = true
+                    break
+                }
                 switch tag {
                 case 1:
                     value = try reader.readFloat64()
                 default:
                     try reader.skip(end - reader.position)
                 }
+            }
+            guard sawEndMarker && reader.position == end else {
+                throw BebopDecodingError.trailingData
             }
             // @@bebop_insertion_point(decode_end:Number)
             return Number(value: value)
@@ -393,15 +412,22 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
             let length = try reader.readMessageLength()
             let end = reader.position + Int(length)
             var value: Swift.String? = nil
+            var sawEndMarker = false
             while reader.position < end {
                 let tag = try reader.readTag()
-                if tag == 0 { break }
+                if tag == 0 {
+                    sawEndMarker = true
+                    break
+                }
                 switch tag {
                 case 1:
                     value = try reader.readString()
                 default:
                     try reader.skip(end - reader.position)
                 }
+            }
+            guard sawEndMarker && reader.position == end else {
+                throw BebopDecodingError.trailingData
             }
             // @@bebop_insertion_point(decode_end:String)
             return String(value: value)
@@ -468,15 +494,22 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
             let length = try reader.readMessageLength()
             let end = reader.position + Int(length)
             var values: [Value]? = nil
+            var sawEndMarker = false
             while reader.position < end {
                 let tag = try reader.readTag()
-                if tag == 0 { break }
+                if tag == 0 {
+                    sawEndMarker = true
+                    break
+                }
                 switch tag {
                 case 1:
                     values = try reader.readDynamicArray { _r in try Value.decode(from: &_r) }
                 default:
                     try reader.skip(end - reader.position)
                 }
+            }
+            guard sawEndMarker && reader.position == end else {
+                throw BebopDecodingError.trailingData
             }
             // @@bebop_insertion_point(decode_end:List)
             return List(values: values)
@@ -543,15 +576,22 @@ public enum Value: BebopRecord, BebopReflectable, Codable {
             let length = try reader.readMessageLength()
             let end = reader.position + Int(length)
             var fields: [Swift.String: Value]? = nil
+            var sawEndMarker = false
             while reader.position < end {
                 let tag = try reader.readTag()
-                if tag == 0 { break }
+                if tag == 0 {
+                    sawEndMarker = true
+                    break
+                }
                 switch tag {
                 case 1:
                     fields = try reader.readDynamicMap { _r in try (_r.readString(), Value.decode(from: &_r)) }
                 default:
                     try reader.skip(end - reader.position)
                 }
+            }
+            guard sawEndMarker && reader.position == end else {
+                throw BebopDecodingError.trailingData
             }
             // @@bebop_insertion_point(decode_end:Map)
             return Map(fields: fields)
@@ -630,15 +670,22 @@ public final class Object: BebopRecord, BebopReflectable, @unchecked Sendable {
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var fields: [String: Value]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 fields = try reader.readDynamicMap { _r in try (_r.readString(), Value.decode(from: &_r)) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:Object)
         return Object(fields: fields)
@@ -709,15 +756,22 @@ public final class List: BebopRecord, BebopReflectable, @unchecked Sendable {
         let length = try reader.readMessageLength()
         let end = reader.position + Int(length)
         var values: [Value]? = nil
+        var sawEndMarker = false
         while reader.position < end {
             let tag = try reader.readTag()
-            if tag == 0 { break }
+            if tag == 0 {
+                sawEndMarker = true
+                break
+            }
             switch tag {
             case 1:
                 values = try reader.readDynamicArray { _r in try Value.decode(from: &_r) }
             default:
                 try reader.skip(end - reader.position)
             }
+        }
+        guard sawEndMarker && reader.position == end else {
+            throw BebopDecodingError.trailingData
         }
         // @@bebop_insertion_point(decode_end:List)
         return List(values: values)

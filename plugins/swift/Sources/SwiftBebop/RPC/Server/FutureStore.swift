@@ -8,19 +8,19 @@ public protocol FutureStorage: Sendable {
     ) async throws -> BebopUUID
 
     /// Persist result. Return the owner for downstream notification, nil if ID unknown.
-    func complete(id: BebopUUID, result: FutureResult) async -> String?
+    func complete(id: BebopUUID, result: FutureResult) async throws -> String?
 
     /// Push a completed result to matching subscribers.
-    func notify(id: BebopUUID, result: FutureResult, owner: String) async
+    func notify(id: BebopUUID, result: FutureResult, owner: String) async throws
 
     @discardableResult
-    func cancel(id: BebopUUID, owner: String) async -> Bool
+    func cancel(id: BebopUUID, owner: String) async throws -> Bool
 
     func subscribe(
         futureIds: [BebopUUID]?, owner: String
-    ) async -> (immediate: [FutureResult], stream: AsyncStream<FutureResult>)
+    ) async throws -> (immediate: [FutureResult], stream: AsyncStream<FutureResult>)
 
-    func contains(_ id: BebopUUID) async -> Bool
+    func contains(_ id: BebopUUID) async throws -> Bool
 }
 
 public final class FutureStore: FutureStorage, Sendable {

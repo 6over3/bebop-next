@@ -556,32 +556,53 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
     case '}':
       return (bebop_token_t) {.kind = BEBOP_TOKEN_RBRACE,
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
-    case '[':
-      if (bebop__scan_peek_char(s) == '[') {
-        bebop__scan_advance(s);
+    case '[': {
+      size_t level = 0;
+      while (bebop__scan_peek_char_at(s, level) == '=') {
+        level++;
+      }
+      if (bebop__scan_peek_char_at(s, level) == '[') {
+        for (size_t i = 0; i <= level; i++) {
+          bebop__scan_advance(s);
+        }
         const size_t content_start = s->pos;
         while (bebop__scan_peek_char(s) != '\0') {
-          if (bebop__scan_peek_char(s) == ']' && bebop__scan_peek_char_at(s, 1) == ']') {
-            const size_t content_len = s->pos - content_start;
-            bebop__scan_advance(s);
-            bebop__scan_advance(s);
-            return (bebop_token_t) {
-                .kind = BEBOP_TOKEN_RAW_BLOCK,
-                .span = bebop__scan_make_span(s, start, start_line, start_col),
-                .lexeme =
-                    bebop_intern_n(BEBOP_INTERN(s->ctx), s->source + content_start, content_len),
-            };
+          if (bebop__scan_peek_char(s) == ']') {
+            size_t match = 1;
+            while (match <= level && bebop__scan_peek_char_at(s, match) == '=') {
+              match++;
+            }
+            if (match == level + 1 && bebop__scan_peek_char_at(s, match) == ']') {
+              const size_t content_len = s->pos - content_start;
+              for (size_t i = 0; i < level + 2; i++) {
+                bebop__scan_advance(s);
+              }
+              return (bebop_token_t) {
+                  .kind = BEBOP_TOKEN_RAW_BLOCK,
+                  .span = bebop__scan_make_span(s, start, start_line, start_col),
+                  .lexeme =
+                      bebop_intern_n(BEBOP_INTERN(s->ctx), s->source + content_start, content_len),
+              };
+            }
           }
           bebop__scan_advance(s);
         }
 
         if (s->schema) {
+          char closer[40];
+          const size_t shown = level < sizeof(closer) - 3 ? level : sizeof(closer) - 3;
+          closer[0] = ']';
+          memset(closer + 1, '=', shown);
+          closer[shown + 1] = ']';
+          closer[shown + 2] = '\0';
+          char msg[80];
+          snprintf(msg, sizeof(msg), "Unterminated raw block: expected '%s'", closer);
           bebop__schema_add_diagnostic(
               s->schema,
               (bebop__diag_loc_t) {BEBOP_DIAG_ERROR,
                                    BEBOP_DIAG_INVALID_MACRO,
                                    bebop__scan_make_span(s, start, start_line, start_col)},
-              "Unterminated raw block: expected ']]'",
+              msg,
               NULL
           );
         }
@@ -592,6 +613,7 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
       }
       return (bebop_token_t) {.kind = BEBOP_TOKEN_LBRACKET,
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
+    }
     case ']':
       return (bebop_token_t) {.kind = BEBOP_TOKEN_RBRACKET,
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
