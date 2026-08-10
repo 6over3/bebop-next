@@ -1,0 +1,458 @@
+================================================================================
+Preamble: edition, package, import
+================================================================================
+
+edition = "2026"
+package my.app.models
+import "bebop/decorators.bop";
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (edition_declaration
+    (string))
+  (package_declaration
+    (qualified_identifier
+      (identifier)
+      (identifier)
+      (identifier)))
+  (import_declaration
+    (string)))
+
+================================================================================
+Enum with base type, expressions, and member decorators
+================================================================================
+
+@flags
+enum Permissions : uint8 {
+    NONE = 0;
+    READ = 0x01;
+    WRITE = 1 << 1;
+    ALL = READ | WRITE;
+    @deprecated("use ALL")
+    LEGACY = ~0 - 1;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (decorator
+    (qualified_identifier
+      (identifier)))
+  (enum_definition
+    (identifier)
+    (primitive_type)
+    (enum_body
+      (enum_member
+        (identifier)
+        (number))
+      (enum_member
+        (identifier)
+        (number))
+      (enum_member
+        (identifier)
+        (binary_expression
+          (number)
+          (number)))
+      (enum_member
+        (identifier)
+        (binary_expression
+          (identifier)
+          (identifier)))
+      (decorator
+        (qualified_identifier
+          (identifier))
+        (decorator_arguments
+          (decorator_argument
+            (string))))
+      (enum_member
+        (identifier)
+        (binary_expression
+          (unary_expression
+            (number))
+          (number))))))
+
+================================================================================
+Structs: mut, nested definitions, arrays, maps
+================================================================================
+
+mut struct Container {
+    hash: byte[32];
+    matrix: int32[][3];
+    lookup: map[string, map[uuid, Container.Inner]];
+
+    export struct Inner {
+        value: float32;
+    }
+
+    local enum Kind {
+        UNKNOWN = 0;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (modifier)
+  (struct_definition
+    (identifier)
+    (struct_body
+      (field_declaration
+        (identifier)
+        (array_type
+          (primitive_type)
+          (number)))
+      (field_declaration
+        (identifier)
+        (array_type
+          (array_type
+            (primitive_type))
+          (number)))
+      (field_declaration
+        (identifier)
+        (map_type
+          (primitive_type)
+          (map_type
+            (primitive_type)
+            (type_identifier
+              (identifier)
+              (identifier)))))
+      (modifier)
+      (struct_definition
+        (identifier)
+        (struct_body
+          (field_declaration
+            (identifier)
+            (primitive_type))))
+      (modifier)
+      (enum_definition
+        (identifier)
+        (enum_body
+          (enum_member
+            (identifier)
+            (number)))))))
+
+================================================================================
+Message with tagged fields
+================================================================================
+
+message TreeNode {
+    value(1): int32;
+    @deprecated
+    children(2): TreeNode[];
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (message_definition
+    (identifier)
+    (message_body
+      (tagged_field_declaration
+        (identifier)
+        (number)
+        (primitive_type))
+      (decorator
+        (qualified_identifier
+          (identifier)))
+      (tagged_field_declaration
+        (identifier)
+        (number)
+        (array_type
+          (type_identifier
+            (identifier)))))))
+
+================================================================================
+Union: inline struct, mut, message, type reference, nested enum
+================================================================================
+
+union Event {
+    Created(1): {
+        id: uuid;
+    };
+    Empty(2): mut {};
+    Renamed(3): message {
+        name(1): string;
+    };
+    export Payload(4): TreeNode;
+
+    enum Source {
+        UNKNOWN = 0;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (union_definition
+    (identifier)
+    (union_body
+      (union_branch
+        (identifier)
+        (number)
+        (inline_struct
+          (struct_body
+            (field_declaration
+              (identifier)
+              (primitive_type)))))
+      (union_branch
+        (identifier)
+        (number)
+        (inline_struct
+          (modifier)
+          (struct_body)))
+      (union_branch
+        (identifier)
+        (number)
+        (inline_message
+          (message_body
+            (tagged_field_declaration
+              (identifier)
+              (number)
+              (primitive_type)))))
+      (union_branch
+        (modifier)
+        (identifier)
+        (number)
+        (type_identifier
+          (identifier)))
+      (enum_definition
+        (identifier)
+        (enum_body
+          (enum_member
+            (identifier)
+            (number)))))))
+
+================================================================================
+Service with mixins and streaming methods
+================================================================================
+
+service ChatService with BaseService, my.app.Extra {
+    Send(ChatMessage): ChatMessage;
+    Watch(WatchRequest): stream Event;
+    Upload(stream Chunk): UploadResult;
+    Chat(stream Frame): stream Frame;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (service_definition
+    (identifier)
+    (with_clause
+      (qualified_identifier
+        (identifier))
+      (qualified_identifier
+        (identifier)
+        (identifier)
+        (identifier)))
+    (service_body
+      (method_declaration
+        (identifier)
+        (type_identifier
+          (identifier))
+        (type_identifier
+          (identifier)))
+      (method_declaration
+        (identifier)
+        (type_identifier
+          (identifier))
+        (stream_modifier)
+        (type_identifier
+          (identifier)))
+      (method_declaration
+        (identifier)
+        (stream_modifier)
+        (type_identifier
+          (identifier))
+        (type_identifier
+          (identifier)))
+      (method_declaration
+        (identifier)
+        (stream_modifier)
+        (type_identifier
+          (identifier))
+        (stream_modifier)
+        (type_identifier
+          (identifier))))))
+
+================================================================================
+Constants: strings, escapes, env vars, bytes, special floats
+================================================================================
+
+const string GREETING = "He said ""hi"" \u{1F600}\n";
+const string CONNECTION = 'host=$(DB_HOST);port=$(DB_PORT)';
+const byte[] MAGIC = b"\x89PNG\r\n";
+const float64 NEG_INF = -inf;
+const float64 NOT_A_NUMBER = nan;
+const int32 HEX = 0xFF;
+local const timestamp EPOCH = "1970-01-01T00:00:00Z";
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (string
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)))
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (string
+      (env_variable)
+      (env_variable)))
+  (const_declaration
+    (array_type
+      (primitive_type))
+    (identifier)
+    (bytes_string
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)))
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (numeric_literal
+      (infinity)))
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (numeric_literal
+      (not_a_number)))
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (numeric_literal
+      (number)))
+  (modifier)
+  (const_declaration
+    (primitive_type)
+    (identifier)
+    (string)))
+
+================================================================================
+Decorator definition: targets, multiple, params, lua blocks
+================================================================================
+
+#decorator(range) {
+    targets = FIELD | MEMBER
+    multiple = false
+    param min!: int32 = 0
+    param mode?: string in ["strict", "loose"]
+    param kind?: type
+    validate [[
+        if min >= 10 then
+            error("min too large", self.min.span)
+        end
+    ]]
+    export [[
+        return { range_min = min }
+    ]]
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (decorator_definition
+    (identifier)
+    (decorator_body
+      (targets_setting
+        (target_expression
+          (target
+            (identifier))
+          (target
+            (identifier))))
+      (multiple_setting
+        (boolean))
+      (param_declaration
+        (identifier)
+        (primitive_type)
+        (numeric_literal
+          (number)))
+      (param_declaration
+        (identifier)
+        (primitive_type)
+        (allowed_values
+          (string)
+          (string)))
+      (param_declaration
+        (identifier)
+        (type_identifier
+          (identifier)))
+      (validate_block
+        (lua_block
+          (lua_source)))
+      (export_block
+        (lua_block
+          (lua_source))))))
+
+================================================================================
+Decorator usage: qualified names, named and positional arguments
+================================================================================
+
+@validators.range(min: 0, max: 100)
+@deprecated("use v2", true)
+struct Bounded {
+    percentage: float32;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (decorator
+    (qualified_identifier
+      (identifier)
+      (identifier))
+    (decorator_arguments
+      (decorator_argument
+        (identifier)
+        (numeric_literal
+          (number)))
+      (decorator_argument
+        (identifier)
+        (numeric_literal
+          (number)))))
+  (decorator
+    (qualified_identifier
+      (identifier))
+    (decorator_arguments
+      (decorator_argument
+        (string))
+      (decorator_argument
+        (boolean))))
+  (struct_definition
+    (identifier)
+    (struct_body
+      (field_declaration
+        (identifier)
+        (primitive_type)))))
+
+================================================================================
+Comments: line, doc, block
+================================================================================
+
+// line comment
+/// doc comment
+/* block
+   comment */
+struct Documented {
+    field: bool;  // trailing
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (line_comment)
+  (doc_comment)
+  (block_comment)
+  (struct_definition
+    (identifier)
+    (struct_body
+      (field_declaration
+        (identifier)
+        (primitive_type))
+      (line_comment))))

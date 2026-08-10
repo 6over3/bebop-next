@@ -115,6 +115,17 @@ static void bebop__emit_f64(bebop__emit_buf_t* buf, const double val)
   }
 }
 
+static void bebop__emit_raw_delimiter(
+    bebop__emit_buf_t* buf, const char bracket, const uint32_t level
+)
+{
+  bebop__emit_char(buf, bracket);
+  for (uint32_t i = 0; i < level; i++) {
+    bebop__emit_char(buf, '=');
+  }
+  bebop__emit_char(buf, bracket);
+}
+
 static void bebop__emit_indent(bebop__emit_buf_t* buf)
 {
   for (int i = 0; i < buf->indent; i++) {
@@ -1005,24 +1016,28 @@ static void emitter__emit_def(bebop__emit_buf_t* buf, const bebop_def_t* def)
 
       if (def->decorator_def.validate_span.len > 0 && def->schema->source) {
         bebop__emit_indent(buf);
-        bebop__emit_str(buf, "validate [[");
+        bebop__emit_str(buf, "validate ");
+        bebop__emit_raw_delimiter(buf, '[', def->decorator_def.validate_level);
         bebop__emit_str_n(
             buf,
             def->schema->source + def->decorator_def.validate_span.off,
             def->decorator_def.validate_span.len
         );
-        bebop__emit_str(buf, "]]\n");
+        bebop__emit_raw_delimiter(buf, ']', def->decorator_def.validate_level);
+        bebop__emit_newline(buf);
       }
 
       if (def->decorator_def.export_span.len > 0 && def->schema->source) {
         bebop__emit_indent(buf);
-        bebop__emit_str(buf, "export [[");
+        bebop__emit_str(buf, "export ");
+        bebop__emit_raw_delimiter(buf, '[', def->decorator_def.export_level);
         bebop__emit_str_n(
             buf,
             def->schema->source + def->decorator_def.export_span.off,
             def->decorator_def.export_span.len
         );
-        bebop__emit_str(buf, "]]\n");
+        bebop__emit_raw_delimiter(buf, ']', def->decorator_def.export_level);
+        bebop__emit_newline(buf);
       }
 
       buf->indent--;
