@@ -53,6 +53,10 @@ void test_writer_buffer_management(void);
 void test_message_length(void);
 void test_length_prefix(void);
 void test_indexed_message_views(void);
+void test_indexed_message_directory_layouts(void);
+void test_indexed_message_boundaries(void);
+void test_indexed_message_rejects_invalid_writes(void);
+void test_indexed_message_rejects_malformed_indexes(void);
 void test_utility_functions(void);
 void test_array_views(void);
 void test_error_conditions(void);
@@ -749,6 +753,46 @@ void test_length_prefix(void)
   Bebop_WireCtx_Free(ctx);
 }
 
+static Bebop_WireResult _test_write_indexed_message(
+    Bebop_Writer* writer,
+    const uint8_t* tags,
+    const uint32_t* field_lengths,
+    uint8_t field_count,
+    Bebop_View* encoded
+)
+{
+  uint32_t offsets[UINT8_MAX];
+  size_t length_position;
+  Bebop_Writer_Reset(writer);
+  Bebop_WireResult result = Bebop_Writer_SetLen(writer, &length_position);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  const size_t payload_start = Bebop_Writer_Len(writer);
+  for (uint16_t i = 0; i < field_count; i++) {
+    offsets[i] = (uint32_t)(Bebop_Writer_Len(writer) - payload_start);
+    for (uint32_t j = 0; j < field_lengths[i]; j++) {
+      result = Bebop_Writer_SetByte(writer, (uint8_t)(tags[i] + j));
+      if (result != BEBOP_WIRE_OK) {
+        return result;
+      }
+    }
+  }
+  result = Bebop_Writer_EndIndexedMessage(
+      writer, length_position, payload_start, tags, offsets, field_count
+  );
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  uint8_t* data;
+  size_t length;
+  result = Bebop_Writer_Buf(writer, &data, &length);
+  if (result == BEBOP_WIRE_OK) {
+    *encoded = (Bebop_View) {data, length};
+  }
+  return result;
+}
+
 void test_indexed_message_views(void)
 {
   Bebop_WireCtx* ctx = _test_ctx_new();
@@ -858,6 +902,260 @@ void test_indexed_message_views(void)
       BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, (Bebop_View) {buffer, encoded_length})
   );
   TEST_ASSERT_EQUAL(0, index.field_count);
+
+  Bebop_WireCtx_Free(ctx);
+}
+
+void test_indexed_message_directory_layouts(void)
+{
+  typedef struct {
+    uint8_t tags[4];
+    uint8_t count;
+    uint8_t kind;
+  } LayoutCase;
+
+  static const LayoutCase cases[] = {
+      {{0}, 0, BEBOP_MESSAGE_DIRECTORY_EMPTY},
+      {{200}, 1, BEBOP_MESSAGE_DIRECTORY_TINY1},
+      {{9, 200}, 2, BEBOP_MESSAGE_DIRECTORY_TINY2},
+      {{9, 17, 200}, 3, BEBOP_MESSAGE_DIRECTORY_TINY3},
+      {{1, 8}, 2, BEBOP_MESSAGE_DIRECTORY_MASK8},
+      {{1, 9}, 2, BEBOP_MESSAGE_DIRECTORY_MASK16},
+      {{1, 9, 17, 32}, 4, BEBOP_MESSAGE_DIRECTORY_MASK32},
+      {{1, 33, 65, 200}, 4, BEBOP_MESSAGE_DIRECTORY_BLOCKS},
+  };
+
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* writer;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
+
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    uint32_t lengths[4] = {1, 1, 1, 1};
+    Bebop_View encoded;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK,
+        _test_write_indexed_message(
+            writer, cases[i].count == 0 ? NULL : cases[i].tags, lengths, cases[i].count, &encoded
+        )
+    );
+
+    Bebop_MessageIndex index;
+    TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, encoded));
+    TEST_ASSERT_EQUAL_UINT8(cases[i].kind, index.directory_kind);
+    TEST_ASSERT_EQUAL_UINT8(cases[i].count, index.field_count);
+    TEST_ASSERT_EQUAL(
+        encoded.length,
+        Bebop_IndexedMessage_EncodedSize(cases[i].count, cases[i].tags, cases[i].count)
+    );
+
+    Bebop_MessageFieldIterator fields;
+    Bebop_MessageFieldIterator_Init(&fields, &index);
+    for (uint8_t field_index = 0; field_index < cases[i].count; field_index++) {
+      uint8_t tag;
+      Bebop_View field;
+      bool present;
+      TEST_ASSERT_EQUAL(
+          BEBOP_WIRE_OK, Bebop_MessageFieldIterator_Next(&fields, &tag, &field, &present)
+      );
+      TEST_ASSERT_TRUE(present);
+      TEST_ASSERT_EQUAL_UINT8(cases[i].tags[field_index], tag);
+      TEST_ASSERT_EQUAL(1, field.length);
+
+      Bebop_View selected;
+      TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_FieldAt(&index, field_index, &selected));
+      TEST_ASSERT_EQUAL_PTR(field.data, selected.data);
+      TEST_ASSERT_EQUAL(field.length, selected.length);
+    }
+    uint8_t tag;
+    Bebop_View field;
+    bool present;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK, Bebop_MessageFieldIterator_Next(&fields, &tag, &field, &present)
+    );
+    TEST_ASSERT_FALSE(present);
+  }
+
+  Bebop_WireCtx_Free(ctx);
+}
+
+void test_indexed_message_boundaries(void)
+{
+  static const struct {
+    uint32_t payload_size;
+    uint8_t width;
+  } width_cases[] = {
+      {255, 1},
+      {256, 2},
+      {65535, 2},
+      {65536, 4},
+  };
+
+  const uint8_t tag[] = {1};
+
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* writer;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
+
+  for (size_t i = 0; i < sizeof(width_cases) / sizeof(width_cases[0]); i++) {
+    const uint32_t lengths[] = {width_cases[i].payload_size};
+    Bebop_View encoded;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK, _test_write_indexed_message(writer, tag, lengths, 1, &encoded)
+    );
+    Bebop_MessageIndex index;
+    TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, encoded));
+    TEST_ASSERT_EQUAL_UINT8(width_cases[i].width, index.offset_width);
+    Bebop_View field;
+    bool present;
+    TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Field(&index, 1, &field, &present));
+    TEST_ASSERT_TRUE(present);
+    TEST_ASSERT_EQUAL(width_cases[i].payload_size, field.length);
+  }
+
+  const uint8_t zero_tags[] = {1, 2, 3};
+  const uint32_t zero_lengths[] = {0, 0, 1};
+  Bebop_View encoded;
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK, _test_write_indexed_message(writer, zero_tags, zero_lengths, 3, &encoded)
+  );
+  Bebop_MessageIndex index;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, encoded));
+  for (uint8_t i = 0; i < 3; i++) {
+    Bebop_View field;
+    bool present;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK, Bebop_MessageIndex_Field(&index, zero_tags[i], &field, &present)
+    );
+    TEST_ASSERT_TRUE(present);
+    TEST_ASSERT_EQUAL(zero_lengths[i], field.length);
+  }
+
+  Bebop_WireCtx_Free(ctx);
+}
+
+void test_indexed_message_rejects_invalid_writes(void)
+{
+  const uint8_t valid_tags[] = {1, 2, 3};
+  const uint8_t zero_tag[] = {0};
+  const uint8_t duplicate_tags[] = {1, 1};
+  const uint8_t descending_tags[] = {2, 1};
+  TEST_ASSERT_EQUAL(SIZE_MAX, Bebop_IndexedMessage_EncodedSize(0, NULL, 1));
+  TEST_ASSERT_EQUAL(SIZE_MAX, Bebop_IndexedMessage_EncodedSize(0, zero_tag, 1));
+  TEST_ASSERT_EQUAL(SIZE_MAX, Bebop_IndexedMessage_EncodedSize(0, duplicate_tags, 2));
+  TEST_ASSERT_EQUAL(SIZE_MAX, Bebop_IndexedMessage_EncodedSize(0, descending_tags, 2));
+
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* writer;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
+  size_t length_position;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetLen(writer, &length_position));
+  const size_t payload_start = Bebop_Writer_Len(writer);
+  for (uint8_t i = 0; i < 4; i++) {
+    TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetByte(writer, i));
+  }
+
+  const uint32_t nonzero_first[] = {1, 2, 3};
+  const uint32_t descending_offsets[] = {0, 3, 2};
+  const uint32_t past_payload[] = {0, 2, 5};
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_INVALID,
+      Bebop_Writer_EndIndexedMessage(
+          writer, length_position, payload_start, valid_tags, nonzero_first, 3
+      )
+  );
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_INVALID,
+      Bebop_Writer_EndIndexedMessage(
+          writer, length_position, payload_start, valid_tags, descending_offsets, 3
+      )
+  );
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_INVALID,
+      Bebop_Writer_EndIndexedMessage(
+          writer, length_position, payload_start, valid_tags, past_payload, 3
+      )
+  );
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_INVALID,
+      Bebop_Writer_EndIndexedMessage(
+          writer, length_position, payload_start, duplicate_tags, descending_offsets, 2
+      )
+  );
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_INVALID,
+      Bebop_Writer_EndIndexedMessage(writer, length_position, payload_start, NULL, NULL, 0)
+  );
+
+  Bebop_WireCtx_Free(ctx);
+}
+
+void test_indexed_message_rejects_malformed_indexes(void)
+{
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* writer;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
+
+  const uint8_t tiny_tags[] = {9, 200};
+  const uint32_t tiny_lengths[] = {1, 1};
+  Bebop_View encoded;
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK, _test_write_indexed_message(writer, tiny_tags, tiny_lengths, 2, &encoded)
+  );
+  Bebop_MessageIndex index;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, encoded));
+  uint8_t* bytes;
+  size_t bytes_length;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Buf(writer, &bytes, &bytes_length));
+  TEST_ASSERT_EQUAL(encoded.length, bytes_length);
+  const size_t directory_offset = (size_t)(index.directory - encoded.data);
+  const size_t boundary_offset = (size_t)(index.boundaries - encoded.data);
+
+  bytes[encoded.length - 1] |= 0x80;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[encoded.length - 1] &= 0x7f;
+  bytes[encoded.length - 1] |= 0x03;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[encoded.length - 1] &= 0xfc;
+
+  const uint8_t first_tag = bytes[directory_offset];
+  bytes[directory_offset] = 0;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[directory_offset] = first_tag;
+  const uint8_t second_tag = bytes[directory_offset + 1];
+  bytes[directory_offset + 1] = first_tag;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[directory_offset + 1] = second_tag;
+
+  bytes[boundary_offset] = 0xff;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Begin(&index, encoded));
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Validate(&index));
+  Bebop_View field;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_FieldAt(&index, 0, &field));
+
+  const uint8_t block_tags[] = {1, 33, 65, 255};
+  const uint32_t block_lengths[] = {1, 1, 1, 1};
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK, _test_write_indexed_message(writer, block_tags, block_lengths, 4, &encoded)
+  );
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, encoded));
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Buf(writer, &bytes, &bytes_length));
+  TEST_ASSERT_EQUAL(encoded.length, bytes_length);
+  const size_t block_directory_offset = (size_t)(index.directory - encoded.data);
+  const size_t top_mask_offset = encoded.length - 2;
+
+  const uint8_t top_mask = bytes[top_mask_offset];
+  bytes[top_mask_offset] = 0;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[top_mask_offset] = top_mask;
+  bytes[block_directory_offset] = 1;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[block_directory_offset] = 0;
+  bytes[block_directory_offset + 1] = 0;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
+  bytes[block_directory_offset + 1] = 1;
+  bytes[block_directory_offset + 19] |= 0x80;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_MessageIndex_Init(&index, encoded));
 
   Bebop_WireCtx_Free(ctx);
 }
@@ -1759,6 +2057,10 @@ int main(void)
   RUN_TEST(test_message_length);
   RUN_TEST(test_length_prefix);
   RUN_TEST(test_indexed_message_views);
+  RUN_TEST(test_indexed_message_directory_layouts);
+  RUN_TEST(test_indexed_message_boundaries);
+  RUN_TEST(test_indexed_message_rejects_invalid_writes);
+  RUN_TEST(test_indexed_message_rejects_malformed_indexes);
   RUN_TEST(test_utility_functions);
   RUN_TEST(test_array_views);
   RUN_TEST(test_error_conditions);

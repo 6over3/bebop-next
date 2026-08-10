@@ -3336,6 +3336,9 @@ Bebop_WireResult Bebop_Writer_EndIndexedMessage(
   if (payload_size > UINT32_MAX) {
     return BEBOP_WIRE_ERR_OVERFLOW;
   }
+  if (field_count == 0 && payload_size != 0) {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
   if (field_count != 0 && payload_offsets[0] != 0) {
     return BEBOP_WIRE_ERR_INVALID;
   }

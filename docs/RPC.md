@@ -256,19 +256,19 @@ Example: `NOT_FOUND` with detail `"GreeterService.Helloo"`:
 
 ```
 frame header (9 bytes):
-1f 00 00 00       // length = 31
+22 00 00 00       // length = 34
 03                // flags = END_STREAM | ERROR
 00 00 00 00       // stream_id = 0
 
-payload (31 bytes, RpcError message encoding):
+payload (34 bytes, RpcError message encoding):
 1e 00 00 00       // message length = 30 bytes
-01                // tag 1 (code)
-05                // StatusCode.NOT_FOUND = 5
-02                // tag 2 (detail)
+05                // field 1: StatusCode.NOT_FOUND = 5
 15 00 00 00       // string length = 21
 47 72 65 65 74 65 72 53 65 72 76 69 63 65 2e 48 65 6c 6c 6f 6f  // "GreeterService.Helloo"
 00                // NUL terminator
-00                // end marker
+01                // field 2 starts at payload offset 1
+03                // Mask 8 directory: fields 1 and 2
+10                // Mask 8 directory, 1-byte boundaries
 ```
 
 ## 6. Call header
@@ -310,9 +310,9 @@ A call to method ID `0x1a2b3c4d` with `HelloRequest { name: "Alice" }` returning
 ```
 client -> CallHeader (message encoding):
   06 00 00 00                            // message length = 6
-  01                                     // tag 1 (method_id)
   4d 3c 2b 1a                           // uint32 0x1a2b3c4d
-  00                                     // end marker
+  01                                     // Mask 8 directory: field 1
+  10                                     // Mask 8 directory, 1-byte boundaries
 
 client -> request frame:
   0a 00 00 00                            // length = 10

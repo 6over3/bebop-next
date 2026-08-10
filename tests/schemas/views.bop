@@ -1,0 +1,21 @@
+mut struct Point {
+    x: int32;
+    label: string;
+}
+
+message Child {
+    value(1): string;
+}
+
+union Payload {
+    Point(1): Point;
+    Child(2): Child;
+}
+
+message Envelope {
+    origin(1): Point;
+    payload(9): Payload;
+    children(33): Child[];
+    child(129): Child;
+    lookup(200): map[string, Child];
+}

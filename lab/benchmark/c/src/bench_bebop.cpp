@@ -1298,150 +1298,7 @@ static void BM_Bebop_Decode_InferenceResponse(benchmark::State& state)
 
 static std::vector<uint8_t> g_dense_view_sample;
 static std::vector<uint8_t> g_sparse_view_sample;
-static std::vector<uint8_t> g_legacy_dense_view_sample;
 static DenseViewSample g_dense_view_model;
-
-static Bebop_WireResult encode_legacy_dense(Bebop_Writer* writer, const DenseViewSample* value)
-{
-  size_t length_position;
-  Bebop_WireResult result = Bebop_Writer_SetLen(writer, &length_position);
-  if (result != BEBOP_WIRE_OK) {
-    return result;
-  }
-  const size_t body_start = Bebop_Writer_Len(writer);
-#define LEGACY_FIELD(tag, optional, write) \
-  do { \
-    if (BEBOP_WIRE_IS_SOME(optional)) { \
-      if ((result = Bebop_Writer_SetByte(writer, tag)) != BEBOP_WIRE_OK) \
-        return result; \
-      if ((result = (write)) != BEBOP_WIRE_OK) \
-        return result; \
-    } \
-  } while (false)
-  LEGACY_FIELD(1, value->id, Bebop_Writer_SetU64(writer, value->id.value));
-  LEGACY_FIELD(2, value->active, Bebop_Writer_SetBool(writer, value->active.value));
-  LEGACY_FIELD(3, value->score, Bebop_Writer_SetF64(writer, value->score.value));
-  LEGACY_FIELD(4, value->name, Bebop_Writer_SetStrView(writer, value->name.value));
-  LEGACY_FIELD(
-      5,
-      value->payload,
-      Bebop_Writer_SetByteArray(writer, value->payload.value.data, value->payload.value.length)
-  );
-#undef LEGACY_FIELD
-  if ((result = Bebop_Writer_SetByte(writer, 0)) != BEBOP_WIRE_OK) {
-    return result;
-  }
-  return Bebop_Writer_FillLen(
-      writer, length_position, static_cast<uint32_t>(Bebop_Writer_Len(writer) - body_start)
-  );
-}
-
-static Bebop_WireResult decode_legacy_dense(Bebop_Reader* reader, DenseViewSample* value)
-{
-  uint32_t body_length;
-  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
-  if (result != BEBOP_WIRE_OK) {
-    return result;
-  }
-  const uint8_t* outer_end;
-  if ((result = Bebop_Reader_PushLimit(reader, body_length, &outer_end)) != BEBOP_WIRE_OK) {
-    return result;
-  }
-  while (Bebop_Reader_Remaining(reader) != 0) {
-    uint8_t tag;
-    if ((result = Bebop_Reader_GetByte(reader, &tag)) != BEBOP_WIRE_OK) {
-      return result;
-    }
-    if (tag == 0) {
-      break;
-    }
-    switch (tag) {
-      case 1:
-        value->id.has_value = true;
-        result = Bebop_Reader_GetU64(reader, &value->id.value);
-        break;
-      case 2:
-        value->active.has_value = true;
-        result = Bebop_Reader_GetBool(reader, &value->active.value);
-        break;
-      case 3:
-        value->score.has_value = true;
-        result = Bebop_Reader_GetF64(reader, &value->score.value);
-        break;
-      case 4:
-        value->name.has_value = true;
-        result = Bebop_Reader_GetStr(reader, &value->name.value);
-        break;
-      case 5: {
-        Bebop_Bytes bytes;
-        result = Bebop_Reader_GetByteArray(reader, &bytes);
-        value->payload.has_value = result == BEBOP_WIRE_OK;
-        value->payload.value = {
-            .data = const_cast<uint8_t*>(bytes.data), .length = bytes.length, .capacity = 0
-        };
-        break;
-      }
-      default:
-        return BEBOP_WIRE_ERR_MALFORMED;
-    }
-    if (result != BEBOP_WIRE_OK) {
-      return result;
-    }
-  }
-  Bebop_Reader_PopLimit(reader, outer_end);
-  return BEBOP_WIRE_OK;
-}
-
-static Bebop_WireResult legacy_dense_payload(Bebop_Reader* reader, Bebop_Bytes* payload)
-{
-  uint32_t body_length;
-  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
-  if (result != BEBOP_WIRE_OK) {
-    return result;
-  }
-  const uint8_t* outer_end;
-  if ((result = Bebop_Reader_PushLimit(reader, body_length, &outer_end)) != BEBOP_WIRE_OK) {
-    return result;
-  }
-  while (Bebop_Reader_Remaining(reader) != 0) {
-    uint8_t tag;
-    if ((result = Bebop_Reader_GetByte(reader, &tag)) != BEBOP_WIRE_OK) {
-      return result;
-    }
-    switch (tag) {
-      case 1: {
-        uint64_t ignored;
-        result = Bebop_Reader_GetU64(reader, &ignored);
-        break;
-      }
-      case 2: {
-        bool ignored;
-        result = Bebop_Reader_GetBool(reader, &ignored);
-        break;
-      }
-      case 3: {
-        double ignored;
-        result = Bebop_Reader_GetF64(reader, &ignored);
-        break;
-      }
-      case 4: {
-        Bebop_Str ignored;
-        result = Bebop_Reader_GetStr(reader, &ignored);
-        break;
-      }
-      case 5:
-        result = Bebop_Reader_GetByteArray(reader, payload);
-        Bebop_Reader_PopLimit(reader, outer_end);
-        return result;
-      default:
-        return BEBOP_WIRE_ERR_MALFORMED;
-    }
-    if (result != BEBOP_WIRE_OK) {
-      return result;
-    }
-  }
-  return BEBOP_WIRE_ERR_MALFORMED;
-}
 
 static void init_view_samples()
 {
@@ -1514,11 +1371,6 @@ static void init_view_samples()
     std::fprintf(stderr, "Bebop benchmark failure: view verifier accepted malformed string\n");
     std::abort();
   }
-
-  Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(encode_legacy_dense(g_writer, &dense), "encode_legacy_dense");
-  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
-  g_legacy_dense_view_sample.assign(buffer, buffer + length);
 
   SparseViewSample sparse {};
   BEBOP_WIRE_SET_SOME(sparse.id, UINT64_C(0x1122334455667788));
@@ -1598,18 +1450,6 @@ static void BM_Bebop_Encode_DenseViewSample(benchmark::State& state)
   state.counters["wire_size"] = g_dense_view_sample.size();
 }
 
-static void BM_Bebop_Encode_LegacyDenseViewSample(benchmark::State& state)
-{
-  init_view_samples();
-  for (auto _ : state) {
-    Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(encode_legacy_dense(g_writer, &g_dense_view_model), "encode_legacy_dense");
-    benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
-  }
-  state.SetBytesProcessed(state.iterations() * g_legacy_dense_view_sample.size());
-  state.counters["wire_size"] = g_legacy_dense_view_sample.size();
-}
-
 static void BM_Bebop_View_Dense_FirstField(benchmark::State& state)
 {
   init_view_samples();
@@ -1661,24 +1501,6 @@ static void BM_Bebop_View_Dense_PayloadAt(benchmark::State& state)
   }
 }
 
-static void BM_Bebop_Legacy_Dense_LastField(benchmark::State& state)
-{
-  init_view_samples();
-  Bebop_Reader reader;
-  for (auto _ : state) {
-    BEBOP_CHECK(
-        Bebop_Reader_Init(
-            &reader, nullptr, g_legacy_dense_view_sample.data(), g_legacy_dense_view_sample.size()
-        ),
-        "Bebop_Reader_Init"
-    );
-    Bebop_Bytes payload;
-    BEBOP_CHECK(legacy_dense_payload(&reader, &payload), "legacy_dense_payload");
-    benchmark::DoNotOptimize(payload.data);
-    benchmark::DoNotOptimize(payload.length);
-  }
-}
-
 static void BM_Bebop_View_Sparse_LastField(benchmark::State& state)
 {
   init_view_samples();
@@ -1725,28 +1547,6 @@ static void BM_Bebop_Decode_SparseViewSample(benchmark::State& state)
   state.SetBytesProcessed(state.iterations() * g_sparse_view_sample.size());
   state.counters["decoded_size"] = sizeof(SparseViewSample);
   state.counters["wire_size"] = g_sparse_view_sample.size();
-}
-
-static void BM_Bebop_Decode_LegacyDenseViewSample(benchmark::State& state)
-{
-  init_view_samples();
-  Bebop_Reader reader;
-  for (auto _ : state) {
-    BEBOP_CHECK(
-        Bebop_Reader_Init(
-            &reader,
-            g_decode_ctx,
-            g_legacy_dense_view_sample.data(),
-            g_legacy_dense_view_sample.size()
-        ),
-        "Bebop_Reader_Init"
-    );
-    DenseViewSample decoded {};
-    BEBOP_CHECK(decode_legacy_dense(&reader, &decoded), "decode_legacy_dense");
-    benchmark::DoNotOptimize(decoded.id.value);
-  }
-  state.SetBytesProcessed(state.iterations() * g_legacy_dense_view_sample.size());
-  state.counters["decoded_size"] = sizeof(DenseViewSample);
 }
 
 static void BM_Bebop_View_Struct_LastField(benchmark::State& state)
@@ -1840,16 +1640,13 @@ void RegisterBebopBenchmarks()
   BENCHMARK(BM_Bebop_View_Dense_Init);
   BENCHMARK(BM_Bebop_View_Dense_Verify);
   BENCHMARK(BM_Bebop_Encode_DenseViewSample);
-  BENCHMARK(BM_Bebop_Encode_LegacyDenseViewSample);
   BENCHMARK(BM_Bebop_View_Dense_FirstField);
   BENCHMARK(BM_Bebop_View_Dense_LastField);
   BENCHMARK(BM_Bebop_View_Dense_InitAndLastField);
   BENCHMARK(BM_Bebop_View_Dense_PayloadAt);
-  BENCHMARK(BM_Bebop_Legacy_Dense_LastField);
   BENCHMARK(BM_Bebop_View_Sparse_LastField);
   BENCHMARK(BM_Bebop_Decode_DenseViewSample);
   BENCHMARK(BM_Bebop_Decode_SparseViewSample);
-  BENCHMARK(BM_Bebop_Decode_LegacyDenseViewSample);
   BENCHMARK(BM_Bebop_View_Struct_LastField);
   BENCHMARK(BM_Bebop_View_Union_Branch);
 }
