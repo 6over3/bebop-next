@@ -1,6 +1,10 @@
 #include <ctype.h>
 
-#include "bebop_wire.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+#include "bebop_wire_codegen.h"
 
 typedef struct bebop_wire_arena_block_impl {
   struct bebop_wire_arena_block_impl* next;
@@ -33,19 +37,129 @@ struct Bebop_WireCtx {
   uint32_t decode_depth;
 };
 
-struct Bebop_Reader {
-  const uint8_t* start;
-  const uint8_t* current;
-  const uint8_t* end;
-  Bebop_WireCtx* context;
-};
-
 struct Bebop_Writer {
   uint8_t* buffer;
   uint8_t* current;
   uint8_t* end;
   Bebop_WireCtx* context;
 };
+
+static uint32_t bebop_wire_popcount32(uint32_t value)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  return (uint32_t)__builtin_popcount(value);
+#elif defined(_MSC_VER)
+  return (uint32_t)__popcnt(value);
+#else
+  value -= (value >> 1) & UINT32_C(0x55555555);
+  value = (value & UINT32_C(0x33333333)) + ((value >> 2) & UINT32_C(0x33333333));
+  value = (value + (value >> 4)) & UINT32_C(0x0f0f0f0f);
+  return (value * UINT32_C(0x01010101)) >> 24;
+#endif
+}
+
+static uint32_t bebop_wire_ctz32(uint32_t value)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  return (uint32_t)__builtin_ctz(value);
+#elif defined(_MSC_VER)
+  unsigned long index;
+  _BitScanForward(&index, value);
+  return (uint32_t)index;
+#else
+  uint32_t count = 0;
+  while ((value & 1u) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+#endif
+}
+
+static uint32_t bebop_wire_load_le(const uint8_t* data, uint8_t width)
+{
+  uint32_t value = data[0];
+  if (width > 1) {
+    value |= (uint32_t)data[1] << 8;
+    if (width > 2) {
+      value |= (uint32_t)data[2] << 16;
+      value |= (uint32_t)data[3] << 24;
+    }
+  }
+  return value;
+}
+
+static void bebop_wire_store_le(uint8_t** destination, uint32_t value, uint8_t width)
+{
+  uint8_t* out = *destination;
+  *out++ = (uint8_t)value;
+  if (width > 1) {
+    *out++ = (uint8_t)(value >> 8);
+    if (width > 2) {
+      *out++ = (uint8_t)(value >> 16);
+      *out++ = (uint8_t)(value >> 24);
+    }
+  }
+  *destination = out;
+}
+
+typedef struct {
+  uint8_t kind;
+  uint8_t size;
+  uint8_t block_mask;
+} bebop_message_directory_layout_t;
+
+static bool bebop_message_tags_valid(const uint8_t* tags, uint8_t count)
+{
+  if (count == 0) {
+    return true;
+  }
+  if (!tags || tags[0] == 0) {
+    return false;
+  }
+  for (uint16_t i = 1; i < count; i++) {
+    if (tags[i] <= tags[i - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bebop_message_directory_layout_t bebop_message_directory_layout(
+    const uint8_t* tags, uint8_t count
+)
+{
+  bebop_message_directory_layout_t layout = {BEBOP_MESSAGE_DIRECTORY_EMPTY, 0, 0};
+  if (count == 0) {
+    return layout;
+  }
+
+  uint8_t block_mask = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    block_mask |= (uint8_t)(1u << ((tags[i] - 1u) >> 5));
+  }
+  const uint8_t block_size = (uint8_t)(1u + 5u * bebop_wire_popcount32(block_mask));
+  layout =
+      (bebop_message_directory_layout_t) {BEBOP_MESSAGE_DIRECTORY_BLOCKS, block_size, block_mask};
+
+  const uint8_t max_tag = tags[count - 1];
+  if (max_tag <= 8 && 1 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK8;
+    layout.size = 1;
+  } else if (max_tag <= 16 && 2 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK16;
+    layout.size = 2;
+  } else if (max_tag <= 32 && 4 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK32;
+    layout.size = 4;
+  }
+
+  if (count <= 3 && count < layout.size) {
+    layout.kind = count;
+    layout.size = count;
+  }
+  return layout;
+}
 
 #define BEBOP_ARENA_OVERHEAD (sizeof(bebop_wire_arena_block_impl_t))
 #if defined(_MSC_VER)
@@ -340,11 +454,25 @@ Bebop_WireResult Bebop_WireCtx_Reader(
     return BEBOP_WIRE_ERR_OOM;
   }
 
+  Bebop_WireResult result = Bebop_Reader_Init(reader, context, buffer, buffer_length);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  *out = reader;
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_Reader_Init(
+    Bebop_Reader* reader, Bebop_WireCtx* context, const uint8_t* buffer, size_t buffer_length
+)
+{
+  if (!reader || !buffer) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
   reader->start = buffer;
   reader->current = buffer;
   reader->end = buffer + buffer_length;
   reader->context = context;
-  *out = reader;
   return BEBOP_WIRE_OK;
 }
 
@@ -679,6 +807,9 @@ Bebop_WireResult Bebop_Reader_GetStr(Bebop_Reader* reader, Bebop_Str* out)
   if (BEBOP_WIRE_UNLIKELY((size_t)length >= remaining)) {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
+  if (BEBOP_WIRE_UNLIKELY(reader->current[length] != 0)) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
   const size_t total = (size_t)length + 1;
 
   out->data = (const char*)reader->current;
@@ -719,6 +850,529 @@ Bebop_WireResult Bebop_Reader_GetFixedBytes(
   out->length = byte_count;
   reader->current += byte_count;
   return BEBOP_WIRE_OK;
+}
+
+static Bebop_WireResult bebop_message_index_parse(Bebop_MessageIndex* out, Bebop_View encoded)
+{
+  if (!out || !encoded.data) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  if (encoded.length < BEBOP_WIRE_SIZE_LEN + 1) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint32_t body_length = bebop_wire_load_le(encoded.data, 4);
+  if ((size_t)body_length != encoded.length - BEBOP_WIRE_SIZE_LEN || body_length == 0) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint8_t* body = encoded.data + BEBOP_WIRE_SIZE_LEN;
+  const uint8_t* end = encoded.data + encoded.length;
+  const uint8_t control = end[-1];
+  const uint8_t width_code = control & 3u;
+  const uint8_t kind = (control >> 2) & 7u;
+  if ((control & 0xe0u) != 0 || width_code == 3) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const uint8_t width = (uint8_t)(1u << width_code);
+
+  size_t directory_size;
+  uint16_t field_count = 0;
+  switch (kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      directory_size = 0;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      directory_size = kind;
+      field_count = kind;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+      directory_size = 1;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+      directory_size = 2;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK32:
+      directory_size = 4;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS:
+      if (body_length < 2) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      directory_size = 1u + 5u * bebop_wire_popcount32(end[-2]);
+      break;
+    default:
+      return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  if (directory_size + 1 > body_length) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint8_t* directory = end - 1 - directory_size;
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_MASK8 && kind <= BEBOP_MESSAGE_DIRECTORY_MASK32) {
+    field_count =
+        (uint16_t)bebop_wire_popcount32(bebop_wire_load_le(directory, (uint8_t)directory_size));
+  } else if (kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    const uint8_t block_mask = directory[directory_size - 1];
+    if (block_mask == 0) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    const uint8_t* entry = directory;
+    uint16_t rank = 0;
+    for (uint8_t block = 0; block < 8; block++) {
+      if ((block_mask & (uint8_t)(1u << block)) == 0) {
+        continue;
+      }
+      if (entry[0] != rank) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      if (mask == 0 || (block == 7 && (mask & UINT32_C(0x80000000)) != 0)) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      rank += (uint16_t)bebop_wire_popcount32(mask);
+      entry += 5;
+    }
+    field_count = rank;
+  }
+
+  if (field_count == 0 && kind != BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  if (field_count != 0 && kind == BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_TINY1 && kind <= BEBOP_MESSAGE_DIRECTORY_TINY3) {
+    if (directory[0] == 0) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    for (uint16_t i = 1; i < field_count; i++) {
+      if (directory[i] <= directory[i - 1]) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+    }
+  }
+
+  const size_t boundary_count = field_count == 0 ? 0 : field_count - 1;
+  if (boundary_count > (SIZE_MAX - directory_size - 1) / width) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const size_t boundary_size = boundary_count * width;
+  if (boundary_size + directory_size + 1 > body_length) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint8_t* boundaries = directory - boundary_size;
+  const size_t payload_size = (size_t)(boundaries - body);
+  uint32_t previous = 0;
+  for (size_t i = 0; i < boundary_count; i++) {
+    const uint32_t boundary = bebop_wire_load_le(boundaries + i * width, width);
+    if (boundary < previous || boundary > payload_size) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    previous = boundary;
+  }
+  if (field_count == 0 && payload_size != 0) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  *out = (Bebop_MessageIndex) {.encoded = encoded,
+                               .boundaries = boundaries,
+                               .directory = directory,
+                               .field_count = (uint8_t)field_count,
+                               .offset_width = width,
+                               .directory_kind = kind};
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_MessageIndex_Init(Bebop_MessageIndex* out, Bebop_View encoded)
+{
+  return bebop_message_index_parse(out, encoded);
+}
+
+Bebop_WireResult Bebop_MessageIndex_Validate(const Bebop_MessageIndex* index)
+{
+  if (!index) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  Bebop_MessageIndex validated;
+  return bebop_message_index_parse(&validated, index->encoded);
+}
+
+Bebop_WireResult Bebop_MessageIndex_Begin(Bebop_MessageIndex* out, Bebop_View encoded)
+{
+  if (!out || !encoded.data) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  if (encoded.length < BEBOP_WIRE_SIZE_LEN + 1) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const uint32_t body_length = bebop_wire_load_le(encoded.data, 4);
+  if ((size_t)body_length != encoded.length - BEBOP_WIRE_SIZE_LEN || body_length == 0) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint8_t* end = encoded.data + encoded.length;
+  const uint8_t control = end[-1];
+  const uint8_t width_code = control & 3u;
+  const uint8_t kind = (control >> 2) & 7u;
+  if ((control & 0xe0u) != 0 || width_code == 3) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  const uint8_t width = (uint8_t)(1u << width_code);
+  size_t directory_size;
+  uint16_t field_count = 0;
+  switch (kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      directory_size = 0;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      directory_size = kind;
+      field_count = kind;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+      directory_size = 1;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+      directory_size = 2;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK32:
+      directory_size = 4;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS:
+      if (body_length < 2 || end[-2] == 0) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      directory_size = 1u + 5u * bebop_wire_popcount32(end[-2]);
+      break;
+    default:
+      return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  if ((size_t)directory_size + 1u > body_length) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const uint8_t* directory = end - 1 - directory_size;
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_MASK8 && kind <= BEBOP_MESSAGE_DIRECTORY_MASK32) {
+    field_count =
+        (uint16_t)bebop_wire_popcount32(bebop_wire_load_le(directory, (uint8_t)directory_size));
+  } else if (kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    const uint8_t block_mask = directory[directory_size - 1u];
+    const uint8_t* entry = directory;
+    uint16_t rank = 0;
+    for (uint8_t block = 0; block < 8; block++) {
+      if ((block_mask & (uint8_t)(1u << block)) == 0) {
+        continue;
+      }
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      if (entry[0] != rank || mask == 0 || (block == 7 && (mask & UINT32_C(0x80000000)) != 0)) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      rank += (uint16_t)bebop_wire_popcount32(mask);
+      entry += 5;
+    }
+    field_count = rank;
+  }
+  if (field_count == 0 && kind != BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_TINY1 && kind <= BEBOP_MESSAGE_DIRECTORY_TINY3) {
+    if (directory[0] == 0) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    for (uint16_t i = 1; i < field_count; i++) {
+      if (directory[i] <= directory[i - 1]) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+    }
+  }
+  const size_t boundary_size = field_count == 0 ? 0 : ((size_t)field_count - 1u) * width;
+  if (field_count == 0) {
+    if (body_length != 1) {
+      return BEBOP_WIRE_ERR_MALFORMED;
+    }
+  } else if (boundary_size + directory_size + 1u > body_length) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  *out = (Bebop_MessageIndex) {.encoded = encoded,
+                               .boundaries = directory - boundary_size,
+                               .directory = directory,
+                               .field_count = (uint8_t)field_count,
+                               .offset_width = width,
+                               .directory_kind = kind};
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_Reader_GetMessageIndex(Bebop_Reader* reader, Bebop_MessageIndex* out)
+{
+  if (!reader || !out) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  const uint8_t* start = reader->current;
+  uint32_t body_length;
+  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
+  if (result != BEBOP_WIRE_OK) {
+    reader->current = start;
+    return result;
+  }
+  if ((size_t)body_length > Bebop_Reader_Remaining(reader)) {
+    reader->current = start;
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const Bebop_View encoded = {start, (size_t)body_length + BEBOP_WIRE_SIZE_LEN};
+  result = bebop_message_index_parse(out, encoded);
+  if (result == BEBOP_WIRE_OK) {
+    reader->current = start + encoded.length;
+  }
+  return result;
+}
+
+Bebop_WireResult Bebop_Reader_BeginMessageIndex(Bebop_Reader* reader, Bebop_MessageIndex* out)
+{
+  if (!reader || !out) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  const uint8_t* start = reader->current;
+  uint32_t body_length;
+  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
+  if (result != BEBOP_WIRE_OK) {
+    reader->current = start;
+    return result;
+  }
+  if ((size_t)body_length > Bebop_Reader_Remaining(reader)) {
+    reader->current = start;
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  const Bebop_View encoded = {start, (size_t)body_length + BEBOP_WIRE_SIZE_LEN};
+  result = Bebop_MessageIndex_Begin(out, encoded);
+  if (result == BEBOP_WIRE_OK) {
+    reader->current = start + encoded.length;
+  }
+  return result;
+}
+
+static Bebop_WireResult bebop_message_field_at_rank(
+    const Bebop_MessageIndex* index, uint8_t rank, Bebop_View* field
+)
+{
+  if (rank >= index->field_count) {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
+  const uint8_t* body = index->encoded.data + BEBOP_WIRE_SIZE_LEN;
+  const uint32_t start = rank == 0
+      ? 0
+      : bebop_wire_load_le(
+            index->boundaries + ((size_t)rank - 1u) * index->offset_width, index->offset_width
+        );
+  const uint32_t end = (uint16_t)rank + 1u == index->field_count
+      ? (uint32_t)(index->boundaries - body)
+      : bebop_wire_load_le(
+            index->boundaries + (size_t)rank * index->offset_width, index->offset_width
+        );
+  if (end < start || end > (size_t)(index->boundaries - body)) {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+  *field = (Bebop_View) {body + start, end - start};
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_MessageIndex_FieldAt(
+    const Bebop_MessageIndex* index, uint8_t rank, Bebop_View* field
+)
+{
+  if (!index || !field) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  return bebop_message_field_at_rank(index, rank, field);
+}
+
+Bebop_WireResult Bebop_MessageIndex_Field(
+    const Bebop_MessageIndex* index, uint8_t tag, Bebop_View* field, bool* present
+)
+{
+  if (!index || !field || !present) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  *field = (Bebop_View) {NULL, 0};
+  *present = false;
+  if (tag == 0 || index->field_count == 0) {
+    return BEBOP_WIRE_OK;
+  }
+
+  uint32_t rank;
+  switch (index->directory_kind) {
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      for (rank = 0; rank < index->field_count; rank++) {
+        if (index->directory[rank] == tag) {
+          break;
+        }
+        if (index->directory[rank] > tag) {
+          return BEBOP_WIRE_OK;
+        }
+      }
+      if (rank == index->field_count) {
+        return BEBOP_WIRE_OK;
+      }
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+    case BEBOP_MESSAGE_DIRECTORY_MASK32: {
+      const uint8_t mask_width =
+          (uint8_t)(1u << (index->directory_kind - BEBOP_MESSAGE_DIRECTORY_MASK8));
+      if (tag > mask_width * 8u) {
+        return BEBOP_WIRE_OK;
+      }
+      const uint32_t mask = bebop_wire_load_le(index->directory, mask_width);
+      const uint32_t bit = UINT32_C(1) << (tag - 1u);
+      if ((mask & bit) == 0) {
+        return BEBOP_WIRE_OK;
+      }
+      rank = bebop_wire_popcount32(mask & (bit - 1u));
+      break;
+    }
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS: {
+      const uint8_t block = (uint8_t)((tag - 1u) >> 5);
+      const uint8_t block_bit = (uint8_t)(1u << block);
+      const uint8_t top_mask = index->encoded.data[index->encoded.length - 2];
+      if ((top_mask & block_bit) == 0) {
+        return BEBOP_WIRE_OK;
+      }
+      const uint8_t* entry =
+          index->directory + 5u * bebop_wire_popcount32(top_mask & (block_bit - 1u));
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      const uint32_t bit = UINT32_C(1) << ((tag - 1u) & 31u);
+      if ((mask & bit) == 0) {
+        return BEBOP_WIRE_OK;
+      }
+      rank = entry[0] + bebop_wire_popcount32(mask & (bit - 1u));
+      break;
+    }
+    default:
+      return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  Bebop_WireResult result = bebop_message_field_at_rank(index, (uint8_t)rank, field);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  *present = true;
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_MessageIndex_BlockMasks(const Bebop_MessageIndex* index, uint32_t masks[8])
+{
+  if (!index || !masks) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  if (index->directory_kind != BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
+  memset(masks, 0, 8u * sizeof(*masks));
+  const uint8_t top_mask = index->encoded.data[index->encoded.length - 2u];
+  const uint8_t* entry = index->directory;
+  for (uint8_t block = 0; block < 8; block++) {
+    if ((top_mask & (uint8_t)(1u << block)) != 0) {
+      masks[block] = bebop_wire_load_le(entry + 1, 4);
+      entry += 5;
+    }
+  }
+  return BEBOP_WIRE_OK;
+}
+
+void Bebop_MessageFieldIterator_Init(
+    Bebop_MessageFieldIterator* iterator, const Bebop_MessageIndex* index
+)
+{
+  if (!iterator) {
+    return;
+  }
+  *iterator = (Bebop_MessageFieldIterator) {.index = index,
+                                            .block_entry = index ? index->directory : NULL,
+                                            .pending_tags = 0,
+                                            .rank = 0,
+                                            .block = 0,
+                                            .tag_base = 0};
+  if (!index) {
+    return;
+  }
+  if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_MASK8
+      && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_MASK32)
+  {
+    const uint8_t width = (uint8_t)(1u << (index->directory_kind - BEBOP_MESSAGE_DIRECTORY_MASK8));
+    iterator->pending_tags = bebop_wire_load_le(index->directory, width);
+  }
+}
+
+Bebop_WireResult Bebop_MessageFieldIterator_NextTag(
+    Bebop_MessageFieldIterator* iterator, uint8_t* tag, bool* present
+)
+{
+  if (!iterator || !iterator->index || !tag || !present) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  const Bebop_MessageIndex* index = iterator->index;
+  *present = false;
+  if (iterator->rank == index->field_count) {
+    return BEBOP_WIRE_OK;
+  }
+
+  if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_TINY1
+      && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_TINY3)
+  {
+    *tag = index->directory[iterator->rank];
+  } else if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_MASK8
+             && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_MASK32)
+  {
+    const uint32_t bit = bebop_wire_ctz32(iterator->pending_tags);
+    *tag = (uint8_t)(bit + 1u);
+    iterator->pending_tags &= iterator->pending_tags - 1u;
+  } else if (index->directory_kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    while (iterator->pending_tags == 0) {
+      const uint8_t top_mask = index->encoded.data[index->encoded.length - 2];
+      while (iterator->block < 8 && (top_mask & (uint8_t)(1u << iterator->block)) == 0) {
+        iterator->block++;
+      }
+      if (iterator->block == 8) {
+        return BEBOP_WIRE_ERR_MALFORMED;
+      }
+      iterator->tag_base = (uint8_t)(iterator->block * 32u);
+      iterator->pending_tags = bebop_wire_load_le(iterator->block_entry + 1, 4);
+      iterator->block_entry += 5;
+      iterator->block++;
+    }
+    const uint32_t bit = bebop_wire_ctz32(iterator->pending_tags);
+    *tag = (uint8_t)(iterator->tag_base + bit + 1u);
+    iterator->pending_tags &= iterator->pending_tags - 1u;
+  } else {
+    return BEBOP_WIRE_ERR_MALFORMED;
+  }
+
+  iterator->rank++;
+  *present = true;
+  return BEBOP_WIRE_OK;
+}
+
+Bebop_WireResult Bebop_MessageFieldIterator_Next(
+    Bebop_MessageFieldIterator* iterator, uint8_t* tag, Bebop_View* field, bool* present
+)
+{
+  if (!iterator || !tag || !field || !present) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  *field = (Bebop_View) {NULL, 0};
+  Bebop_WireResult result = Bebop_MessageFieldIterator_NextTag(iterator, tag, present);
+  if (result != BEBOP_WIRE_OK || !*present) {
+    return result;
+  }
+  return bebop_message_field_at_rank(iterator->index, (uint8_t)(iterator->rank - 1u), field);
 }
 
 Bebop_WireResult Bebop_WireCtx_Writer(Bebop_WireCtx* context, Bebop_Writer** out)
@@ -2385,7 +3039,8 @@ Bebop_WireResult Bebop_Reader_GetFixedF16Array(
   if (count == 0) {
     return BEBOP_WIRE_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Float16))) {
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Float16)))
+  {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Float16);
@@ -2414,7 +3069,8 @@ Bebop_WireResult Bebop_Reader_GetFixedBF16Array(
   if (count == 0) {
     return BEBOP_WIRE_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_BFloat16))) {
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_BFloat16)))
+  {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_BFloat16);
@@ -2526,7 +3182,8 @@ Bebop_WireResult Bebop_Reader_GetFixedU128Array(
   if (count == 0) {
     return BEBOP_WIRE_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_UInt128))) {
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_UInt128)))
+  {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_UInt128);
@@ -2572,7 +3229,8 @@ Bebop_WireResult Bebop_Reader_GetFixedTimestampArray(
   if (count == 0) {
     return BEBOP_WIRE_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Timestamp))) {
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Timestamp)))
+  {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Timestamp);
@@ -2591,7 +3249,8 @@ Bebop_WireResult Bebop_Reader_GetFixedDurationArray(
   if (count == 0) {
     return BEBOP_WIRE_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Duration))) {
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Duration)))
+  {
     return BEBOP_WIRE_ERR_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Duration);
@@ -2629,6 +3288,130 @@ Bebop_WireResult Bebop_Writer_FillLen(Bebop_Writer* writer, size_t position, uin
   writer->buffer[position++] = length >> 24;
 #endif
   return BEBOP_WIRE_OK;
+}
+
+size_t Bebop_IndexedMessage_EncodedSize(
+    size_t payload_size, const uint8_t* sorted_tags, uint8_t field_count
+)
+{
+  if (!bebop_message_tags_valid(sorted_tags, field_count) || payload_size > UINT32_MAX) {
+    return SIZE_MAX;
+  }
+  const uint8_t width = payload_size <= UINT8_MAX ? 1 : payload_size <= UINT16_MAX ? 2 : 4;
+  const bebop_message_directory_layout_t directory =
+      bebop_message_directory_layout(sorted_tags, field_count);
+  const size_t boundary_count = field_count == 0 ? 0 : (size_t)field_count - 1;
+  const size_t metadata_size = 1u + directory.size + boundary_count * width;
+  if (payload_size > UINT32_MAX - metadata_size
+      || payload_size > SIZE_MAX - BEBOP_WIRE_SIZE_LEN - metadata_size)
+  {
+    return SIZE_MAX;
+  }
+  return BEBOP_WIRE_SIZE_LEN + payload_size + metadata_size;
+}
+
+Bebop_WireResult Bebop_Writer_EndIndexedMessage(
+    Bebop_Writer* writer,
+    size_t length_position,
+    size_t payload_start,
+    const uint8_t* sorted_tags,
+    const uint32_t* payload_offsets,
+    uint8_t field_count
+)
+{
+  if (!writer || (field_count != 0 && (!sorted_tags || !payload_offsets))) {
+    return BEBOP_WIRE_ERR_NULL;
+  }
+  if (!bebop_message_tags_valid(sorted_tags, field_count)) {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
+
+  const size_t written = Bebop_Writer_Len(writer);
+  if (length_position > SIZE_MAX - BEBOP_WIRE_SIZE_LEN
+      || length_position + BEBOP_WIRE_SIZE_LEN != payload_start || payload_start > written)
+  {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
+  const size_t payload_size = written - payload_start;
+  if (payload_size > UINT32_MAX) {
+    return BEBOP_WIRE_ERR_OVERFLOW;
+  }
+  if (field_count != 0 && payload_offsets[0] != 0) {
+    return BEBOP_WIRE_ERR_INVALID;
+  }
+  for (uint16_t i = 0; i < field_count; i++) {
+    if (payload_offsets[i] > payload_size
+        || (i != 0 && payload_offsets[i] < payload_offsets[i - 1]))
+    {
+      return BEBOP_WIRE_ERR_INVALID;
+    }
+  }
+
+  const uint8_t width = payload_size <= UINT8_MAX ? 1 : payload_size <= UINT16_MAX ? 2 : 4;
+  const uint8_t width_code = width == 1 ? 0 : width == 2 ? 1 : 2;
+  const bebop_message_directory_layout_t directory =
+      bebop_message_directory_layout(sorted_tags, field_count);
+  const size_t boundary_count = field_count == 0 ? 0 : (size_t)field_count - 1;
+  const size_t metadata_size = 1u + directory.size + boundary_count * width;
+  if (payload_size > UINT32_MAX - metadata_size) {
+    return BEBOP_WIRE_ERR_OVERFLOW;
+  }
+
+  Bebop_WireResult result = Bebop_Writer_Ensure(writer, metadata_size);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  uint8_t* output = writer->current;
+  for (uint16_t i = 1; i < field_count; i++) {
+    bebop_wire_store_le(&output, payload_offsets[i], width);
+  }
+
+  switch (directory.kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      memcpy(output, sorted_tags, field_count);
+      output += field_count;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+    case BEBOP_MESSAGE_DIRECTORY_MASK32: {
+      uint32_t mask = 0;
+      for (uint16_t i = 0; i < field_count; i++) {
+        mask |= UINT32_C(1) << (sorted_tags[i] - 1u);
+      }
+      bebop_wire_store_le(&output, mask, directory.size);
+      break;
+    }
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS: {
+      uint16_t next = 0;
+      uint8_t rank = 0;
+      for (uint8_t block = 0; block < 8; block++) {
+        if ((directory.block_mask & (uint8_t)(1u << block)) == 0) {
+          continue;
+        }
+        uint32_t mask = 0;
+        const uint8_t first_tag = (uint8_t)(block * 32u + 1u);
+        const uint16_t block_limit = (uint16_t)first_tag + 32u;
+        while (next < field_count && sorted_tags[next] < block_limit) {
+          mask |= UINT32_C(1) << (sorted_tags[next] - first_tag);
+          next++;
+        }
+        *output++ = rank;
+        bebop_wire_store_le(&output, mask, 4);
+        rank = (uint8_t)(rank + bebop_wire_popcount32(mask));
+      }
+      *output++ = directory.block_mask;
+      break;
+    }
+    default:
+      return BEBOP_WIRE_ERR_INVALID;
+  }
+  *output++ = (uint8_t)((directory.kind << 2) | width_code);
+  writer->current = output;
+  return Bebop_Writer_FillLen(writer, length_position, (uint32_t)(payload_size + metadata_size));
 }
 
 Bebop_WireResult Bebop_Writer_Buf(Bebop_Writer* writer, uint8_t** buffer, size_t* length)
@@ -2759,6 +3542,12 @@ void Bebop_Reader_PopLimit(Bebop_Reader* reader, const uint8_t* old_end)
 size_t Bebop_Writer_Len(const Bebop_Writer* writer)
 {
   return writer ? (size_t)(writer->current - writer->buffer) : 0;
+}
+
+Bebop_View Bebop_Writer_View(const Bebop_Writer* writer)
+{
+  return writer ? (Bebop_View) {writer->buffer, (size_t)(writer->current - writer->buffer)}
+                : (Bebop_View) {NULL, 0};
 }
 
 size_t Bebop_Writer_Remaining(const Bebop_Writer* writer)

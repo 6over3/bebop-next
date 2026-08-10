@@ -44,6 +44,22 @@ message Document {
     metadata(3): map[string, JsonValue];
 }
 
+message DenseViewSample {
+    id(1): uint64;
+    active(2): bool;
+    score(3): float64;
+    name(4): string;
+    payload(5): byte[];
+}
+
+message SparseViewSample {
+    id(1): uint64;
+    active(33): bool;
+    score(65): float64;
+    name(129): string;
+    payload(200): byte[];
+}
+
 enum ChunkKind : uint8 {
     Unknown = 0;
     Paragraph = 1;

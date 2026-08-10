@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bebop_wire.h"
+#include "bebop_wire_codegen.h"
 #include "unity.h"
 
 static void* _test_alloc(void* ptr, size_t old_size, size_t new_size, void* ctx)
@@ -52,6 +52,7 @@ void test_reader_positioning(void);
 void test_writer_buffer_management(void);
 void test_message_length(void);
 void test_length_prefix(void);
+void test_indexed_message_views(void);
 void test_utility_functions(void);
 void test_array_views(void);
 void test_error_conditions(void);
@@ -650,6 +651,11 @@ void test_writer_buffer_management(void)
     TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetU32(writer, (uint32_t)i));
   }
 
+  const Bebop_View encoded = Bebop_Writer_View(writer);
+  TEST_ASSERT_NOT_NULL(encoded.data);
+  TEST_ASSERT_EQUAL(400, encoded.length);
+  TEST_ASSERT_EQUAL(0, Bebop_Writer_View(NULL).length);
+
   TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Ensure(writer, 1000));
   TEST_ASSERT_GREATER_OR_EQUAL(1000, Bebop_Writer_Remaining(writer));
 
@@ -739,6 +745,119 @@ void test_length_prefix(void)
 
   uint32_t bad_length_prefix;
   TEST_ASSERT_EQUAL(BEBOP_WIRE_ERR_MALFORMED, Bebop_Reader_GetLen(reader2, &bad_length_prefix));
+
+  Bebop_WireCtx_Free(ctx);
+}
+
+void test_indexed_message_views(void)
+{
+  Bebop_WireCtx* ctx = _test_ctx_new();
+  Bebop_Writer* writer;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
+
+  const uint8_t tags[] = {1, 33, 65, 200};
+  const uint32_t lengths[] = {300, 0, 3, 1};
+  uint32_t offsets[4];
+  size_t length_position;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetLen(writer, &length_position));
+  const size_t payload_start = Bebop_Writer_Len(writer);
+  for (uint8_t i = 0; i < 4; i++) {
+    offsets[i] = (uint32_t)(Bebop_Writer_Len(writer) - payload_start);
+    for (uint32_t j = 0; j < lengths[i]; j++) {
+      TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetByte(writer, (uint8_t)(tags[i] + j)));
+    }
+  }
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK,
+      Bebop_Writer_EndIndexedMessage(writer, length_position, payload_start, tags, offsets, 4)
+  );
+
+  uint8_t* buffer;
+  size_t encoded_length;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Buf(writer, &buffer, &encoded_length));
+  TEST_ASSERT_EQUAL(encoded_length, Bebop_IndexedMessage_EncodedSize(304, tags, 4));
+
+  Bebop_MessageIndex index;
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, (Bebop_View) {buffer, encoded_length})
+  );
+  TEST_ASSERT_EQUAL(4, index.field_count);
+  TEST_ASSERT_EQUAL(2, index.offset_width);
+
+  for (uint8_t i = 0; i < 4; i++) {
+    Bebop_View field;
+    bool present;
+    TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Field(&index, tags[i], &field, &present));
+    TEST_ASSERT_TRUE(present);
+    TEST_ASSERT_EQUAL(lengths[i], field.length);
+    if (field.length != 0) {
+      TEST_ASSERT_EQUAL_UINT8(tags[i], field.data[0]);
+    }
+  }
+
+  Bebop_MessageFieldIterator fields;
+  Bebop_MessageFieldIterator_Init(&fields, &index);
+  for (uint8_t i = 0; i < 4; i++) {
+    uint8_t tag;
+    Bebop_View field;
+    bool has_field;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK, Bebop_MessageFieldIterator_Next(&fields, &tag, &field, &has_field)
+    );
+    TEST_ASSERT_TRUE(has_field);
+    TEST_ASSERT_EQUAL_UINT8(tags[i], tag);
+    TEST_ASSERT_EQUAL(lengths[i], field.length);
+  }
+  {
+    uint8_t tag;
+    Bebop_View field;
+    bool has_field;
+    TEST_ASSERT_EQUAL(
+        BEBOP_WIRE_OK, Bebop_MessageFieldIterator_Next(&fields, &tag, &field, &has_field)
+    );
+    TEST_ASSERT_FALSE(has_field);
+  }
+
+  Bebop_View missing;
+  bool present;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_MessageIndex_Field(&index, 2, &missing, &present));
+  TEST_ASSERT_FALSE(present);
+  TEST_ASSERT_EQUAL(0, missing.length);
+
+  Bebop_Reader reader;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Reader_Init(&reader, ctx, buffer, encoded_length));
+  Bebop_MessageIndex reader_index;
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Reader_GetMessageIndex(&reader, &reader_index));
+  TEST_ASSERT_EQUAL(0, Bebop_Reader_Remaining(&reader));
+
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Reader_Init(&reader, ctx, buffer, encoded_length - 1));
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_MALFORMED, Bebop_Reader_BeginMessageIndex(&reader, &reader_index)
+  );
+  TEST_ASSERT_EQUAL(encoded_length - 1, Bebop_Reader_Remaining(&reader));
+
+  const uint8_t saved_control = buffer[encoded_length - 1];
+  buffer[encoded_length - 1] |= 0x80;
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_ERR_MALFORMED,
+      Bebop_MessageIndex_Init(&index, (Bebop_View) {buffer, encoded_length})
+  );
+  buffer[encoded_length - 1] = saved_control;
+
+  Bebop_Writer_Reset(writer);
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_SetLen(writer, &length_position));
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK,
+      Bebop_Writer_EndIndexedMessage(
+          writer, length_position, Bebop_Writer_Len(writer), NULL, NULL, 0
+      )
+  );
+  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_Writer_Buf(writer, &buffer, &encoded_length));
+  TEST_ASSERT_EQUAL(5, encoded_length);
+  TEST_ASSERT_EQUAL(
+      BEBOP_WIRE_OK, Bebop_MessageIndex_Init(&index, (Bebop_View) {buffer, encoded_length})
+  );
+  TEST_ASSERT_EQUAL(0, index.field_count);
 
   Bebop_WireCtx_Free(ctx);
 }
@@ -1639,6 +1758,7 @@ int main(void)
   RUN_TEST(test_writer_buffer_management);
   RUN_TEST(test_message_length);
   RUN_TEST(test_length_prefix);
+  RUN_TEST(test_indexed_message_views);
   RUN_TEST(test_utility_functions);
   RUN_TEST(test_array_views);
   RUN_TEST(test_error_conditions);

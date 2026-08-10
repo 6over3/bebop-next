@@ -340,6 +340,13 @@ typedef struct {
   size_t length;
 } Bebop_Bytes;
 
+// Universal immutable view over an exact encoded Bebop value. Generated view
+// types build their typed APIs on this lifetime-preserving span.
+typedef struct {
+  const uint8_t* data;
+  size_t length;
+} Bebop_View;
+
 // #endregion
 
 // #region Primitive Array Types
@@ -498,6 +505,7 @@ typedef struct {
 // #region Forward Declarations
 
 typedef struct Bebop_WireCtx Bebop_WireCtx;
+
 typedef struct Bebop_Reader Bebop_Reader;
 typedef struct Bebop_Writer Bebop_Writer;
 typedef struct Bebop_Any Bebop_Any;
@@ -843,6 +851,7 @@ BEBOP_API Bebop_WireResult Bebop_WireCtx_WriterHint(
 BEBOP_API void Bebop_Writer_Reset(Bebop_Writer* w);
 BEBOP_API Bebop_WireResult Bebop_Writer_Ensure(Bebop_Writer* w, size_t additional);
 BEBOP_API size_t Bebop_Writer_Len(const Bebop_Writer* w);
+BEBOP_API Bebop_View Bebop_Writer_View(const Bebop_Writer* w);
 BEBOP_API size_t Bebop_Writer_Remaining(const Bebop_Writer* w);
 BEBOP_API Bebop_WireResult Bebop_Writer_Buf(Bebop_Writer* w, uint8_t** buf, size_t* len);
 

@@ -3,7 +3,7 @@
 #include "bench_harness.h"
 
 extern "C" {
-#include "bebop_wire.h"
+#include "bebop_wire_codegen.h"
 #include "benchmark.bb.h"
 }
 
@@ -11,7 +11,13 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 
-#define BEBOP_CHECK(expr, msg) (void)(expr)
+#define BEBOP_CHECK(expr, msg) \
+  do { \
+    if ((expr) != BEBOP_WIRE_OK) { \
+      std::fprintf(stderr, "Bebop benchmark failure: %s\n", (msg)); \
+      std::abort(); \
+    } \
+  } while (false)
 
 static void* libc_alloc(void* ptr, size_t old_size, size_t new_size, void* ctx)
 {
@@ -27,7 +33,6 @@ static void* libc_alloc(void* ptr, size_t old_size, size_t new_size, void* ctx)
 static Bebop_WireCtx* g_ctx = nullptr;
 static Bebop_WireCtx* g_decode_ctx = nullptr;
 static Bebop_Writer* g_writer = nullptr;
-static Bebop_Reader* g_reader = nullptr;
 static constexpr size_t WRITER_SIZE = 256 * 1024;
 
 static void ensure_ctx()
@@ -41,9 +46,6 @@ static void ensure_ctx()
     g_ctx = Bebop_WireCtx_New(&opts);
     Bebop_WireCtx_WriterHint(g_ctx, WRITER_SIZE, &g_writer);
     g_decode_ctx = Bebop_WireCtx_New(&opts);
-    // Create a reader once - we'll reuse it with Bebop_Reader_Reset
-    static uint8_t dummy = 0;
-    Bebop_WireCtx_Reader(g_decode_ctx, &dummy, 1, &g_reader);
   }
 }
 
@@ -96,7 +98,7 @@ static std::vector<uint8_t> bebop_encode_person_once(const TestPerson& p)
   ensure_ctx();
   Bebop_Writer_Reset(g_writer);
   Person person = make_person(p);
-  BEBOP_CHECK(Person_Encode(g_writer, &person), "Person_Encode");
+  BEBOP_CHECK(Person_encode(g_writer, &person), "Person_Encode");
   uint8_t* buf;
   size_t len;
   Bebop_Writer_Buf(g_writer, &buf, &len);
@@ -108,7 +110,7 @@ static std::vector<uint8_t> bebop_encode_order_once(const TestOrder& o)
   ensure_ctx();
   Bebop_Writer_Reset(g_writer);
   Order order = make_order(o);
-  BEBOP_CHECK(Order_Encode(g_writer, &order), "Order_Encode");
+  BEBOP_CHECK(Order_encode(g_writer, &order), "Order_Encode");
   uint8_t* buf;
   size_t len;
   Bebop_Writer_Buf(g_writer, &buf, &len);
@@ -120,7 +122,7 @@ static std::vector<uint8_t> bebop_encode_event_once(const TestEvent& e)
   ensure_ctx();
   Bebop_Writer_Reset(g_writer);
   Event event = make_event(e);
-  BEBOP_CHECK(Event_Encode(g_writer, &event), "Event_Encode");
+  BEBOP_CHECK(Event_encode(g_writer, &event), "Event_Encode");
   uint8_t* buf;
   size_t len;
   Bebop_Writer_Buf(g_writer, &buf, &len);
@@ -136,7 +138,7 @@ static void BM_Bebop_Encode_PersonSmall(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Person_Encode(g_writer, &person), "Person_Encode");
+    BEBOP_CHECK(Person_encode(g_writer, &person), "Person_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -151,7 +153,7 @@ static void BM_Bebop_Encode_PersonMedium(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Person_Encode(g_writer, &person), "Person_Encode");
+    BEBOP_CHECK(Person_encode(g_writer, &person), "Person_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -166,7 +168,7 @@ static void BM_Bebop_Encode_OrderSmall(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Order_Encode(g_writer, &order), "Order_Encode");
+    BEBOP_CHECK(Order_encode(g_writer, &order), "Order_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -181,7 +183,7 @@ static void BM_Bebop_Encode_OrderLarge(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Order_Encode(g_writer, &order), "Order_Encode");
+    BEBOP_CHECK(Order_encode(g_writer, &order), "Order_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -196,7 +198,7 @@ static void BM_Bebop_Encode_EventSmall(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Event_Encode(g_writer, &event), "Event_Encode");
+    BEBOP_CHECK(Event_encode(g_writer, &event), "Event_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -211,7 +213,7 @@ static void BM_Bebop_Encode_EventLarge(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Event_Encode(g_writer, &event), "Event_Encode");
+    BEBOP_CHECK(Event_encode(g_writer, &event), "Event_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -222,12 +224,12 @@ static void BM_Bebop_Decode_PersonSmall(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_person_once(GetSmallPerson());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Person person {};
-    BEBOP_CHECK(Person_Decode(g_decode_ctx, g_reader, &person), "Person_Decode");
+    BEBOP_CHECK(
+        Person_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &person), "Person_decode"
+    );
     benchmark::DoNotOptimize(&person.id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -238,12 +240,12 @@ static void BM_Bebop_Decode_PersonMedium(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_person_once(GetMediumPerson());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Person person {};
-    BEBOP_CHECK(Person_Decode(g_decode_ctx, g_reader, &person), "Person_Decode");
+    BEBOP_CHECK(
+        Person_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &person), "Person_decode"
+    );
     benchmark::DoNotOptimize(&person.id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -254,12 +256,12 @@ static void BM_Bebop_Decode_OrderSmall(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_order_once(GetSmallOrder());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Order order {};
-    BEBOP_CHECK(Order_Decode(g_decode_ctx, g_reader, &order), "Order_Decode");
+    BEBOP_CHECK(
+        Order_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &order), "Order_decode"
+    );
     benchmark::DoNotOptimize(&order.order_id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -270,12 +272,12 @@ static void BM_Bebop_Decode_OrderLarge(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_order_once(GetLargeOrder());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Order order {};
-    BEBOP_CHECK(Order_Decode(g_decode_ctx, g_reader, &order), "Order_Decode");
+    BEBOP_CHECK(
+        Order_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &order), "Order_decode"
+    );
     benchmark::DoNotOptimize(&order.order_id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -286,12 +288,12 @@ static void BM_Bebop_Decode_EventSmall(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_event_once(GetSmallEvent());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Event event {};
-    BEBOP_CHECK(Event_Decode(g_decode_ctx, g_reader, &event), "Event_Decode");
+    BEBOP_CHECK(
+        Event_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &event), "Event_decode"
+    );
     benchmark::DoNotOptimize(&event.id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -302,12 +304,12 @@ static void BM_Bebop_Decode_EventLarge(benchmark::State& state)
   ensure_ctx();
   auto encoded = bebop_encode_event_once(GetLargeEvent());
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, encoded.data(), encoded.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, encoded.data(), encoded.size());
     Event event {};
-    BEBOP_CHECK(Event_Decode(g_decode_ctx, g_reader, &event), "Event_Decode");
+    BEBOP_CHECK(
+        Event_decode(g_decode_ctx, {encoded.data(), encoded.size()}, &event), "Event_decode"
+    );
     benchmark::DoNotOptimize(&event.id);
   }
   state.SetBytesProcessed(state.iterations() * encoded.size());
@@ -319,20 +321,17 @@ static void BM_Bebop_Roundtrip_PersonSmall(benchmark::State& state)
   const auto& p = GetSmallPerson();
   Person person = make_person(p);
   Bebop_WireCtx_Reset(g_decode_ctx);
-  static uint8_t dummy = 0;
-  Bebop_WireCtx_Reader(g_decode_ctx, &dummy, 1, &g_reader);
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Person_Encode(g_writer, &person), "Person_Encode");
+    BEBOP_CHECK(Person_encode(g_writer, &person), "Person_Encode");
 
     uint8_t* buf;
     size_t len;
     Bebop_Writer_Buf(g_writer, &buf, &len);
 
-    Bebop_Reader_Reset(g_reader, buf, len);
     Person decoded {};
-    BEBOP_CHECK(Person_Decode(g_decode_ctx, g_reader, &decoded), "Person_Decode");
+    BEBOP_CHECK(Person_decode(g_decode_ctx, {buf, len}, &decoded), "Person_decode");
     benchmark::DoNotOptimize(&decoded.id);
   }
 }
@@ -343,20 +342,17 @@ static void BM_Bebop_Roundtrip_OrderLarge(benchmark::State& state)
   const auto& o = GetLargeOrder();
   Order order = make_order(o);
   Bebop_WireCtx_Reset(g_decode_ctx);
-  static uint8_t dummy = 0;
-  Bebop_WireCtx_Reader(g_decode_ctx, &dummy, 1, &g_reader);
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Order_Encode(g_writer, &order), "Order_Encode");
+    BEBOP_CHECK(Order_encode(g_writer, &order), "Order_Encode");
 
     uint8_t* buf;
     size_t len;
     Bebop_Writer_Buf(g_writer, &buf, &len);
 
-    Bebop_Reader_Reset(g_reader, buf, len);
     Order decoded {};
-    BEBOP_CHECK(Order_Decode(g_decode_ctx, g_reader, &decoded), "Order_Decode");
+    BEBOP_CHECK(Order_decode(g_decode_ctx, {buf, len}, &decoded), "Order_decode");
     benchmark::DoNotOptimize(&decoded.order_id);
   }
 }
@@ -367,20 +363,17 @@ static void BM_Bebop_Roundtrip_EventLarge(benchmark::State& state)
   const auto& e = GetLargeEvent();
   Event event = make_event(e);
   Bebop_WireCtx_Reset(g_decode_ctx);
-  static uint8_t dummy = 0;
-  Bebop_WireCtx_Reader(g_decode_ctx, &dummy, 1, &g_reader);
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Event_Encode(g_writer, &event), "Event_Encode");
+    BEBOP_CHECK(Event_encode(g_writer, &event), "Event_Encode");
 
     uint8_t* buf;
     size_t len;
     Bebop_Writer_Buf(g_writer, &buf, &len);
 
-    Bebop_Reader_Reset(g_reader, buf, len);
     Event decoded {};
-    BEBOP_CHECK(Event_Decode(g_decode_ctx, g_reader, &decoded), "Event_Decode");
+    BEBOP_CHECK(Event_decode(g_decode_ctx, {buf, len}, &decoded), "Event_decode");
     benchmark::DoNotOptimize(&decoded.id);
   }
 }
@@ -434,14 +427,14 @@ static void init_bebop_trees()
   ensure_ctx();
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(TreeNode_Encode(g_writer, &g_wide_tree_bebop), "TreeNode_Encode (wide)");
+  BEBOP_CHECK(TreeNode_encode(g_writer, &g_wide_tree_bebop), "TreeNode_Encode (wide)");
   uint8_t* buf;
   size_t len;
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_tree_wide.assign(buf, buf + len);
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(TreeNode_Encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode (deep)");
+  BEBOP_CHECK(TreeNode_encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode (deep)");
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_tree_deep.assign(buf, buf + len);
 
@@ -455,7 +448,7 @@ static void BM_Bebop_Encode_TreeWide(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(TreeNode_Encode(g_writer, &g_wide_tree_bebop), "TreeNode_Encode");
+    BEBOP_CHECK(TreeNode_encode(g_writer, &g_wide_tree_bebop), "TreeNode_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tree_wide.size());
@@ -468,7 +461,7 @@ static void BM_Bebop_Encode_TreeDeep(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(TreeNode_Encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode");
+    BEBOP_CHECK(TreeNode_encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tree_deep.size());
@@ -479,14 +472,15 @@ static void BM_Bebop_Decode_TreeWide(benchmark::State& state)
   ensure_ctx();
   init_bebop_trees();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_tree_wide.data(), g_encoded_tree_wide.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_tree_wide.data(), g_encoded_tree_wide.size());
     TreeNode decoded {};
-    BEBOP_CHECK(TreeNode_Decode(g_decode_ctx, g_reader, &decoded), "TreeNode_Decode");
+    BEBOP_CHECK(
+        TreeNode_decode(
+            g_decode_ctx, {g_encoded_tree_wide.data(), g_encoded_tree_wide.size()}, &decoded
+        ),
+        "TreeNode_decode"
+    );
     benchmark::DoNotOptimize(decoded.value.value);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tree_wide.size());
@@ -497,14 +491,15 @@ static void BM_Bebop_Decode_TreeDeep(benchmark::State& state)
   ensure_ctx();
   init_bebop_trees();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_tree_deep.data(), g_encoded_tree_deep.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_tree_deep.data(), g_encoded_tree_deep.size());
     TreeNode decoded {};
-    BEBOP_CHECK(TreeNode_Decode(g_decode_ctx, g_reader, &decoded), "TreeNode_Decode");
+    BEBOP_CHECK(
+        TreeNode_decode(
+            g_decode_ctx, {g_encoded_tree_deep.data(), g_encoded_tree_deep.size()}, &decoded
+        ),
+        "TreeNode_decode"
+    );
     benchmark::DoNotOptimize(decoded.value.value);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tree_deep.size());
@@ -515,20 +510,17 @@ static void BM_Bebop_Roundtrip_TreeDeep(benchmark::State& state)
   ensure_ctx();
   init_bebop_trees();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  static uint8_t dummy = 0;
-  Bebop_WireCtx_Reader(g_decode_ctx, &dummy, 1, &g_reader);
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(TreeNode_Encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode");
+    BEBOP_CHECK(TreeNode_encode(g_writer, &g_deep_tree_bebop), "TreeNode_Encode");
 
     uint8_t* buf;
     size_t len;
     Bebop_Writer_Buf(g_writer, &buf, &len);
 
-    Bebop_Reader_Reset(g_reader, buf, len);
     TreeNode decoded {};
-    BEBOP_CHECK(TreeNode_Decode(g_decode_ctx, g_reader, &decoded), "TreeNode_Decode");
+    BEBOP_CHECK(TreeNode_decode(g_decode_ctx, {buf, len}, &decoded), "TreeNode_decode");
     benchmark::DoNotOptimize(decoded.value.value);
   }
 }
@@ -670,29 +662,29 @@ static void init_json_benchmarks()
   g_large_doc_bebop =
       make_document(g_ctx, GetLargeDocument(), g_json_storage, g_json_array_storage, g_json_maps);
 
-  g_json_small_size = (uint32_t)JsonValue_EncodedSize(&g_small_json_bebop);
-  g_json_large_size = (uint32_t)JsonValue_EncodedSize(&g_large_json_bebop);
+  g_json_small_size = (uint32_t)JsonValue_encoded_size(&g_small_json_bebop);
+  g_json_large_size = (uint32_t)JsonValue_encoded_size(&g_large_json_bebop);
 
   uint8_t* buf;
   size_t len;
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(JsonValue_Encode(g_writer, &g_small_json_bebop), "JsonValue_Encode (small)");
+  BEBOP_CHECK(JsonValue_encode(g_writer, &g_small_json_bebop), "JsonValue_Encode (small)");
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_json_small.assign(buf, buf + len);
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(JsonValue_Encode(g_writer, &g_large_json_bebop), "JsonValue_Encode (large)");
+  BEBOP_CHECK(JsonValue_encode(g_writer, &g_large_json_bebop), "JsonValue_Encode (large)");
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_json_large.assign(buf, buf + len);
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(Document_Encode(g_writer, &g_small_doc_bebop), "Document_Encode (small)");
+  BEBOP_CHECK(Document_encode(g_writer, &g_small_doc_bebop), "Document_Encode (small)");
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_doc_small.assign(buf, buf + len);
 
   Bebop_Writer_Reset(g_writer);
-  BEBOP_CHECK(Document_Encode(g_writer, &g_large_doc_bebop), "Document_Encode (large)");
+  BEBOP_CHECK(Document_encode(g_writer, &g_large_doc_bebop), "Document_Encode (large)");
   Bebop_Writer_Buf(g_writer, &buf, &len);
   g_encoded_doc_large.assign(buf, buf + len);
 
@@ -706,7 +698,7 @@ static void BM_Bebop_Encode_JsonSmall(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(JsonValue_Encode(g_writer, &g_small_json_bebop), "JsonValue_Encode");
+    BEBOP_CHECK(JsonValue_encode(g_writer, &g_small_json_bebop), "JsonValue_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_json_small.size());
@@ -719,7 +711,7 @@ static void BM_Bebop_Encode_JsonLarge(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(JsonValue_Encode(g_writer, &g_large_json_bebop), "JsonValue_Encode");
+    BEBOP_CHECK(JsonValue_encode(g_writer, &g_large_json_bebop), "JsonValue_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_json_large.size());
@@ -730,14 +722,15 @@ static void BM_Bebop_Decode_JsonSmall(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_json_small.data(), g_encoded_json_small.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_json_small.data(), g_encoded_json_small.size());
     JsonValue decoded {};
-    BEBOP_CHECK(JsonValue_Decode(g_decode_ctx, g_reader, &decoded), "JsonValue_Decode");
+    BEBOP_CHECK(
+        JsonValue_decode(
+            g_decode_ctx, {g_encoded_json_small.data(), g_encoded_json_small.size()}, &decoded
+        ),
+        "JsonValue_decode"
+    );
     benchmark::DoNotOptimize(decoded.discriminator);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_json_small.size());
@@ -748,14 +741,15 @@ static void BM_Bebop_Decode_JsonLarge(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_json_large.data(), g_encoded_json_large.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_json_large.data(), g_encoded_json_large.size());
     JsonValue decoded {};
-    BEBOP_CHECK(JsonValue_Decode(g_decode_ctx, g_reader, &decoded), "JsonValue_Decode");
+    BEBOP_CHECK(
+        JsonValue_decode(
+            g_decode_ctx, {g_encoded_json_large.data(), g_encoded_json_large.size()}, &decoded
+        ),
+        "JsonValue_decode"
+    );
     benchmark::DoNotOptimize(decoded.discriminator);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_json_large.size());
@@ -768,7 +762,7 @@ static void BM_Bebop_Encode_DocumentSmall(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Document_Encode(g_writer, &g_small_doc_bebop), "Document_Encode");
+    BEBOP_CHECK(Document_encode(g_writer, &g_small_doc_bebop), "Document_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_doc_small.size());
@@ -781,7 +775,7 @@ static void BM_Bebop_Encode_DocumentLarge(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(Document_Encode(g_writer, &g_large_doc_bebop), "Document_Encode");
+    BEBOP_CHECK(Document_encode(g_writer, &g_large_doc_bebop), "Document_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_doc_large.size());
@@ -792,14 +786,15 @@ static void BM_Bebop_Decode_DocumentSmall(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_doc_small.data(), g_encoded_doc_small.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_doc_small.data(), g_encoded_doc_small.size());
     Document decoded {};
-    BEBOP_CHECK(Document_Decode(g_decode_ctx, g_reader, &decoded), "Document_Decode");
+    BEBOP_CHECK(
+        Document_decode(
+            g_decode_ctx, {g_encoded_doc_small.data(), g_encoded_doc_small.size()}, &decoded
+        ),
+        "Document_decode"
+    );
     benchmark::DoNotOptimize(decoded.title.has_value);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_doc_small.size());
@@ -810,14 +805,15 @@ static void BM_Bebop_Decode_DocumentLarge(benchmark::State& state)
   ensure_ctx();
   init_json_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_doc_large.data(), g_encoded_doc_large.size(), &g_reader
-  );
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_doc_large.data(), g_encoded_doc_large.size());
     Document decoded {};
-    BEBOP_CHECK(Document_Decode(g_decode_ctx, g_reader, &decoded), "Document_Decode");
+    BEBOP_CHECK(
+        Document_decode(
+            g_decode_ctx, {g_encoded_doc_large.data(), g_encoded_doc_large.size()}, &decoded
+        ),
+        "Document_decode"
+    );
     benchmark::DoNotOptimize(decoded.title.has_value);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_doc_large.size());
@@ -852,7 +848,7 @@ static void init_alice_benchmark()
 
   Bebop_Writer_Reset(g_writer);
   BEBOP_CHECK(
-      ChunkedText_Encode(g_writer, reinterpret_cast<ChunkedText*>(g_alice_storage)),
+      ChunkedText_encode(g_writer, reinterpret_cast<ChunkedText*>(g_alice_storage)),
       "ChunkedText_Encode"
   );
   uint8_t* buf;
@@ -871,7 +867,7 @@ static void BM_Bebop_Encode_ChunkedText(benchmark::State& state)
 
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(ChunkedText_Encode(g_writer, alice), "ChunkedText_Encode");
+    BEBOP_CHECK(ChunkedText_encode(g_writer, alice), "ChunkedText_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_alice.size());
@@ -882,12 +878,13 @@ static void BM_Bebop_Decode_ChunkedText(benchmark::State& state)
   ensure_ctx();
   init_alice_benchmark();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_alice.data(), g_encoded_alice.size(), &g_reader);
 
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_alice.data(), g_encoded_alice.size());
     ChunkedText decoded {};
-    BEBOP_CHECK(ChunkedText_Decode(g_decode_ctx, g_reader, &decoded), "ChunkedText_Decode");
+    BEBOP_CHECK(
+        ChunkedText_decode(g_decode_ctx, {g_encoded_alice.data(), g_encoded_alice.size()}, &decoded),
+        "ChunkedText_decode"
+    );
     benchmark::DoNotOptimize(&decoded.spans.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_alice.size());
@@ -1051,7 +1048,7 @@ static void init_ai_benchmarks()
 
 #define ENCODE_AND_STORE(var, type, dst) \
   Bebop_Writer_Reset(g_writer); \
-  BEBOP_CHECK(type##_Encode(g_writer, &var), #type "_Encode"); \
+  BEBOP_CHECK(type##_encode(g_writer, &var), #type "_encode"); \
   Bebop_Writer_Buf(g_writer, &buf, &len); \
   dst.assign(buf, buf + len);
 
@@ -1077,7 +1074,7 @@ static void BM_Bebop_Encode_Embedding384(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(EmbeddingBF16_Encode(g_writer, &g_emb_384), "EmbeddingBF16_Encode");
+    BEBOP_CHECK(EmbeddingBF16_encode(g_writer, &g_emb_384), "EmbeddingBF16_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_384.size());
@@ -1089,7 +1086,7 @@ static void BM_Bebop_Encode_Embedding768(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(EmbeddingBF16_Encode(g_writer, &g_emb_768), "EmbeddingBF16_Encode");
+    BEBOP_CHECK(EmbeddingBF16_encode(g_writer, &g_emb_768), "EmbeddingBF16_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_768.size());
@@ -1101,7 +1098,7 @@ static void BM_Bebop_Encode_Embedding1536(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(EmbeddingBF16_Encode(g_writer, &g_emb_1536), "EmbeddingBF16_Encode");
+    BEBOP_CHECK(EmbeddingBF16_encode(g_writer, &g_emb_1536), "EmbeddingBF16_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_1536.size());
@@ -1113,7 +1110,7 @@ static void BM_Bebop_Encode_EmbeddingF32_768(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(EmbeddingF32_Encode(g_writer, &g_emb_f32_768), "EmbeddingF32_Encode");
+    BEBOP_CHECK(EmbeddingF32_encode(g_writer, &g_emb_f32_768), "EmbeddingF32_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_f32_768.size());
@@ -1125,7 +1122,7 @@ static void BM_Bebop_Encode_EmbeddingBatch(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(EmbeddingBatch_Encode(g_writer, &g_emb_batch), "EmbeddingBatch_Encode");
+    BEBOP_CHECK(EmbeddingBatch_encode(g_writer, &g_emb_batch), "EmbeddingBatch_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_batch.size());
@@ -1137,7 +1134,7 @@ static void BM_Bebop_Encode_LLMChunkSmall(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(LLMStreamChunk_Encode(g_writer, &g_llm_small), "LLMStreamChunk_Encode");
+    BEBOP_CHECK(LLMStreamChunk_encode(g_writer, &g_llm_small), "LLMStreamChunk_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_llm_small.size());
@@ -1149,7 +1146,7 @@ static void BM_Bebop_Encode_LLMChunkLarge(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(LLMStreamChunk_Encode(g_writer, &g_llm_large), "LLMStreamChunk_Encode");
+    BEBOP_CHECK(LLMStreamChunk_encode(g_writer, &g_llm_large), "LLMStreamChunk_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_llm_large.size());
@@ -1161,7 +1158,7 @@ static void BM_Bebop_Encode_TensorShardSmall(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(TensorShard_Encode(g_writer, &g_tensor_small), "TensorShard_Encode");
+    BEBOP_CHECK(TensorShard_encode(g_writer, &g_tensor_small), "TensorShard_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tensor_small.size());
@@ -1173,7 +1170,7 @@ static void BM_Bebop_Encode_TensorShardLarge(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(TensorShard_Encode(g_writer, &g_tensor_large), "TensorShard_Encode");
+    BEBOP_CHECK(TensorShard_encode(g_writer, &g_tensor_large), "TensorShard_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tensor_large.size());
@@ -1185,7 +1182,7 @@ static void BM_Bebop_Encode_InferenceResponse(benchmark::State& state)
   init_ai_benchmarks();
   for (auto _ : state) {
     Bebop_Writer_Reset(g_writer);
-    BEBOP_CHECK(InferenceResponse_Encode(g_writer, &g_inference), "InferenceResponse_Encode");
+    BEBOP_CHECK(InferenceResponse_encode(g_writer, &g_inference), "InferenceResponse_Encode");
     benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_inference.size());
@@ -1196,11 +1193,14 @@ static void BM_Bebop_Decode_Embedding768(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(g_decode_ctx, g_encoded_emb_768.data(), g_encoded_emb_768.size(), &g_reader);
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_emb_768.data(), g_encoded_emb_768.size());
     EmbeddingBF16 decoded {};
-    BEBOP_CHECK(EmbeddingBF16_Decode(g_decode_ctx, g_reader, &decoded), "EmbeddingBF16_Decode");
+    BEBOP_CHECK(
+        EmbeddingBF16_decode(
+            g_decode_ctx, {g_encoded_emb_768.data(), g_encoded_emb_768.size()}, &decoded
+        ),
+        "EmbeddingBF16_decode"
+    );
     benchmark::DoNotOptimize(decoded.vector.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_768.size());
@@ -1211,13 +1211,14 @@ static void BM_Bebop_Decode_Embedding1536(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_emb_1536.data(), g_encoded_emb_1536.size(), &g_reader
-  );
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_emb_1536.data(), g_encoded_emb_1536.size());
     EmbeddingBF16 decoded {};
-    BEBOP_CHECK(EmbeddingBF16_Decode(g_decode_ctx, g_reader, &decoded), "EmbeddingBF16_Decode");
+    BEBOP_CHECK(
+        EmbeddingBF16_decode(
+            g_decode_ctx, {g_encoded_emb_1536.data(), g_encoded_emb_1536.size()}, &decoded
+        ),
+        "EmbeddingBF16_decode"
+    );
     benchmark::DoNotOptimize(decoded.vector.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_1536.size());
@@ -1228,13 +1229,14 @@ static void BM_Bebop_Decode_EmbeddingBatch(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_emb_batch.data(), g_encoded_emb_batch.size(), &g_reader
-  );
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_emb_batch.data(), g_encoded_emb_batch.size());
     EmbeddingBatch decoded {};
-    BEBOP_CHECK(EmbeddingBatch_Decode(g_decode_ctx, g_reader, &decoded), "EmbeddingBatch_Decode");
+    BEBOP_CHECK(
+        EmbeddingBatch_decode(
+            g_decode_ctx, {g_encoded_emb_batch.data(), g_encoded_emb_batch.size()}, &decoded
+        ),
+        "EmbeddingBatch_decode"
+    );
     benchmark::DoNotOptimize(decoded.embeddings.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_emb_batch.size());
@@ -1245,13 +1247,14 @@ static void BM_Bebop_Decode_LLMChunkLarge(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_llm_large.data(), g_encoded_llm_large.size(), &g_reader
-  );
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_llm_large.data(), g_encoded_llm_large.size());
     LLMStreamChunk decoded {};
-    BEBOP_CHECK(LLMStreamChunk_Decode(g_decode_ctx, g_reader, &decoded), "LLMStreamChunk_Decode");
+    BEBOP_CHECK(
+        LLMStreamChunk_decode(
+            g_decode_ctx, {g_encoded_llm_large.data(), g_encoded_llm_large.size()}, &decoded
+        ),
+        "LLMStreamChunk_decode"
+    );
     benchmark::DoNotOptimize(decoded.tokens.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_llm_large.size());
@@ -1262,13 +1265,14 @@ static void BM_Bebop_Decode_TensorShardLarge(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_tensor_large.data(), g_encoded_tensor_large.size(), &g_reader
-  );
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_tensor_large.data(), g_encoded_tensor_large.size());
     TensorShard decoded {};
-    BEBOP_CHECK(TensorShard_Decode(g_decode_ctx, g_reader, &decoded), "TensorShard_Decode");
+    BEBOP_CHECK(
+        TensorShard_decode(
+            g_decode_ctx, {g_encoded_tensor_large.data(), g_encoded_tensor_large.size()}, &decoded
+        ),
+        "TensorShard_decode"
+    );
     benchmark::DoNotOptimize(decoded.data.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_tensor_large.size());
@@ -1279,18 +1283,502 @@ static void BM_Bebop_Decode_InferenceResponse(benchmark::State& state)
   ensure_ctx();
   init_ai_benchmarks();
   Bebop_WireCtx_Reset(g_decode_ctx);
-  Bebop_WireCtx_Reader(
-      g_decode_ctx, g_encoded_inference.data(), g_encoded_inference.size(), &g_reader
-  );
   for (auto _ : state) {
-    Bebop_Reader_Reset(g_reader, g_encoded_inference.data(), g_encoded_inference.size());
     InferenceResponse decoded {};
     BEBOP_CHECK(
-        InferenceResponse_Decode(g_decode_ctx, g_reader, &decoded), "InferenceResponse_Decode"
+        InferenceResponse_decode(
+            g_decode_ctx, {g_encoded_inference.data(), g_encoded_inference.size()}, &decoded
+        ),
+        "InferenceResponse_decode"
     );
     benchmark::DoNotOptimize(decoded.embeddings.length);
   }
   state.SetBytesProcessed(state.iterations() * g_encoded_inference.size());
+}
+
+static std::vector<uint8_t> g_dense_view_sample;
+static std::vector<uint8_t> g_sparse_view_sample;
+static std::vector<uint8_t> g_legacy_dense_view_sample;
+static DenseViewSample g_dense_view_model;
+
+static Bebop_WireResult encode_legacy_dense(Bebop_Writer* writer, const DenseViewSample* value)
+{
+  size_t length_position;
+  Bebop_WireResult result = Bebop_Writer_SetLen(writer, &length_position);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  const size_t body_start = Bebop_Writer_Len(writer);
+#define LEGACY_FIELD(tag, optional, write) \
+  do { \
+    if (BEBOP_WIRE_IS_SOME(optional)) { \
+      if ((result = Bebop_Writer_SetByte(writer, tag)) != BEBOP_WIRE_OK) \
+        return result; \
+      if ((result = (write)) != BEBOP_WIRE_OK) \
+        return result; \
+    } \
+  } while (false)
+  LEGACY_FIELD(1, value->id, Bebop_Writer_SetU64(writer, value->id.value));
+  LEGACY_FIELD(2, value->active, Bebop_Writer_SetBool(writer, value->active.value));
+  LEGACY_FIELD(3, value->score, Bebop_Writer_SetF64(writer, value->score.value));
+  LEGACY_FIELD(4, value->name, Bebop_Writer_SetStrView(writer, value->name.value));
+  LEGACY_FIELD(
+      5,
+      value->payload,
+      Bebop_Writer_SetByteArray(writer, value->payload.value.data, value->payload.value.length)
+  );
+#undef LEGACY_FIELD
+  if ((result = Bebop_Writer_SetByte(writer, 0)) != BEBOP_WIRE_OK) {
+    return result;
+  }
+  return Bebop_Writer_FillLen(
+      writer, length_position, static_cast<uint32_t>(Bebop_Writer_Len(writer) - body_start)
+  );
+}
+
+static Bebop_WireResult decode_legacy_dense(Bebop_Reader* reader, DenseViewSample* value)
+{
+  uint32_t body_length;
+  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  const uint8_t* outer_end;
+  if ((result = Bebop_Reader_PushLimit(reader, body_length, &outer_end)) != BEBOP_WIRE_OK) {
+    return result;
+  }
+  while (Bebop_Reader_Remaining(reader) != 0) {
+    uint8_t tag;
+    if ((result = Bebop_Reader_GetByte(reader, &tag)) != BEBOP_WIRE_OK) {
+      return result;
+    }
+    if (tag == 0) {
+      break;
+    }
+    switch (tag) {
+      case 1:
+        value->id.has_value = true;
+        result = Bebop_Reader_GetU64(reader, &value->id.value);
+        break;
+      case 2:
+        value->active.has_value = true;
+        result = Bebop_Reader_GetBool(reader, &value->active.value);
+        break;
+      case 3:
+        value->score.has_value = true;
+        result = Bebop_Reader_GetF64(reader, &value->score.value);
+        break;
+      case 4:
+        value->name.has_value = true;
+        result = Bebop_Reader_GetStr(reader, &value->name.value);
+        break;
+      case 5: {
+        Bebop_Bytes bytes;
+        result = Bebop_Reader_GetByteArray(reader, &bytes);
+        value->payload.has_value = result == BEBOP_WIRE_OK;
+        value->payload.value = {
+            .data = const_cast<uint8_t*>(bytes.data), .length = bytes.length, .capacity = 0
+        };
+        break;
+      }
+      default:
+        return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    if (result != BEBOP_WIRE_OK) {
+      return result;
+    }
+  }
+  Bebop_Reader_PopLimit(reader, outer_end);
+  return BEBOP_WIRE_OK;
+}
+
+static Bebop_WireResult legacy_dense_payload(Bebop_Reader* reader, Bebop_Bytes* payload)
+{
+  uint32_t body_length;
+  Bebop_WireResult result = Bebop_Reader_GetLen(reader, &body_length);
+  if (result != BEBOP_WIRE_OK) {
+    return result;
+  }
+  const uint8_t* outer_end;
+  if ((result = Bebop_Reader_PushLimit(reader, body_length, &outer_end)) != BEBOP_WIRE_OK) {
+    return result;
+  }
+  while (Bebop_Reader_Remaining(reader) != 0) {
+    uint8_t tag;
+    if ((result = Bebop_Reader_GetByte(reader, &tag)) != BEBOP_WIRE_OK) {
+      return result;
+    }
+    switch (tag) {
+      case 1: {
+        uint64_t ignored;
+        result = Bebop_Reader_GetU64(reader, &ignored);
+        break;
+      }
+      case 2: {
+        bool ignored;
+        result = Bebop_Reader_GetBool(reader, &ignored);
+        break;
+      }
+      case 3: {
+        double ignored;
+        result = Bebop_Reader_GetF64(reader, &ignored);
+        break;
+      }
+      case 4: {
+        Bebop_Str ignored;
+        result = Bebop_Reader_GetStr(reader, &ignored);
+        break;
+      }
+      case 5:
+        result = Bebop_Reader_GetByteArray(reader, payload);
+        Bebop_Reader_PopLimit(reader, outer_end);
+        return result;
+      default:
+        return BEBOP_WIRE_ERR_MALFORMED;
+    }
+    if (result != BEBOP_WIRE_OK) {
+      return result;
+    }
+  }
+  return BEBOP_WIRE_ERR_MALFORMED;
+}
+
+static void init_view_samples()
+{
+  if (!g_dense_view_sample.empty()) {
+    return;
+  }
+  ensure_ctx();
+  static const char name[] = "indexed-view-sample";
+  static uint8_t payload[128];
+  for (size_t i = 0; i < sizeof(payload); i++) {
+    payload[i] = static_cast<uint8_t>(i);
+  }
+  const Bebop_U8_Array bytes = {.data = payload, .length = sizeof(payload), .capacity = 0};
+  const Bebop_Str name_view = {.data = name, .length = sizeof(name) - 1};
+
+  DenseViewSample dense {};
+  BEBOP_WIRE_SET_SOME(dense.id, UINT64_C(0x1122334455667788));
+  BEBOP_WIRE_SET_SOME(dense.active, true);
+  BEBOP_WIRE_SET_SOME(dense.score, 42.25);
+  BEBOP_WIRE_SET_SOME(dense.name, name_view);
+  BEBOP_WIRE_SET_SOME(dense.payload, bytes);
+  g_dense_view_model = dense;
+  Bebop_Writer_Reset(g_writer);
+  BEBOP_CHECK(DenseViewSample_encode(g_writer, &dense), "DenseViewSample_Encode");
+  uint8_t* buffer;
+  size_t length;
+  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
+  g_dense_view_sample.assign(buffer, buffer + length);
+  BEBOP_CHECK(
+      DenseViewSample_verify({g_dense_view_sample.data(), g_dense_view_sample.size()}),
+      "DenseViewSample_verify"
+  );
+  DenseViewSample decoded_dense {};
+  BEBOP_CHECK(
+      DenseViewSample_decode(
+          g_decode_ctx, {g_dense_view_sample.data(), g_dense_view_sample.size()}, &decoded_dense
+      ),
+      "DenseViewSample_decode"
+  );
+  std::vector<uint8_t> trailing = g_dense_view_sample;
+  trailing.push_back(0);
+  if (DenseViewSample_decode(g_decode_ctx, {trailing.data(), trailing.size()}, &decoded_dense)
+      != BEBOP_WIRE_ERR_MALFORMED)
+  {
+    std::fprintf(stderr, "Bebop benchmark failure: decode accepted trailing data\n");
+    std::abort();
+  }
+
+  Bebop_MessageIndex dense_index;
+  BEBOP_CHECK(
+      Bebop_MessageIndex_Init(
+          &dense_index, {g_dense_view_sample.data(), g_dense_view_sample.size()}
+      ),
+      "dense message index"
+  );
+  Bebop_View name_field;
+  bool name_present;
+  BEBOP_CHECK(
+      Bebop_MessageIndex_Field(&dense_index, 4, &name_field, &name_present), "dense name field"
+  );
+  if (!name_present || name_field.length == 0) {
+    std::fprintf(stderr, "Bebop benchmark failure: missing dense name field\n");
+    std::abort();
+  }
+  std::vector<uint8_t> malformed = g_dense_view_sample;
+  malformed
+      [static_cast<size_t>(name_field.data - g_dense_view_sample.data()) + name_field.length - 1] =
+          1;
+  if (DenseViewSample_verify({malformed.data(), malformed.size()}) == BEBOP_WIRE_OK) {
+    std::fprintf(stderr, "Bebop benchmark failure: view verifier accepted malformed string\n");
+    std::abort();
+  }
+
+  Bebop_Writer_Reset(g_writer);
+  BEBOP_CHECK(encode_legacy_dense(g_writer, &dense), "encode_legacy_dense");
+  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
+  g_legacy_dense_view_sample.assign(buffer, buffer + length);
+
+  SparseViewSample sparse {};
+  BEBOP_WIRE_SET_SOME(sparse.id, UINT64_C(0x1122334455667788));
+  BEBOP_WIRE_SET_SOME(sparse.active, true);
+  BEBOP_WIRE_SET_SOME(sparse.score, 42.25);
+  BEBOP_WIRE_SET_SOME(sparse.name, name_view);
+  BEBOP_WIRE_SET_SOME(sparse.payload, bytes);
+  Bebop_Writer_Reset(g_writer);
+  BEBOP_CHECK(SparseViewSample_encode(g_writer, &sparse), "SparseViewSample_Encode");
+  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
+  g_sparse_view_sample.assign(buffer, buffer + length);
+  BEBOP_CHECK(
+      SparseViewSample_verify({g_sparse_view_sample.data(), g_sparse_view_sample.size()}),
+      "SparseViewSample_verify"
+  );
+
+  const uint8_t unknown_tags[] = {1, 6};
+  const uint32_t unknown_offsets[] = {0, 8};
+  size_t length_position;
+  Bebop_Writer_Reset(g_writer);
+  BEBOP_CHECK(Bebop_Writer_SetLen(g_writer, &length_position), "Bebop_Writer_SetLen");
+  const size_t unknown_payload_start = Bebop_Writer_Len(g_writer);
+  BEBOP_CHECK(Bebop_Writer_SetU64(g_writer, UINT64_C(0x1122334455667788)), "unknown id");
+  BEBOP_CHECK(Bebop_Writer_SetByte(g_writer, 0xa5), "unknown field");
+  BEBOP_CHECK(
+      Bebop_Writer_EndIndexedMessage(
+          g_writer, length_position, unknown_payload_start, unknown_tags, unknown_offsets, 2
+      ),
+      "unknown message index"
+  );
+  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
+  DenseViewSample unknown_decoded {};
+  BEBOP_CHECK(
+      DenseViewSample_decode(g_decode_ctx, {buffer, length}, &unknown_decoded),
+      "unknown field decode"
+  );
+  if (!unknown_decoded.id.has_value || unknown_decoded.id.value != UINT64_C(0x1122334455667788)
+      || unknown_decoded.active.has_value)
+  {
+    std::fprintf(stderr, "Bebop benchmark failure: unknown field semantics\n");
+    std::abort();
+  }
+}
+
+static void BM_Bebop_View_Dense_Init(benchmark::State& state)
+{
+  init_view_samples();
+  const Bebop_View encoded = {g_dense_view_sample.data(), g_dense_view_sample.size()};
+  for (auto _ : state) {
+    DenseViewSample_View view = DenseViewSample_view(encoded);
+    benchmark::DoNotOptimize(view.data);
+  }
+  state.SetBytesProcessed(state.iterations() * encoded.length);
+  state.counters["view_size"] = sizeof(DenseViewSample_View);
+}
+
+static void BM_Bebop_View_Dense_Verify(benchmark::State& state)
+{
+  init_view_samples();
+  const Bebop_View encoded = {g_dense_view_sample.data(), g_dense_view_sample.size()};
+  for (auto _ : state) {
+    Bebop_WireResult result = DenseViewSample_verify(encoded);
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetBytesProcessed(state.iterations() * encoded.length);
+}
+
+static void BM_Bebop_Encode_DenseViewSample(benchmark::State& state)
+{
+  init_view_samples();
+  for (auto _ : state) {
+    Bebop_Writer_Reset(g_writer);
+    BEBOP_CHECK(DenseViewSample_encode(g_writer, &g_dense_view_model), "DenseViewSample_Encode");
+    benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
+  }
+  state.SetBytesProcessed(state.iterations() * g_dense_view_sample.size());
+  state.counters["wire_size"] = g_dense_view_sample.size();
+}
+
+static void BM_Bebop_Encode_LegacyDenseViewSample(benchmark::State& state)
+{
+  init_view_samples();
+  for (auto _ : state) {
+    Bebop_Writer_Reset(g_writer);
+    BEBOP_CHECK(encode_legacy_dense(g_writer, &g_dense_view_model), "encode_legacy_dense");
+    benchmark::DoNotOptimize(Bebop_Writer_Len(g_writer));
+  }
+  state.SetBytesProcessed(state.iterations() * g_legacy_dense_view_sample.size());
+  state.counters["wire_size"] = g_legacy_dense_view_sample.size();
+}
+
+static void BM_Bebop_View_Dense_FirstField(benchmark::State& state)
+{
+  init_view_samples();
+  DenseViewSample_View view =
+      DenseViewSample_view({g_dense_view_sample.data(), g_dense_view_sample.size()});
+  for (auto _ : state) {
+    uint64_t id = DenseViewSample_id(view);
+    bool present = DenseViewSample_has_id(view);
+    benchmark::DoNotOptimize(id);
+    benchmark::DoNotOptimize(present);
+  }
+}
+
+static void BM_Bebop_View_Dense_LastField(benchmark::State& state)
+{
+  init_view_samples();
+  DenseViewSample_View view =
+      DenseViewSample_view({g_dense_view_sample.data(), g_dense_view_sample.size()});
+  for (auto _ : state) {
+    Bebop_Bytes payload = DenseViewSample_payload(view);
+    benchmark::DoNotOptimize(payload.data);
+    benchmark::DoNotOptimize(payload.length);
+  }
+}
+
+static void BM_Bebop_View_Dense_InitAndLastField(benchmark::State& state)
+{
+  init_view_samples();
+  const Bebop_View encoded = {g_dense_view_sample.data(), g_dense_view_sample.size()};
+  for (auto _ : state) {
+    DenseViewSample_View view = DenseViewSample_view(encoded);
+    Bebop_Bytes payload = DenseViewSample_payload(view);
+    benchmark::DoNotOptimize(payload.data);
+    benchmark::DoNotOptimize(payload.length);
+  }
+}
+
+static void BM_Bebop_View_Dense_PayloadAt(benchmark::State& state)
+{
+  init_view_samples();
+  DenseViewSample_View view =
+      DenseViewSample_view({g_dense_view_sample.data(), g_dense_view_sample.size()});
+  uint32_t index = 0;
+  for (auto _ : state) {
+    Bebop_Bytes payload = DenseViewSample_payload(view);
+    uint8_t value = payload.data[index];
+    benchmark::DoNotOptimize(value);
+    index = (index + 1) & 127u;
+  }
+}
+
+static void BM_Bebop_Legacy_Dense_LastField(benchmark::State& state)
+{
+  init_view_samples();
+  Bebop_Reader reader;
+  for (auto _ : state) {
+    BEBOP_CHECK(
+        Bebop_Reader_Init(
+            &reader, nullptr, g_legacy_dense_view_sample.data(), g_legacy_dense_view_sample.size()
+        ),
+        "Bebop_Reader_Init"
+    );
+    Bebop_Bytes payload;
+    BEBOP_CHECK(legacy_dense_payload(&reader, &payload), "legacy_dense_payload");
+    benchmark::DoNotOptimize(payload.data);
+    benchmark::DoNotOptimize(payload.length);
+  }
+}
+
+static void BM_Bebop_View_Sparse_LastField(benchmark::State& state)
+{
+  init_view_samples();
+  SparseViewSample_View view =
+      SparseViewSample_view({g_sparse_view_sample.data(), g_sparse_view_sample.size()});
+  for (auto _ : state) {
+    Bebop_Bytes payload = SparseViewSample_payload(view);
+    benchmark::DoNotOptimize(payload.data);
+    benchmark::DoNotOptimize(payload.length);
+  }
+  state.counters["wire_size"] = g_sparse_view_sample.size();
+}
+
+static void BM_Bebop_Decode_DenseViewSample(benchmark::State& state)
+{
+  init_view_samples();
+  for (auto _ : state) {
+    DenseViewSample decoded {};
+    BEBOP_CHECK(
+        DenseViewSample_decode(
+            g_decode_ctx, {g_dense_view_sample.data(), g_dense_view_sample.size()}, &decoded
+        ),
+        "DenseViewSample_decode"
+    );
+    benchmark::DoNotOptimize(decoded.id.value);
+  }
+  state.SetBytesProcessed(state.iterations() * g_dense_view_sample.size());
+  state.counters["decoded_size"] = sizeof(DenseViewSample);
+}
+
+static void BM_Bebop_Decode_SparseViewSample(benchmark::State& state)
+{
+  init_view_samples();
+  for (auto _ : state) {
+    SparseViewSample decoded {};
+    BEBOP_CHECK(
+        SparseViewSample_decode(
+            g_decode_ctx, {g_sparse_view_sample.data(), g_sparse_view_sample.size()}, &decoded
+        ),
+        "SparseViewSample_decode"
+    );
+    benchmark::DoNotOptimize(decoded.id.value);
+  }
+  state.SetBytesProcessed(state.iterations() * g_sparse_view_sample.size());
+  state.counters["decoded_size"] = sizeof(SparseViewSample);
+  state.counters["wire_size"] = g_sparse_view_sample.size();
+}
+
+static void BM_Bebop_Decode_LegacyDenseViewSample(benchmark::State& state)
+{
+  init_view_samples();
+  Bebop_Reader reader;
+  for (auto _ : state) {
+    BEBOP_CHECK(
+        Bebop_Reader_Init(
+            &reader,
+            g_decode_ctx,
+            g_legacy_dense_view_sample.data(),
+            g_legacy_dense_view_sample.size()
+        ),
+        "Bebop_Reader_Init"
+    );
+    DenseViewSample decoded {};
+    BEBOP_CHECK(decode_legacy_dense(&reader, &decoded), "decode_legacy_dense");
+    benchmark::DoNotOptimize(decoded.id.value);
+  }
+  state.SetBytesProcessed(state.iterations() * g_legacy_dense_view_sample.size());
+  state.counters["decoded_size"] = sizeof(DenseViewSample);
+}
+
+static void BM_Bebop_View_Struct_LastField(benchmark::State& state)
+{
+  const auto encoded = bebop_encode_person_once(GetMediumPerson());
+  Person_View view = Person_view({encoded.data(), encoded.size()});
+  for (auto _ : state) {
+    int32_t age = Person_age(view);
+    benchmark::DoNotOptimize(age);
+  }
+}
+
+static void BM_Bebop_View_Union_Branch(benchmark::State& state)
+{
+  ensure_ctx();
+  JsonValue value {};
+  value.discriminator = JSON_VALUE_NUMBER;
+  BEBOP_WIRE_SET_SOME(value.number.value, 42.25);
+  Bebop_Writer_Reset(g_writer);
+  BEBOP_CHECK(JsonValue_encode(g_writer, &value), "JsonValue_Encode");
+  uint8_t* buffer;
+  size_t length;
+  BEBOP_CHECK(Bebop_Writer_Buf(g_writer, &buffer, &length), "Bebop_Writer_Buf");
+  const std::vector<uint8_t> encoded(buffer, buffer + length);
+  JsonValue_View view = JsonValue_view({encoded.data(), encoded.size()});
+  for (auto _ : state) {
+    JsonValue_Number_View number = JsonValue_number(view);
+    bool active = JsonValue_has_number(view);
+    double number_value = JsonValue_Number_value(number);
+    benchmark::DoNotOptimize(number_value);
+    benchmark::DoNotOptimize(active);
+  }
 }
 
 void RegisterBebopBenchmarks()
@@ -1348,4 +1836,20 @@ void RegisterBebopBenchmarks()
   BENCHMARK(BM_Bebop_Decode_LLMChunkLarge);
   BENCHMARK(BM_Bebop_Decode_TensorShardLarge);
   BENCHMARK(BM_Bebop_Decode_InferenceResponse);
+
+  BENCHMARK(BM_Bebop_View_Dense_Init);
+  BENCHMARK(BM_Bebop_View_Dense_Verify);
+  BENCHMARK(BM_Bebop_Encode_DenseViewSample);
+  BENCHMARK(BM_Bebop_Encode_LegacyDenseViewSample);
+  BENCHMARK(BM_Bebop_View_Dense_FirstField);
+  BENCHMARK(BM_Bebop_View_Dense_LastField);
+  BENCHMARK(BM_Bebop_View_Dense_InitAndLastField);
+  BENCHMARK(BM_Bebop_View_Dense_PayloadAt);
+  BENCHMARK(BM_Bebop_Legacy_Dense_LastField);
+  BENCHMARK(BM_Bebop_View_Sparse_LastField);
+  BENCHMARK(BM_Bebop_Decode_DenseViewSample);
+  BENCHMARK(BM_Bebop_Decode_SparseViewSample);
+  BENCHMARK(BM_Bebop_Decode_LegacyDenseViewSample);
+  BENCHMARK(BM_Bebop_View_Struct_LastField);
+  BENCHMARK(BM_Bebop_View_Union_Branch);
 }
