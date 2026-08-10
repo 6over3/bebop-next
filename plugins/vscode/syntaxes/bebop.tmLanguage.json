@@ -87,8 +87,8 @@
 		},
 		"lua-block": {
 			"name": "meta.embedded.block.lua",
-			"begin": "\\b(validate|export)\\s*(\\[\\[)",
-			"end": "\\]\\]",
+			"begin": "\\b(validate|export)\\s*(\\[(=*)\\[)",
+			"end": "\\]\\3\\]",
 			"beginCaptures": {
 				"1": { "name": "keyword.other.bebop" },
 				"2": { "name": "punctuation.section.embedded.begin.bebop" }

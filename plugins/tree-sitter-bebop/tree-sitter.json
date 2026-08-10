@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "bebop",
+      "scope": "source.bebop",
+      "file-types": [
+        "bop"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "2026.0.0-alpha.3",
+    "license": "Apache-2.0",
+    "description": "Bebop grammar for tree-sitter",
+    "links": {
+      "repository": "https://github.com/6over3/bebop-next"
+    }
+  }
+}

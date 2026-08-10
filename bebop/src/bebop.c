@@ -830,6 +830,8 @@ struct bebop_def {
       uint32_t param_count;
       bebop_span_t validate_span;
       bebop_span_t export_span;
+      uint32_t validate_level;
+      uint32_t export_level;
       int validate_ref;
       int export_ref;
     } decorator_def;

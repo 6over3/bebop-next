@@ -1,0 +1,121 @@
+{
+	"Struct": {
+		"prefix": ["struct", "st"],
+		"body": [
+			"struct ${1:Name} {",
+			"\t${2:field}: ${3:type};",
+			"}"
+		],
+		"description": "Define a struct with positional fields"
+	},
+	"Mutable Struct": {
+		"prefix": ["mut", "mst"],
+		"body": [
+			"mut struct ${1:Name} {",
+			"\t${2:field}: ${3:type};",
+			"}"
+		],
+		"description": "Define a mutable struct"
+	},
+	"Message": {
+		"prefix": ["message", "msg"],
+		"body": [
+			"message ${1:Name} {",
+			"\t${2:field}(${3:1}): ${4:type};",
+			"}"
+		],
+		"description": "Define a message with tagged fields"
+	},
+	"Message Field": {
+		"prefix": ["field", "mf"],
+		"body": "${1:field}(${2:1}): ${3:type};",
+		"description": "Add a tagged field to a message"
+	},
+	"Enum": {
+		"prefix": ["enum", "en"],
+		"body": [
+			"enum ${1:Name} {",
+			"\t${2:UNKNOWN} = 0;",
+			"}"
+		],
+		"description": "Define an enum"
+	},
+	"Enum with Base Type": {
+		"prefix": ["enumbase", "enb"],
+		"body": [
+			"enum ${1:Name} : ${2:uint8} {",
+			"\t${3:UNKNOWN} = 0;",
+			"}"
+		],
+		"description": "Define an enum with an explicit base type"
+	},
+	"Flags Enum": {
+		"prefix": ["flags", "fl"],
+		"body": [
+			"@flags",
+			"enum ${1:Name} : ${2:uint8} {",
+			"\tNONE = 0;",
+			"\t${3:READ} = 1;",
+			"\t${4:WRITE} = 1 << 1;",
+			"}"
+		],
+		"description": "Define a bit flags enum (requires bebop/decorators.bop)"
+	},
+	"Union": {
+		"prefix": ["union", "un"],
+		"body": [
+			"union ${1:Name} {",
+			"\t${2:Branch}(${3:1}): {",
+			"\t\t${4:field}: ${5:type};",
+			"\t};",
+			"}"
+		],
+		"description": "Define a discriminated union"
+	},
+	"Service": {
+		"prefix": ["service", "svc"],
+		"body": [
+			"service ${1:Name} {",
+			"\t${2:Method}(${3:Request}): ${4:Response};",
+			"}"
+		],
+		"description": "Define an RPC service"
+	},
+	"Streaming Method": {
+		"prefix": ["stream", "sm"],
+		"body": "${1:Method}(${2:Request}): stream ${3:Response};",
+		"description": "Add a server-streaming method to a service"
+	},
+	"Constant": {
+		"prefix": ["const", "c"],
+		"body": "const ${1:type} ${2:NAME} = ${3:value};",
+		"description": "Define a compile-time constant"
+	},
+	"Import": {
+		"prefix": ["import", "imp"],
+		"body": "import \"${1:path}\"",
+		"description": "Import another schema file"
+	},
+	"Preamble": {
+		"prefix": ["edition", "ed"],
+		"body": [
+			"edition = \"2026\"",
+			"package ${1:name}",
+			""
+		],
+		"description": "File preamble with edition and package"
+	},
+	"Decorator Definition": {
+		"prefix": ["decorator", "dec"],
+		"body": [
+			"#decorator(${1:name}) {",
+			"\ttargets = ${2:FIELD}",
+			"\tparam ${3:value}!: ${4:int32}",
+			"\tvalidate [[",
+			"\t\t$0",
+			"\t]]",
+			"}"
+		],
+		"description": "Define a custom decorator"
+	}
+}

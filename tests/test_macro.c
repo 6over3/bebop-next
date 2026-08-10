@@ -249,6 +249,8 @@ void test_macro_error_bad_target(void);
 void test_macro_error_missing_bang_or_question(void);
 void test_macro_error_bad_param_type(void);
 void test_macro_error_unterminated_raw_block(void);
+void test_macro_leveled_raw_block(void);
+void test_macro_error_unterminated_leveled_raw_block(void);
 void test_macro_error_missing_raw_block(void);
 void test_macro_error_unknown_body_keyword(void);
 void test_macro_error_param_missing_colon(void);
@@ -729,6 +731,46 @@ void test_macro_error_unterminated_raw_block(void)
 
   expected_diag_t expected[] = {
       {.line = 3, .col = 14, .message_substr = "]]"},
+  };
+  parse_expect_diagnostics(src, expected, 1);
+}
+
+void test_macro_leveled_raw_block(void)
+{
+  const char* src = "#decorator(foo) {\n"
+                      "    targets = STRUCT\n"
+                      "    validate [=[\n"
+                      "        if t[x[1]] then end\n"
+                      "    ]=]\n"
+                      "    export [==[\n"
+                      "        return { s = \"]=] inside\" }\n"
+                      "    ]==]\n"
+                      "}\n";
+
+  bebop_parse_result_t* result = parse_expect_success(src);
+  bebop_schema_t* schema = get_schema(result);
+  bebop_def_t* def = get_decorator_def(schema, 0);
+
+  const char* val_src = get_validate_source(schema, def);
+  TEST_ASSERT_NOT_NULL(val_src);
+  TEST_ASSERT_NOT_NULL(strstr(val_src, "t[x[1]]"));
+  TEST_ASSERT_EQUAL_UINT32(1, def->decorator_def.validate_level);
+
+  const char* exp_src = get_export_source(schema, def);
+  TEST_ASSERT_NOT_NULL(exp_src);
+  TEST_ASSERT_NOT_NULL(strstr(exp_src, "]=] inside"));
+  TEST_ASSERT_EQUAL_UINT32(2, def->decorator_def.export_level);
+}
+
+void test_macro_error_unterminated_leveled_raw_block(void)
+{
+  const char* src = "#decorator(foo) {\n"
+                      "    targets = STRUCT\n"
+                      "    validate [=[\n"
+                      "        if true then end ]]\n";
+
+  expected_diag_t expected[] = {
+      {.line = 3, .col = 14, .message_substr = "]=]"},
   };
   parse_expect_diagnostics(src, expected, 1);
 }
@@ -2223,6 +2265,8 @@ int main(void)
   RUN_TEST(test_macro_error_missing_bang_or_question);
   RUN_TEST(test_macro_error_bad_param_type);
   RUN_TEST(test_macro_error_unterminated_raw_block);
+  RUN_TEST(test_macro_leveled_raw_block);
+  RUN_TEST(test_macro_error_unterminated_leveled_raw_block);
   RUN_TEST(test_macro_error_missing_raw_block);
   RUN_TEST(test_macro_error_unknown_body_keyword);
   RUN_TEST(test_macro_error_param_missing_colon);
