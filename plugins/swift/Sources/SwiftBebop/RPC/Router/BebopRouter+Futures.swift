@@ -107,7 +107,10 @@ extension BebopRouter {
 
         let req = try FutureResolveRequest.decode(from: payload)
         let requestedIds = req.ids
-        let (immediate, stream) = await store.subscribe(futureIds: requestedIds, owner: owner)
+        let (immediate, stream) = try await store.subscribe(
+            futureIds: requestedIds,
+            owner: owner
+        )
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -154,7 +157,7 @@ extension BebopRouter {
         try await runInterceptors(methodId: BebopReservedMethod.cancel, ctx: ctx)
 
         let req = try FutureCancelRequest.decode(from: payload)
-        await store.cancel(id: req.id, owner: owner)
+        try await store.cancel(id: req.id, owner: owner)
         return BebopEmpty().serializedData()
     }
 }
