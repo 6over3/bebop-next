@@ -9,7 +9,7 @@
     }
   ],
   "metadata": {
-    "version": "2026.0.0-alpha.3",
+    "version": "2026.0.0-alpha.4",
     "license": "Apache-2.0",
     "description": "Bebop grammar for tree-sitter",
     "links": {
