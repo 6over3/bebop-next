@@ -578,20 +578,20 @@ BEBOP_API bool bebop_map_iter_next(Bebop_MapIter* it, void** key, void** value);
       (map), \
       (context), \
       _Generic( \
-          (key_type) {0}, \
-          bool: BEBOP_MAP_KEY_BOOL, \
-          int8_t: BEBOP_MAP_KEY_I8, \
-          uint8_t: BEBOP_MAP_KEY_U8, \
-          int16_t: BEBOP_MAP_KEY_I16, \
-          uint16_t: BEBOP_MAP_KEY_U16, \
-          int32_t: BEBOP_MAP_KEY_I32, \
-          uint32_t: BEBOP_MAP_KEY_U32, \
-          int64_t: BEBOP_MAP_KEY_I64, \
-          uint64_t: BEBOP_MAP_KEY_U64, \
-          Bebop_Int128: BEBOP_MAP_KEY_I128, \
-          Bebop_UInt128: BEBOP_MAP_KEY_U128, \
-          Bebop_String: BEBOP_MAP_KEY_STRING, \
-          Bebop_UUID: BEBOP_MAP_KEY_UUID \
+          (key_type*)0, \
+          bool*: BEBOP_MAP_KEY_BOOL, \
+          int8_t*: BEBOP_MAP_KEY_I8, \
+          uint8_t*: BEBOP_MAP_KEY_U8, \
+          int16_t*: BEBOP_MAP_KEY_I16, \
+          uint16_t*: BEBOP_MAP_KEY_U16, \
+          int32_t*: BEBOP_MAP_KEY_I32, \
+          uint32_t*: BEBOP_MAP_KEY_U32, \
+          int64_t*: BEBOP_MAP_KEY_I64, \
+          uint64_t*: BEBOP_MAP_KEY_U64, \
+          Bebop_Int128*: BEBOP_MAP_KEY_I128, \
+          Bebop_UInt128*: BEBOP_MAP_KEY_U128, \
+          Bebop_String*: BEBOP_MAP_KEY_STRING, \
+          Bebop_UUID*: BEBOP_MAP_KEY_UUID \
       ) \
   )
 #endif
