@@ -4777,14 +4777,18 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
   }
   if (kind == BEBOP_TYPE_DEFINED) {
     if (type_is_enum(ctx, type)) {
-      const type_info_t* base = type_info(enum_base_type(ctx, type));
+      const uint32_t size = view_fixed_wire_size(ctx, type);
+      if (size == 0) {
+        fprintf(stderr, "bebopc-gen-c: enum has an invalid base type\n");
+        exit(1);
+      }
       emit(
           ctx,
           "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < %u)) return "
           "BEBOP_RESULT_MALFORMED;",
-          base->size
+          size
       );
-      emit(ctx, "bebop_reader_skip(rd, %u);", base->size);
+      emit(ctx, "bebop_reader_skip(rd, %u);", size);
     } else {
       const int id = (*unique)++;
       emit(ctx, "%s_View ignored%d;", type_name(ctx, bebop_descriptor_type_fqn(type)), id);
