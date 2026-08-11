@@ -420,10 +420,14 @@ struct SwiftGeneratorTests {
         #expect(code.contains("@unchecked Sendable"))
         #expect(code.contains("public var url: String?"))
         #expect(code.contains("public var timeout: UInt32?"))
-        #expect(code.contains("writer.writeTag(1)"))
-        #expect(code.contains("writer.writeTag(2)"))
-        #expect(code.contains("reserveMessageLength"))
-        #expect(code.contains("fillMessageLength"))
+        #expect(code.contains("let message = try reader.readMessage()"))
+        #expect(code.contains("tags[fieldCount] = 1"))
+        #expect(code.contains("tags[fieldCount] = 2"))
+        #expect(code.contains("writer.beginMessage()"))
+        #expect(code.contains("writer.endMessage("))
+        #expect(code.contains("BebopMessageLayout.encodedSize"))
+        #expect(code.contains("public final class View: Sendable"))
+        #expect(code.contains("public let url: BebopStringView?"))
     }
 
     @Test func messageEmpty() throws {
@@ -433,7 +437,7 @@ struct SwiftGeneratorTests {
                 messageDef: MessageDef(fields: [])
             ))
         #expect(code.contains("public final class Ping: BebopRecord"))
-        // Empty message: 4 bytes length + 1 byte end marker = 5
+        // Empty indexed message: 4-byte length + 1-byte directory control = 5.
         #expect(code.contains("encodedSize: Int"))
         #expect(code.contains("5"))
     }
@@ -494,8 +498,9 @@ struct SwiftGeneratorTests {
                     FieldDescriptor(name: "x", type: TypeDescriptor(kind: .int32), index: 1),
                 ])
             ))
-        // Unknown tags skip to end
-        #expect(code.contains("reader.skip(end - reader.position)"))
+        // Indexed lookup decodes known tags directly and ignores unknown fields.
+        #expect(code.contains("message.field(1)"))
+        #expect(!code.contains("reader.skip(end - reader.position)"))
     }
 
     // MARK: - Union

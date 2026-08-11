@@ -353,9 +353,25 @@ public struct BebopReader: @unchecked Sendable {
 
     // MARK: - Message helpers
 
-    /// Read the 4-byte message body length prefix.
+    /// Reads and validates an indexed message, advancing past the entire value.
+    /// Known fields can then be accessed in constant time without copying.
+    public mutating func readMessage() throws -> BebopMessageIndex {
+        try ensureBytes(4)
+        let bodyLength = Int(UInt32(
+            littleEndian: base.loadUnaligned(fromByteOffset: offset, as: UInt32.self)))
+        guard bodyLength > 0, bodyLength <= limit - offset - 4 else {
+            throw BebopDecodingError.unexpectedEndOfData
+        }
+        let count = bodyLength + 4
+        let bytes = UnsafeRawBufferPointer(start: base + offset, count: count)
+        let index = try parseMessageIndex(bytes)
+        advance(by: count)
+        return BebopMessageIndex(bytes: bytes, index: index)
+    }
+
+    /// Begins a non-indexed, length-prefixed value and constrains reads to its body.
     @inlinable @inline(__always)
-    public mutating func readMessageLength() throws -> UInt32 {
+    public mutating func beginLengthPrefixedValue() throws -> UInt32 {
         let length = try readUInt32()
         let byteCount = Int(length)
         guard byteCount > 0 else {
@@ -365,19 +381,6 @@ public struct BebopReader: @unchecked Sendable {
         limitStack.append(limit)
         limit = offset + byteCount
         return length
-    }
-
-    /// Read a 1-byte message field tag. Returns 0 for the end-of-message marker.
-    @inlinable @inline(__always)
-    public mutating func readTag() throws -> UInt8 {
-        try ensureBytes(1)
-        let tag = base.load(fromByteOffset: offset, as: UInt8.self)
-        offset += 1
-        if tag == 0, offset != limit {
-            throw BebopDecodingError.trailingData
-        }
-        popExpiredLimitIfNeeded()
-        return tag
     }
 
     /// Advance the read cursor by `count` bytes, skipping over unknown data.

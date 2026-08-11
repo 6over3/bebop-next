@@ -41,7 +41,7 @@ enum GenerateMessage {
                 index: fIndex,
                 prefix: declPrefix(doc: field.documentation, decorators: field.decorators)
             )
-        }
+        }.sorted { $0.index < $1.index }
 
         var body: [String] = []
 
@@ -79,35 +79,21 @@ enum GenerateMessage {
         // decode
         var decodeBody: [String] = [
             "// @@bebop_insertion_point(decode_start:\(defName))",
-            "let length = try reader.readMessageLength()",
-            "let end = reader.position + Int(length)",
+            "let message = try reader.readMessage()",
         ]
         for f in fieldDecls {
             decodeBody.append("var \(f.swiftName): \(f.swiftType)? = nil")
         }
-        decodeBody.append("var sawEndMarker = false")
-        var switchLines: [String] = [
-            "while reader.position < end {",
-            "    let tag = try reader.readTag()",
-            "    if tag == 0 {",
-            "        sawEndMarker = true",
-            "        break",
-            "    }",
-            "    switch tag {",
-        ]
         for f in fieldDecls {
-            let readExpr = try TypeMapper.readExpression(for: f.type)
-            switchLines.append("    case \(f.index):")
-            switchLines.append("        \(f.swiftName) = \(readExpr)")
+            let readExpr = try TypeMapper.readExpression(for: f.type, reader: "fieldReader")
+            decodeBody.append("if let field = message.field(\(f.index)) {")
+            decodeBody.append("    var fieldReader = BebopReader(data: field)")
+            decodeBody.append("    \(f.swiftName) = \(readExpr)")
+            decodeBody.append("    guard fieldReader.position == field.count else {")
+            decodeBody.append("        throw BebopDecodingError.trailingData")
+            decodeBody.append("    }")
+            decodeBody.append("}")
         }
-        switchLines.append("    default:")
-        switchLines.append("        try reader.skip(end - reader.position)")
-        switchLines.append("    }")
-        switchLines.append("}")
-        decodeBody.append(switchLines.joined(separator: "\n"))
-        decodeBody.append("guard sawEndMarker && reader.position == end else {")
-        decodeBody.append("    throw BebopDecodingError.trailingData")
-        decodeBody.append("}")
         decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
         let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
         decodeBody.append("return \(name)(\(args))")
@@ -119,16 +105,26 @@ enum GenerateMessage {
         // encode
         var encodeBody: [String] = [
             "// @@bebop_insertion_point(encode_start:\(defName))",
-            "let pos = writer.reserveMessageLength()",
+            "let payloadStart = writer.beginMessage()",
         ]
+        if !fieldDecls.isEmpty {
+            encodeBody.append("var tags = InlineArray<\(fieldDecls.count), UInt8> { _ in 0 }")
+            encodeBody.append("var offsets = InlineArray<\(fieldDecls.count), UInt32> { _ in 0 }")
+            encodeBody.append("var fieldCount = 0")
+        }
         for f in fieldDecls {
             let writeExpr = try TypeMapper.writeExpression(for: f.type, value: "_v")
             encodeBody.append(
-                "if let _v = \(f.swiftName) {\n    writer.writeTag(\(String(f.index)))\n    \(writeExpr)\n}"
+                "if let _v = \(f.swiftName) {\n    tags[fieldCount] = \(String(f.index))\n    offsets[fieldCount] = UInt32(writer.position - payloadStart)\n    fieldCount += 1\n    \(writeExpr)\n}"
             )
         }
-        encodeBody.append("writer.writeEndMarker()")
-        encodeBody.append("writer.fillMessageLength(at: pos)")
+        if fieldDecls.isEmpty {
+            encodeBody.append("writer.endMessage(payloadStart: payloadStart)")
+        } else {
+            encodeBody.append(
+                "writer.endMessage(payloadStart: payloadStart, tags: tags, offsets: offsets, count: fieldCount)"
+            )
+        }
         encodeBody.append("// @@bebop_insertion_point(encode_end:\(defName))")
         let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
         body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
@@ -137,17 +133,27 @@ enum GenerateMessage {
         if fieldDecls.isEmpty {
             body.append("\(vis)var encodedSize: Int { 5 }")
         } else {
-            var sizeBody = ["var size = 5"]
+            var sizeBody = [
+                "var tags = InlineArray<\(fieldDecls.count), UInt8> { _ in 0 }",
+                "var fieldCount = 0",
+                "var payloadSize = 0",
+            ]
             for f in fieldDecls {
                 let sizeExpr = try TypeMapper.sizeExpression(for: f.type, value: "_v")
                 let needsValue = sizeExpr.contains("_v")
                 if needsValue {
-                    sizeBody.append("if let _v = \(f.swiftName) { size += 1 + \(sizeExpr) }")
+                    sizeBody.append(
+                        "if let _v = \(f.swiftName) { tags[fieldCount] = \(f.index); fieldCount += 1; payloadSize += \(sizeExpr) }"
+                    )
                 } else {
-                    sizeBody.append("if \(f.swiftName) != nil { size += 1 + \(sizeExpr) }")
+                    sizeBody.append(
+                        "if \(f.swiftName) != nil { tags[fieldCount] = \(f.index); fieldCount += 1; payloadSize += \(sizeExpr) }"
+                    )
                 }
             }
-            sizeBody.append("return size")
+            sizeBody.append(
+                "return BebopMessageLayout.encodedSize(payloadSize: payloadSize, tags: tags, count: fieldCount)"
+            )
             let sizeBodyStr = sizeBody.map { indent($0) }.joined(separator: "\n")
             body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
         }
@@ -207,6 +213,50 @@ enum GenerateMessage {
                 "\(vis)required init(from decoder: Decoder) throws {\n\(decCodableStr)\n}"
             )
         }
+
+        // immutable zero-copy view
+        var viewBody: [String] = ["private let message: BebopMessageView"]
+        for f in fieldDecls {
+            let viewType = try TypeMapper.viewType(for: f.type)
+            viewBody.append("\(f.prefix)\(vis)let \(f.swiftName): \(viewType)?")
+        }
+        viewBody.append(
+            "\(vis)convenience init(_ bytes: [UInt8]) throws { try self.init(BebopView(bytes)) }"
+        )
+        viewBody.append(
+            "\(vis)convenience init(_ encoded: BebopView) throws { try self.init(indexed: BebopMessageView(encoded)) }"
+        )
+        var indexedInitBody = ["self.message = message"]
+        for f in fieldDecls {
+            let readExpr = try TypeMapper.viewReadExpression(for: f.type, reader: "fieldReader")
+            indexedInitBody.append("if let field = message.field(\(f.index)) {")
+            indexedInitBody.append("    var fieldReader = BebopViewReader(field)")
+            indexedInitBody.append("    self.\(f.swiftName) = \(readExpr)")
+            indexedInitBody.append("    try fieldReader.finish()")
+            indexedInitBody.append("} else {")
+            indexedInitBody.append("    self.\(f.swiftName) = nil")
+            indexedInitBody.append("}")
+        }
+        let indexedInitBodyString = indexedInitBody.map { indent($0) }.joined(separator: "\n")
+        viewBody.append(
+            "fileprivate init(indexed message: BebopMessageView) throws {\n\(indexedInitBodyString)\n}"
+        )
+        let decodedBody = [
+            "try message.encoded.withUnsafeBytes { bytes in",
+            "    var reader = BebopReader(data: bytes)",
+            "    return try \(name).decode(from: &reader)",
+            "}",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append("\(vis)func decoded() throws -> \(name) {\n\(decodedBody)\n}")
+        let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
+        body.append("\(vis)final class View: Sendable {\n\(viewBodyString)\n}")
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                try View(indexed: reader.readMessageView())
+            }
+            """)
 
         body.append(
             """

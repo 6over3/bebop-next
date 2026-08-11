@@ -3,7 +3,7 @@ import Testing
 @testable import SwiftBebop
 
 @Suite struct BatchEncodingTests {
-    @Test func payloadEncodedOnceInBatchCall() {
+    @Test func payloadEncodedOnceInBatchCall() throws {
         let request = EchoRequest(value: "hello")
         let expectedBytes = request.serializedData()
 
@@ -21,7 +21,7 @@ import Testing
             ], metadata: [:]
         )
         let wireBytes = batchRequest.serializedData()
-        let decoded = try! BatchRequest.decode(from: wireBytes)
+        let decoded = try BatchRequest.decode(from: wireBytes)
 
         #expect(decoded.calls[0].payload == expectedBytes)
     }
@@ -95,7 +95,7 @@ import Testing
         #expect(s1.payloads[0] == s2.payloads[0])
     }
 
-    @Test func batchCallPayloadIsNotReEncodedByFraming() {
+    @Test func batchCallPayloadIsNotReEncodedByFraming() throws {
         let innerPayload: [UInt8] = EchoRequest(value: "test").serializedData()
 
         let call = BatchCall(
@@ -104,7 +104,7 @@ import Testing
         )
 
         let wireBytes = call.serializedData()
-        let decoded = try! BatchCall.decode(from: wireBytes)
+        let decoded = try BatchCall.decode(from: wireBytes)
 
         #expect(decoded.payload == innerPayload)
         #expect(decoded.callId == 0)
@@ -112,13 +112,13 @@ import Testing
         #expect(decoded.inputFrom == -1)
     }
 
-    @Test func batchResponsePayloadsAreOpaqueBytes() {
+    @Test func batchResponsePayloadsAreOpaqueBytes() throws {
         let p1 = EchoResponse(value: "a").serializedData()
         let p2 = EchoResponse(value: "b").serializedData()
         let success = BatchSuccess(payloads: [p1, p2])
 
         let wireBytes = success.serializedData()
-        let decoded = try! BatchSuccess.decode(from: wireBytes)
+        let decoded = try BatchSuccess.decode(from: wireBytes)
 
         #expect(decoded.payloads.count == 2)
         #expect(decoded.payloads[0] == p1)

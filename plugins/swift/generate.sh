@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SWIFT_DIR="$REPO_ROOT/plugins/swift"
 SCHEMAS="$REPO_ROOT/bebop/schemas"
-BEBOPC="$REPO_ROOT/build/bin/bebopc"
+BEBOPC="${BEBOPC:-$REPO_ROOT/bin/bebopc}"
 
 if [ ! -x "$BEBOPC" ]; then
   echo "error: bebopc not found at $BEBOPC"

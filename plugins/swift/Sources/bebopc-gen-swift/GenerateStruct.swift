@@ -162,6 +162,53 @@ enum GenerateStruct {
             body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
         }
 
+        // immutable zero-copy view
+        var viewBody: [String] = ["fileprivate let encoded: BebopView"]
+        for field in fieldDecls {
+            let viewType = try TypeMapper.viewType(for: field.type)
+            viewBody.append("\(field.doc)\(vis)let \(field.swiftName): \(viewType)")
+        }
+        viewBody.append("\(vis)init(_ bytes: [UInt8]) throws { try self.init(BebopView(bytes)) }")
+        let initViewBody = [
+            "var reader = BebopViewReader(encoded)",
+            "self = try \(name).readView(from: &reader)",
+            "try reader.finish()",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append("\(vis)init(_ encoded: BebopView) throws {\n\(initViewBody)\n}")
+        let validatedParameters = try fieldDecls.map { field in
+            let viewType = try TypeMapper.viewType(for: field.type)
+            return "\(field.swiftName): \(viewType)"
+        }.joined(separator: ", ")
+        let parameterSuffix = validatedParameters.isEmpty ? "" : ", " + validatedParameters
+        var validatedBody = ["self.encoded = encoded"]
+        validatedBody.append(contentsOf: fieldDecls.map { "self.\($0.swiftName) = \($0.swiftName)" })
+        let validatedBodyString = validatedBody.map { indent($0) }.joined(separator: "\n")
+        viewBody.append(
+            "fileprivate init(validated encoded: BebopView\(parameterSuffix)) {\n\(validatedBodyString)\n}"
+        )
+        let decodedBody = [
+            "try encoded.withUnsafeBytes { bytes in",
+            "    var reader = BebopReader(data: bytes)",
+            "    return try \(name).decode(from: &reader)",
+            "}",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append("\(vis)func decoded() throws -> \(name) {\n\(decodedBody)\n}")
+        let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
+        body.append("\(vis)struct View: Sendable {\n\(viewBodyString)\n}")
+
+        var readViewBody = ["let start = reader.position"]
+        for field in fieldDecls {
+            let read = try TypeMapper.viewReadExpression(for: field.type)
+            readViewBody.append("let \(field.swiftName) = \(read)")
+        }
+        let viewArguments = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
+        let argumentSuffix = viewArguments.isEmpty ? "" : ", " + viewArguments
+        readViewBody.append("return View(validated: reader.view(from: start)\(argumentSuffix))")
+        let readViewBodyString = readViewBody.map { indent($0) }.joined(separator: "\n")
+        body.append(
+            "\(vis)static func readView(from reader: inout BebopViewReader) throws -> View {\n\(readViewBodyString)\n}"
+        )
+
         body.append(
             """
             \(vis)static let bebopReflection = BebopTypeReflection(

@@ -34,6 +34,50 @@ public struct BebopAny: BebopRecord, BebopReflectable {
         (4 + typeURL.utf8.count + 1) + (4 + value.count)
     }
 
+    public struct View: Sendable {
+        fileprivate let encoded: BebopView
+        public let typeURL: BebopStringView
+        public let value: BebopView
+
+        public init(_ bytes: [UInt8]) throws {
+            try self.init(BebopView(bytes))
+        }
+
+        public init(_ encoded: BebopView) throws {
+            var reader = BebopViewReader(encoded)
+            self = try BebopAny.readView(from: &reader)
+            try reader.finish()
+        }
+
+        fileprivate init(
+            validated encoded: BebopView,
+            typeURL: BebopStringView,
+            value: BebopView
+        ) {
+            self.encoded = encoded
+            self.typeURL = typeURL
+            self.value = value
+        }
+
+        public func decoded() throws -> BebopAny {
+            try encoded.withUnsafeBytes { bytes in
+                var reader = BebopReader(data: bytes)
+                return try BebopAny.decode(from: &reader)
+            }
+        }
+    }
+
+    public static func readView(from reader: inout BebopViewReader) throws -> View {
+        let start = reader.position
+        let typeURL = try reader.readStringView()
+        let count = Int(try reader.readUInt32())
+        let value = try reader.readBytesView(count: count)
+        return View(
+            validated: reader.view(from: start),
+            typeURL: typeURL,
+            value: value)
+    }
+
     // MARK: - Pack / Unpack / Is
 
     /// Wrap a concrete record into a `BebopAny`.

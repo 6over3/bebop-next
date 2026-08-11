@@ -223,6 +223,95 @@ enum TypeMapper {
         }
     }
 
+    // MARK: - View expressions
+
+    static func viewType(for type: TypeDescriptor) throws -> String {
+        guard let kind = type.kind else {
+            throw CodegenError.malformedType("missing type kind")
+        }
+        switch kind {
+        case .string:
+            return "BebopStringView"
+        case .array:
+            guard let element = type.arrayElement else {
+                throw CodegenError.malformedType("array missing element type")
+            }
+            return try "BebopArrayView<\(viewType(for: element))>"
+        case .fixedArray:
+            guard let element = type.fixedArrayElement else {
+                throw CodegenError.malformedType("fixedArray missing element type")
+            }
+            return try "BebopArrayView<\(viewType(for: element))>"
+        case .map:
+            guard let key = type.mapKey, let value = type.mapValue else {
+                throw CodegenError.malformedType("map missing key or value type")
+            }
+            return try "BebopMapView<\(viewType(for: key)), \(viewType(for: value))>"
+        case .defined:
+            guard let fqn = type.definedFqn else {
+                throw CodegenError.malformedType("defined type missing fqn")
+            }
+            return "\(NamingPolicy.fqnToTypeName(fqn)).View"
+        default:
+            return try swiftType(for: type)
+        }
+    }
+
+    static func viewReadExpression(
+        for type: TypeDescriptor, reader r: String = "reader"
+    ) throws -> String {
+        guard let kind = type.kind else {
+            throw CodegenError.malformedType("missing type kind")
+        }
+        switch kind {
+        case .bool: return "try \(r).readBool()"
+        case .byte: return "try \(r).readByte()"
+        case .int8: return "try \(r).readInt8()"
+        case .int16: return "try \(r).readInt16()"
+        case .uint16: return "try \(r).readUInt16()"
+        case .int32: return "try \(r).readInt32()"
+        case .uint32: return "try \(r).readUInt32()"
+        case .int64: return "try \(r).readInt64()"
+        case .uint64: return "try \(r).readUInt64()"
+        case .int128: return "try \(r).readInt128()"
+        case .uint128: return "try \(r).readUInt128()"
+        case .float16: return "try \(r).readFloat16()"
+        case .float32: return "try \(r).readFloat32()"
+        case .float64: return "try \(r).readFloat64()"
+        case .bfloat16: return "try \(r).readBFloat16()"
+        case .string: return "try \(r).readStringView()"
+        case .uuid: return "try \(r).readUUID()"
+        case .timestamp: return "try \(r).readTimestamp()"
+        case .duration: return "try \(r).readDuration()"
+        case .array:
+            guard let element = type.arrayElement else {
+                throw CodegenError.malformedType("array missing element type")
+            }
+            let inner = try viewReadExpression(for: element, reader: "_reader")
+            return "try \(r).readArrayView { _reader in \(inner) }"
+        case .fixedArray:
+            guard let element = type.fixedArrayElement, let count = type.fixedArraySize else {
+                throw CodegenError.malformedType("fixedArray missing element type or size")
+            }
+            let inner = try viewReadExpression(for: element, reader: "_reader")
+            return "try \(r).readFixedArrayView(count: \(count)) { _reader in \(inner) }"
+        case .map:
+            guard let key = type.mapKey, let value = type.mapValue else {
+                throw CodegenError.malformedType("map missing key or value type")
+            }
+            let keyRead = try viewReadExpression(for: key, reader: "_reader")
+            let valueRead = try viewReadExpression(for: value, reader: "_reader")
+            return "try \(r).readMapView(key: { _reader in \(keyRead) }, value: { _reader in \(valueRead) })"
+        case .defined:
+            guard let fqn = type.definedFqn else {
+                throw CodegenError.malformedType("defined type missing fqn")
+            }
+            return "try \(NamingPolicy.fqnToTypeName(fqn)).readView(from: &\(r))"
+        default:
+            throw CodegenError.malformedType("unknown type kind \(kind.rawValue)")
+        }
+    }
+
     // MARK: - Size expressions
 
     static func sizeExpression(for type: TypeDescriptor, value: String) throws -> String {

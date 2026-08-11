@@ -12,6 +12,8 @@ public enum BebopDecodingError: Error, Sendable, Equatable {
     case invalidUTF8
     /// A string field was not followed by the required NUL terminator.
     case invalidStringTerminator
+    /// An indexed message contained an invalid directory or field boundary.
+    case malformedMessage
     /// A union's discriminator byte did not match any known branch.
     case unknownUnionDiscriminator(UInt8)
     /// A `BebopAny` unpack found a different type URL than expected.

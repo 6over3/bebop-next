@@ -92,6 +92,23 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
     #expect(decoded.arrayElement?.kind == .string)
 }
 
+@Test func recursiveTypeDescriptorViewIsFullyTyped() throws {
+    let descriptor = TypeDescriptor(
+        kind: .array,
+        arrayElement: TypeDescriptor(
+            kind: .map,
+            mapKey: TypeDescriptor(kind: .string),
+            mapValue: TypeDescriptor(kind: .uint64)))
+
+    let view = try TypeDescriptor.View(descriptor.serializedData())
+
+    #expect(view.kind == .array)
+    #expect(view.arrayElement?.kind == .map)
+    #expect(view.arrayElement?.mapKey?.kind == .string)
+    #expect(view.arrayElement?.mapValue?.kind == .uint64)
+    #expect(try view.decoded() == descriptor)
+}
+
 @Test func typeDescriptorFixedArray() throws {
     let td = TypeDescriptor(
         kind: .fixedArray,

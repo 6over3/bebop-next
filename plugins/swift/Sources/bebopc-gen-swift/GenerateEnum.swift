@@ -69,6 +69,7 @@ enum GenerateEnum {
         }
 
         var body: [String] = []
+        body.append("\(vis)typealias View = \(name)")
         body.append("\(vis)let rawValue: \(baseType)")
         body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
@@ -80,6 +81,13 @@ enum GenerateEnum {
             """
             \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
                 return \(name)(rawValue: try reader.\(readMethod)())
+            }
+            """)
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                \(name)(rawValue: try reader.\(readMethod)())
             }
             """)
 
@@ -154,6 +162,7 @@ enum GenerateEnum {
         }
 
         var body: [String] = []
+        body.append("\(vis)typealias View = \(name)")
         body.append("\(vis)let rawValue: \(baseType)")
         body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
@@ -165,6 +174,13 @@ enum GenerateEnum {
             """
             \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
                 return \(name)(rawValue: try reader.\(readMethod)())
+            }
+            """)
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                \(name)(rawValue: try reader.\(readMethod)())
             }
             """)
 
