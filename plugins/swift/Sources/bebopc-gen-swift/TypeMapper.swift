@@ -3,17 +3,19 @@ import BebopPlugin
 enum CodegenError: Error, CustomStringConvertible {
     case malformedType(String)
     case malformedDefinition(String)
+    case invalidOption(String)
 
     var description: String {
         switch self {
         case let .malformedType(msg): "malformed type: \(msg)"
         case let .malformedDefinition(msg): "malformed definition: \(msg)"
+        case let .invalidOption(msg): "invalid option: \(msg)"
         }
     }
 }
 
 enum TypeMapper {
-    nonisolated(unsafe) static var shadowedNames: Set<String> = []
+    @TaskLocal static var shadowedNames: Set<String> = []
 
     static let swiftPrimitiveNames: Set<String> = [
         "Bool", "String", "Int", "UInt", "Float", "Double",
@@ -81,7 +83,11 @@ enum TypeMapper {
         }
     }
 
-    static func readExpression(for type: TypeDescriptor, reader r: String = "reader") throws -> String {
+    static func readExpression(
+        for type: TypeDescriptor,
+        reader r: String = "reader",
+        depth: Int = 0
+    ) throws -> String {
         guard let kind = type.kind else {
             throw CodegenError.malformedType("missing type kind")
         }
@@ -116,8 +122,17 @@ enum TypeMapper {
             if isBulkScalar(elemKind) {
                 return "try \(r).readLengthPrefixedArray(of: \(elemType).self)"
             }
-            let inner = try readExpression(for: elem, reader: "_r")
-            return "try \(r).readDynamicArray { _r in \(inner) }"
+            let elementReader = "_elementReader\(depth)"
+            let inner = try readExpression(
+                for: elem,
+                reader: elementReader,
+                depth: depth + 1
+            )
+            return """
+                try \(r).readDynamicArray { \(elementReader) in
+                \(indent(inner))
+                }
+                """
         case .fixedArray:
             guard let elem = type.fixedArrayElement else {
                 throw CodegenError.malformedType("fixedArray missing element type")
@@ -133,8 +148,17 @@ enum TypeMapper {
             if isBulkScalar(elemKind) {
                 return "(try \(r).readInlineArray(of: \(elemType).self) as \(fullType))"
             }
-            let inner = try readExpression(for: elem, reader: "_r")
-            return "(try \(r).readFixedInlineArray { _r in \(inner) } as \(fullType))"
+            let elementReader = "_elementReader\(depth)"
+            let inner = try readExpression(
+                for: elem,
+                reader: elementReader,
+                depth: depth + 1
+            )
+            return """
+                (try \(r).readFixedInlineArray { \(elementReader) in
+                \(indent(inner))
+                } as \(fullType))
+                """
         case .map:
             guard let mapKey = type.mapKey else {
                 throw CodegenError.malformedType("map missing key type")
@@ -142,22 +166,41 @@ enum TypeMapper {
             guard let mapValue = type.mapValue else {
                 throw CodegenError.malformedType("map missing value type")
             }
-            let keyRead = try readExpression(for: mapKey, reader: "_r")
-            let valRead = try readExpression(for: mapValue, reader: "_r")
-            return "try \(r).readDynamicMap { _r in (\(keyRead), \(valRead)) }"
+            let entryReader = "_entryReader\(depth)"
+            let keyRead = try readExpression(
+                for: mapKey,
+                reader: entryReader,
+                depth: depth + 1
+            )
+            let valueRead = try readExpression(
+                for: mapValue,
+                reader: entryReader,
+                depth: depth + 1
+            )
+            let body = [
+                "let key = \(keyRead)",
+                "let value = \(valueRead)",
+                "return (key, value)",
+            ].map { indent($0) }.joined(separator: "\n")
+            return "try \(r).readDynamicMap { \(entryReader) in\n\(body)\n}"
         case .defined:
             guard let fqn = type.definedFqn else {
                 throw CodegenError.malformedType("defined type missing fqn")
             }
             let typeName = NamingPolicy.fqnToTypeName(fqn)
-            return "try \(typeName).decode(from: &\(r))"
+            let nestedReader = "_nestedReader\(depth)"
+            return "try \(r).readNested { \(nestedReader) in try \(typeName).decode(from: &\(nestedReader)) }"
         default:
             throw CodegenError.malformedType("unknown type kind \(kind.rawValue)")
         }
     }
 
-    static func writeExpression(for type: TypeDescriptor, value: String, writer w: String = "writer")
-        throws -> String
+    static func writeExpression(
+        for type: TypeDescriptor,
+        value: String,
+        writer w: String = "writer",
+        depth: Int = 0
+    ) throws -> String
     {
         guard let kind = type.kind else {
             throw CodegenError.malformedType("missing type kind")
@@ -192,8 +235,19 @@ enum TypeMapper {
             if isBulkScalar(elemKind) {
                 return "\(w).writeLengthPrefixedArray(\(value))"
             }
-            let inner = try writeExpression(for: elem, value: "_el", writer: "_w")
-            return "\(w).writeDynamicArray(\(value)) { _w, _el in \(inner) }"
+            let elementWriter = "_elementWriter\(depth)"
+            let element = "_element\(depth)"
+            let inner = try writeExpression(
+                for: elem,
+                value: element,
+                writer: elementWriter,
+                depth: depth + 1
+            )
+            return """
+                \(w).writeDynamicArray(\(value)) { \(elementWriter), \(element) in
+                \(indent(inner))
+                }
+                """
         case .fixedArray:
             guard let elem = type.fixedArrayElement else {
                 throw CodegenError.malformedType("fixedArray missing element type")
@@ -204,8 +258,19 @@ enum TypeMapper {
             if isBulkScalar(elemKind) {
                 return "\(w).writeInlineArray(\(value))"
             }
-            let inner = try writeExpression(for: elem, value: "_el", writer: "_w")
-            return "\(w).writeFixedInlineArray(\(value)) { _w, _el in \(inner) }"
+            let elementWriter = "_elementWriter\(depth)"
+            let element = "_element\(depth)"
+            let inner = try writeExpression(
+                for: elem,
+                value: element,
+                writer: elementWriter,
+                depth: depth + 1
+            )
+            return """
+                \(w).writeFixedInlineArray(\(value)) { \(elementWriter), \(element) in
+                \(indent(inner))
+                }
+                """
         case .map:
             guard let key = type.mapKey else {
                 throw CodegenError.malformedType("map missing key type")
@@ -213,9 +278,27 @@ enum TypeMapper {
             guard let val = type.mapValue else {
                 throw CodegenError.malformedType("map missing value type")
             }
-            let keyWrite = try writeExpression(for: key, value: "_k", writer: "_w")
-            let valWrite = try writeExpression(for: val, value: "_v", writer: "_w")
-            return "\(w).writeDynamicMap(\(value)) { _w, _k, _v in \(keyWrite)\n\(valWrite) }"
+            let entryWriter = "_entryWriter\(depth)"
+            let keyValue = "_key\(depth)"
+            let mappedValue = "_value\(depth)"
+            let keyWrite = try writeExpression(
+                for: key,
+                value: keyValue,
+                writer: entryWriter,
+                depth: depth + 1
+            )
+            let valueWrite = try writeExpression(
+                for: val,
+                value: mappedValue,
+                writer: entryWriter,
+                depth: depth + 1
+            )
+            return """
+                \(w).writeDynamicMap(\(value)) { \(entryWriter), \(keyValue), \(mappedValue) in
+                \(indent(keyWrite))
+                \(indent(valueWrite))
+                }
+                """
         case .defined:
             return "\(value).encode(to: &\(w))"
         default:
@@ -258,7 +341,9 @@ enum TypeMapper {
     }
 
     static func viewReadExpression(
-        for type: TypeDescriptor, reader r: String = "reader"
+        for type: TypeDescriptor,
+        reader r: String = "reader",
+        depth: Int = 0
     ) throws -> String {
         guard let kind = type.kind else {
             throw CodegenError.malformedType("missing type kind")
@@ -287,26 +372,81 @@ enum TypeMapper {
             guard let element = type.arrayElement else {
                 throw CodegenError.malformedType("array missing element type")
             }
-            let inner = try viewReadExpression(for: element, reader: "_reader")
-            return "try \(r).readArrayView { _reader in \(inner) }"
+            let elementReader = "_elementReader\(depth)"
+            let inner = try viewReadExpression(
+                for: element,
+                reader: elementReader,
+                depth: depth + 1
+            )
+            if let kind = element.kind, isBulkScalar(kind), let size = scalarSize(kind) {
+                return """
+                    try \(r).readContiguousArrayView(elementSize: \(size)) { \(elementReader) in
+                    \(indent(inner))
+                    }
+                    """
+            }
+            return """
+                try \(r).readArrayView { \(elementReader) in
+                \(indent(inner))
+                }
+                """
         case .fixedArray:
             guard let element = type.fixedArrayElement, let count = type.fixedArraySize else {
                 throw CodegenError.malformedType("fixedArray missing element type or size")
             }
-            let inner = try viewReadExpression(for: element, reader: "_reader")
-            return "try \(r).readFixedArrayView(count: \(count)) { _reader in \(inner) }"
+            let elementReader = "_elementReader\(depth)"
+            let inner = try viewReadExpression(
+                for: element,
+                reader: elementReader,
+                depth: depth + 1
+            )
+            if let kind = element.kind, isBulkScalar(kind), let size = scalarSize(kind) {
+                return """
+                    try \(r).readContiguousFixedArrayView(
+                        count: \(count),
+                        elementSize: \(size)
+                    ) { \(elementReader) in
+                    \(indent(inner))
+                    }
+                    """
+            }
+            return """
+                try \(r).readFixedArrayView(count: \(count)) { \(elementReader) in
+                \(indent(inner))
+                }
+                """
         case .map:
             guard let key = type.mapKey, let value = type.mapValue else {
                 throw CodegenError.malformedType("map missing key or value type")
             }
-            let keyRead = try viewReadExpression(for: key, reader: "_reader")
-            let valueRead = try viewReadExpression(for: value, reader: "_reader")
-            return "try \(r).readMapView(key: { _reader in \(keyRead) }, value: { _reader in \(valueRead) })"
+            let keyReader = "_keyReader\(depth)"
+            let valueReader = "_valueReader\(depth)"
+            let keyRead = try viewReadExpression(
+                for: key,
+                reader: keyReader,
+                depth: depth + 1
+            )
+            let valueRead = try viewReadExpression(
+                for: value,
+                reader: valueReader,
+                depth: depth + 1
+            )
+            return """
+                try \(r).readMapView(
+                    key: { \(keyReader) in
+                \(indent(keyRead, 2))
+                    },
+                    value: { \(valueReader) in
+                \(indent(valueRead, 2))
+                    }
+                )
+                """
         case .defined:
             guard let fqn = type.definedFqn else {
                 throw CodegenError.malformedType("defined type missing fqn")
             }
-            return "try \(NamingPolicy.fqnToTypeName(fqn)).readView(from: &\(r))"
+            let nestedReader = "_nestedReader\(depth)"
+            return "try \(r).readNested { \(nestedReader) in try \(NamingPolicy.fqnToTypeName(fqn)).readView(from: &\(nestedReader)) }"
         default:
             throw CodegenError.malformedType("unknown type kind \(kind.rawValue)")
         }
@@ -346,7 +486,7 @@ enum TypeMapper {
                 throw CodegenError.malformedType("array element missing type kind")
             }
             if let fixedSize = scalarSize(elemKind) {
-                return "(4 + \(value).count &* \(fixedSize))"
+                return "(4 + \(value).count * \(fixedSize))"
             }
             let inner = try sizeExpression(for: elem, value: "_el")
             return "(4 + \(value).reduce(0) { _acc, _el in _acc + \(inner) })"
@@ -361,7 +501,11 @@ enum TypeMapper {
                 throw CodegenError.malformedType("fixedArray missing size")
             }
             if let fixedSize = scalarSize(elemKind) {
-                return "\(size &* fixedSize)"
+                let (result, overflow) = size.multipliedReportingOverflow(by: fixedSize)
+                guard !overflow else {
+                    throw CodegenError.malformedType("fixedArray encoded size exceeds UInt32")
+                }
+                return "\(result)"
             }
             let inner = try sizeExpression(for: elem, value: "\(value)[_i]")
             if inner.contains("_i") {
@@ -383,7 +527,7 @@ enum TypeMapper {
                 throw CodegenError.malformedType("map value missing type kind")
             }
             if let kSize = scalarSize(keyKind), let vSize = scalarSize(valKind) {
-                return "(4 + \(value).count &* \(kSize + vSize))"
+                return "(4 + \(value).count * \(kSize + vSize))"
             }
             let keyExpr = try sizeExpression(for: key, value: "_k")
             let valExpr = try sizeExpression(for: val, value: "_v")
@@ -406,7 +550,8 @@ enum TypeMapper {
                   let count = type.fixedArraySize,
                   let elemSize = fixedSize(for: elem)
             else { return nil }
-            return Int(count) * elemSize
+            let (size, overflow) = Int(count).multipliedReportingOverflow(by: elemSize)
+            return overflow ? nil : size
         }
         return nil
     }
@@ -438,7 +583,7 @@ enum TypeMapper {
 
     static func isBulkScalar(_ kind: TypeKind) -> Bool {
         switch kind {
-        case .bool, .byte, .int8, .int16, .uint16, .int32, .uint32,
+        case .byte, .int8, .int16, .uint16, .int32, .uint32,
              .int64, .uint64, .int128, .uint128,
              .float16, .float32, .float64, .bfloat16, .uuid:
             true

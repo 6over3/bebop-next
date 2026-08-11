@@ -131,7 +131,7 @@ func parseMessageIndex(_ bytes: UnsafeRawBufferPointer) throws -> ParsedMessageI
 }
 
 @inline(__always)
-private func fieldRank(
+func messageFieldRank(
     tag: UInt8, index: ParsedMessageIndex, bytes: UnsafeRawBufferPointer
 ) -> Int? {
     guard tag != 0, index.fieldCount != 0,
@@ -170,7 +170,7 @@ private func fieldRank(
 }
 
 @inline(__always)
-private func fieldRange(
+func messageFieldRange(
     rank: Int, index: ParsedMessageIndex, bytes: UnsafeRawBufferPointer
 ) -> Range<Int> {
     let start = rank == 0
@@ -186,45 +186,55 @@ private func fieldRange(
     return (4 + start)..<(4 + end)
 }
 
-/// A validated index over a message read from a `BebopReader`.
-public struct BebopMessageIndex {
-    private let bytes: UnsafeRawBufferPointer
-    private let index: ParsedMessageIndex
-
-    @usableFromInline
-    init(bytes: UnsafeRawBufferPointer, index: ParsedMessageIndex) {
-        self.bytes = bytes
-        self.index = index
-    }
-
-    /// Returns the encoded value for `tag`, or `nil` when that field is absent.
-    public func field(_ tag: UInt8) -> UnsafeRawBufferPointer? {
-        guard let rank = fieldRank(tag: tag, index: index, bytes: bytes) else { return nil }
-        let range = fieldRange(rank: rank, index: index, bytes: bytes)
-        return UnsafeRawBufferPointer(start: bytes.baseAddress! + range.lowerBound, count: range.count)
-    }
-}
-
 /// A validated, immutable, random-access view over an indexed Bebop message.
 public struct BebopMessageView: Sendable {
     public let encoded: BebopView
     private let index: ParsedMessageIndex
+    private let decodeLimits: BebopDecodeLimits
+    private let depth: UInt16
 
-    public init(_ encoded: BebopView) throws {
+    public init(
+        _ encoded: BebopView,
+        limits: BebopDecodeLimits = .default
+    ) throws {
+        try self.init(encoded, limits: limits, depth: 0)
+    }
+
+    @usableFromInline
+    init(_ encoded: BebopView, limits: BebopDecodeLimits, depth: UInt16) throws {
         self.index = try encoded.withUnsafeBytes(parseMessageIndex)
         self.encoded = encoded
+        decodeLimits = limits
+        self.depth = depth
     }
 
-    public init(_ bytes: [UInt8]) throws {
-        try self.init(BebopView(bytes))
+    public init(
+        _ bytes: [UInt8],
+        limits: BebopDecodeLimits = .default
+    ) throws {
+        try self.init(BebopView(bytes), limits: limits)
     }
+
+    public var limits: BebopDecodeLimits { decodeLimits }
 
     /// Returns the encoded value for `tag`, or `nil` when that field is absent.
     public func field(_ tag: UInt8) -> BebopView? {
         encoded.withUnsafeBytes { bytes in
-            guard let rank = fieldRank(tag: tag, index: index, bytes: bytes) else { return nil }
-            return encoded.slice(fieldRange(rank: rank, index: index, bytes: bytes))
+            guard let rank = messageFieldRank(tag: tag, index: index, bytes: bytes) else { return nil }
+            return encoded.slice(messageFieldRange(rank: rank, index: index, bytes: bytes))
         }
+    }
+
+    /// Decodes one known field while preserving the view's limits and ownership.
+    public func decodeField<Value>(
+        _ tag: UInt8,
+        _ decode: (inout BebopViewReader) throws -> Value
+    ) throws -> Value? {
+        guard let field = field(tag) else { return nil }
+        var reader = BebopViewReader(field, limits: decodeLimits, depth: depth)
+        let value = try decode(&reader)
+        try reader.finish()
+        return value
     }
 }
 

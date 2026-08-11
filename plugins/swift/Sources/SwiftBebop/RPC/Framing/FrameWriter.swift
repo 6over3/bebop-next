@@ -5,6 +5,7 @@ public struct FrameWriter: Sendable {
     private let maxPayloadSize: Int
 
     public init(maxPayloadSize: Int = Int(FrameReader.defaultMaxPayloadSize), write: @escaping WriteBytes) {
+        precondition(maxPayloadSize >= 0, "maxPayloadSize must be nonnegative")
         self.maxPayloadSize = maxPayloadSize
         self.write = write
     }

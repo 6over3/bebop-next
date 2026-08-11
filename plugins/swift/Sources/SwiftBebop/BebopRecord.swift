@@ -15,9 +15,12 @@ public protocol BebopRecord: Sendable, Hashable, Equatable, Codable {
 
 public extension BebopRecord {
     /// Decode from a raw byte array.
-    static func decode(from bytes: [UInt8]) throws -> Self {
+    static func decode(
+        from bytes: [UInt8],
+        limits: BebopDecodeLimits = .default
+    ) throws -> Self {
         try bytes.withUnsafeBufferPointer { buf in
-            var reader = BebopReader(data: UnsafeRawBufferPointer(buf))
+            var reader = BebopReader(data: UnsafeRawBufferPointer(buf), limits: limits)
             let value = try Self.decode(from: &reader)
             guard reader.position == bytes.count else {
                 throw BebopDecodingError.trailingData
@@ -32,4 +35,5 @@ public extension BebopRecord {
         encode(to: &writer)
         return writer.toBytes()
     }
+
 }

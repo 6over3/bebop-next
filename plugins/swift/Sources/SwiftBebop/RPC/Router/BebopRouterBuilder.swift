@@ -62,7 +62,8 @@ public final class BebopRouterBuilder {
             case .duplexStream:
                 reg = .duplexStream { ctx in try await duplexStream(m, ctx) }
             default:
-                continue
+                preconditionFailure(
+                    "method '\(m.name)' has unsupported type \(m.methodType.rawValue)")
             }
             methods[m.rawValue] = reg
         }
@@ -73,7 +74,8 @@ public final class BebopRouterBuilder {
         if config.futuresEnabled {
             store = FutureStore(
                 maxPendingFutures: config.maxPendingFutures,
-                maxCompletedFutures: config.maxCompletedFutures
+                maxCompletedFutures: config.maxCompletedFutures,
+                subscriberBufferCapacity: config.futureSubscriberBufferCapacity
             )
         }
         return BebopRouter(

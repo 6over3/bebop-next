@@ -33,7 +33,7 @@ public struct BebopView: Sendable, RandomAccessCollection {
 
     @inlinable
     public subscript(position: Int) -> UInt8 {
-        precondition(indices.contains(position), "BebopView index out of bounds")
+        precondition(position >= 0 && position < bounds.count, "BebopView index out of bounds")
         return storage[bounds.lowerBound + position]
     }
 
@@ -55,8 +55,19 @@ public struct BebopView: Sendable, RandomAccessCollection {
     }
 
     /// Materializes this slice as an independent byte array.
-    @inlinable
-    public var bytes: [UInt8] { Array(self) }
+    public var bytes: [UInt8] {
+        withUnsafeBytes { source in
+            [UInt8](unsafeUninitializedCapacity: source.count) { destination, count in
+                if !source.isEmpty {
+                    UnsafeMutableRawPointer(destination.baseAddress!).copyMemory(
+                        from: source.baseAddress!,
+                        byteCount: source.count
+                    )
+                }
+                count = source.count
+            }
+        }
+    }
 
     @usableFromInline
     func slice(_ range: Range<Int>) -> BebopView {
@@ -66,6 +77,22 @@ public struct BebopView: Sendable, RandomAccessCollection {
             bounds: (bounds.lowerBound + range.lowerBound)..<(bounds.lowerBound + range.upperBound)
         )
     }
+}
+
+/// Common surface implemented by generated immutable record views.
+public protocol BebopRecordView: Sendable {
+    associatedtype Decoded: BebopRecord
+
+    /// The complete encoded record backing this view.
+    var encoded: BebopView { get }
+
+    /// Materializes the ordinary generated value.
+    func decoded() throws -> Decoded
+}
+
+public extension BebopRecordView {
+    /// Copies the original encoding without decoding and re-encoding the value.
+    func serializedData() -> [UInt8] { encoded.bytes }
 }
 
 /// A validated, immutable UTF-8 string that remains backed by encoded bytes.
@@ -91,21 +118,31 @@ public struct BebopStringView: Sendable, Hashable, CustomStringConvertible {
 
     /// Materializes the string value without repeating UTF-8 validation.
     @inlinable
-    public var value: String {
+    public var string: String {
         withUTF8Span { String(copying: $0) }
     }
 
     @inlinable
-    public var description: String { value }
+    public var description: String { string }
 
     @inlinable
     public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.rawBytes.elementsEqual(rhs.rawBytes)
+        lhs.withUTF8Span { left in
+            rhs.withUTF8Span { right in left.isCanonicallyEquivalent(to: right) }
+        }
     }
 
     @inlinable
+    public static func == (lhs: Self, rhs: String) -> Bool {
+        lhs.withUTF8Span { $0.isCanonicallyEquivalent(to: rhs.utf8Span) }
+    }
+
+    @inlinable
+    public static func == (lhs: String, rhs: Self) -> Bool { rhs == lhs }
+
+    @inlinable
     public func hash(into hasher: inout Hasher) {
-        for byte in rawBytes { hasher.combine(byte) }
+        string.hash(into: &hasher)
     }
 }
 
@@ -115,11 +152,23 @@ public struct BebopViewReader: Sendable {
 
     @usableFromInline
     var offset: Int
+    @usableFromInline let decodeLimits: BebopDecodeLimits
+    @usableFromInline let depth: UInt16
 
     @inlinable
-    public init(_ encoded: BebopView) {
+    public init(
+        _ encoded: BebopView,
+        limits: BebopDecodeLimits = .default
+    ) {
+        self.init(encoded, limits: limits, depth: 0)
+    }
+
+    @usableFromInline
+    init(_ encoded: BebopView, limits: BebopDecodeLimits, depth: UInt16) {
         self.encoded = encoded
         offset = 0
+        decodeLimits = limits
+        self.depth = depth
     }
 
     @inlinable
@@ -127,6 +176,8 @@ public struct BebopViewReader: Sendable {
 
     @inlinable
     public var remaining: Int { encoded.count - offset }
+
+    public var limits: BebopDecodeLimits { decodeLimits }
 
     @inlinable
     public mutating func finish() throws {
@@ -245,52 +296,164 @@ public struct BebopViewReader: Sendable {
             throw BebopDecodingError.unexpectedEndOfData
         }
         offset += bodyLength
-        return try BebopMessageView(encoded.slice(start..<offset))
+        return try BebopMessageView(
+            encoded.slice(start..<offset),
+            limits: decodeLimits,
+            depth: depth
+        )
     }
 
-    /// Reads a non-indexed, length-prefixed aggregate such as a union.
-    public mutating func readLengthPrefixedView() throws -> BebopView {
+    public mutating func readLengthPrefixedValue<Value>(
+        _ decode: (inout BebopViewReader) throws -> Value
+    ) throws -> (encoded: BebopView, value: Value) {
         let start = offset
         let bodyLength = Int(try readUInt32())
         guard bodyLength > 0, bodyLength <= remaining else {
             throw BebopDecodingError.unexpectedEndOfData
         }
+        let bodyStart = offset
         offset += bodyLength
-        return encoded.slice(start..<offset)
+        let encodedValue = encoded.slice(start..<offset)
+        var body = BebopViewReader(
+            encoded.slice(bodyStart..<offset),
+            limits: decodeLimits,
+            depth: depth
+        )
+        let value = try decode(&body)
+        try body.finish()
+        return (encodedValue, value)
     }
 
     public mutating func readArrayView<Element: Sendable>(
         _ decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
     ) throws -> BebopArrayView<Element> {
         let start = offset
-        let count = Int(try readUInt32())
-        for _ in 0..<count { _ = try decode(&self) }
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
+        for _ in 0..<count {
+            let _: Element = try decode(&self)
+        }
         return BebopArrayView(
-            validated: encoded.slice(start..<offset), count: count, decode: decode)
+            validated: encoded.slice(start..<offset),
+            count: count,
+            limits: decodeLimits,
+            depth: depth,
+            decode: decode
+        )
+    }
+
+    public mutating func readContiguousArrayView<Element: Sendable>(
+        elementSize: Int,
+        _ decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
+    ) throws -> BebopArrayView<Element> {
+        precondition(elementSize >= 0, "elementSize must be nonnegative")
+        let start = offset
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
+        let (byteCount, overflow) = count.multipliedReportingOverflow(by: elementSize)
+        guard !overflow else { throw BebopDecodingError.invalidLength }
+        try ensureBytes(byteCount)
+        offset += byteCount
+        return BebopArrayView(
+            validated: encoded.slice(start..<offset),
+            count: count,
+            limits: decodeLimits,
+            depth: depth,
+            decode: decode
+        )
     }
 
     public mutating func readFixedArrayView<Element: Sendable>(
         count: Int,
         _ decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
     ) throws -> BebopArrayView<Element> {
+        guard count >= 0, UInt64(count) <= UInt64(decodeLimits.maxCollectionElements) else {
+            throw BebopDecodingError.limitExceeded
+        }
         let start = offset
-        for _ in 0..<count { _ = try decode(&self) }
+        for _ in 0..<count {
+            let _: Element = try decode(&self)
+        }
         return BebopArrayView(
-            validated: encoded.slice(start..<offset), count: count, prefixSize: 0, decode: decode)
+            validated: encoded.slice(start..<offset),
+            count: count,
+            prefixSize: 0,
+            limits: decodeLimits,
+            depth: depth,
+            decode: decode
+        )
     }
 
-    public mutating func readMapView<Key: Sendable, Value: Sendable>(
+    public mutating func readContiguousFixedArrayView<Element: Sendable>(
+        count: Int,
+        elementSize: Int,
+        _ decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
+    ) throws -> BebopArrayView<Element> {
+        guard count >= 0, UInt64(count) <= UInt64(decodeLimits.maxCollectionElements) else {
+            throw BebopDecodingError.limitExceeded
+        }
+        precondition(elementSize >= 0, "elementSize must be nonnegative")
+        let start = offset
+        let (byteCount, overflow) = count.multipliedReportingOverflow(by: elementSize)
+        guard !overflow else { throw BebopDecodingError.invalidLength }
+        try ensureBytes(byteCount)
+        offset += byteCount
+        return BebopArrayView(
+            validated: encoded.slice(start..<offset),
+            count: count,
+            prefixSize: 0,
+            limits: decodeLimits,
+            depth: depth,
+            decode: decode
+        )
+    }
+
+    public mutating func readMapView<Key: Hashable & Sendable, Value: Sendable>(
         key: @escaping @Sendable (inout BebopViewReader) throws -> Key,
         value: @escaping @Sendable (inout BebopViewReader) throws -> Value
     ) throws -> BebopMapView<Key, Value> {
         let start = offset
-        let count = Int(try readUInt32())
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
+        var keys = Set<Key>(minimumCapacity: min(count, remaining))
         for _ in 0..<count {
-            _ = try key(&self)
-            _ = try value(&self)
+            let decodedKey = try key(&self)
+            guard keys.insert(decodedKey).inserted else {
+                throw BebopDecodingError.duplicateMapKey
+            }
+            let _: Value = try value(&self)
         }
         return BebopMapView(
-            validated: encoded.slice(start..<offset), count: count, key: key, value: value)
+            validated: encoded.slice(start..<offset),
+            count: count,
+            limits: decodeLimits,
+            depth: depth,
+            key: key,
+            value: value
+        )
+    }
+
+    /// Runs a nested view decoder while enforcing the configured depth limit.
+    public mutating func readNested<Value>(
+        _ decode: (inout BebopViewReader) throws -> Value
+    ) throws -> Value {
+        guard depth < decodeLimits.maxDepth else {
+            throw BebopDecodingError.limitExceeded
+        }
+        var nested = BebopViewReader(encoded, limits: decodeLimits, depth: depth + 1)
+        nested.offset = offset
+        let value = try decode(&nested)
+        offset = nested.offset
+        return value
     }
 }
 
@@ -299,6 +462,8 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
     public let count: Int
     private let encoded: BebopView
     private let prefixSize: Int
+    private let limits: BebopDecodeLimits
+    private let depth: UInt16
     private let decode: @Sendable (inout BebopViewReader) throws -> Element
 
     @usableFromInline
@@ -306,11 +471,15 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
         validated encoded: BebopView,
         count: Int,
         prefixSize: Int = 4,
+        limits: BebopDecodeLimits,
+        depth: UInt16,
         decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
     ) {
         self.encoded = encoded
         self.count = count
         self.prefixSize = prefixSize
+        self.limits = limits
+        self.depth = depth
         self.decode = decode
     }
 
@@ -323,7 +492,11 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
 
     public func makeIterator() -> Iterator {
         Iterator(
-            reader: BebopViewReader(encoded.slice(prefixSize..<encoded.count)),
+            reader: BebopViewReader(
+                encoded.slice(prefixSize..<encoded.count),
+                limits: limits,
+                depth: depth
+            ),
             remaining: count,
             decode: decode)
     }
@@ -349,18 +522,24 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
             do {
                 return try decode(&reader)
             } catch {
-                preconditionFailure("validated Bebop array became invalid: \(error)")
+                preconditionFailure("validated Bebop array invariant failed: \(error)")
             }
         }
     }
 }
 
+public extension BebopArrayView where Element == UInt8 {
+    var bytes: BebopView { encoded.slice(prefixSize..<encoded.count) }
+}
+
 /// An immutable, lazily materialized view over an encoded map.
-public struct BebopMapView<Key: Sendable, Value: Sendable>: Sendable, Sequence {
+public struct BebopMapView<Key: Hashable & Sendable, Value: Sendable>: Sendable, Sequence {
     public typealias Element = (key: Key, value: Value)
 
     public let count: Int
     private let encoded: BebopView
+    private let limits: BebopDecodeLimits
+    private let depth: UInt16
     private let readKey: @Sendable (inout BebopViewReader) throws -> Key
     private let readValue: @Sendable (inout BebopViewReader) throws -> Value
 
@@ -368,11 +547,15 @@ public struct BebopMapView<Key: Sendable, Value: Sendable>: Sendable, Sequence {
     init(
         validated encoded: BebopView,
         count: Int,
+        limits: BebopDecodeLimits,
+        depth: UInt16,
         key: @escaping @Sendable (inout BebopViewReader) throws -> Key,
         value: @escaping @Sendable (inout BebopViewReader) throws -> Value
     ) {
         self.encoded = encoded
         self.count = count
+        self.limits = limits
+        self.depth = depth
         self.readKey = key
         self.readValue = value
     }
@@ -386,7 +569,11 @@ public struct BebopMapView<Key: Sendable, Value: Sendable>: Sendable, Sequence {
 
     public func makeIterator() -> Iterator {
         Iterator(
-            reader: BebopViewReader(encoded.slice(4..<encoded.count)),
+            reader: BebopViewReader(
+                encoded.slice(4..<encoded.count),
+                limits: limits,
+                depth: depth
+            ),
             remaining: count,
             readKey: readKey,
             readValue: readValue)
@@ -416,7 +603,7 @@ public struct BebopMapView<Key: Sendable, Value: Sendable>: Sendable, Sequence {
             do {
                 return try (readKey(&reader), readValue(&reader))
             } catch {
-                preconditionFailure("validated Bebop map became invalid: \(error)")
+                preconditionFailure("validated Bebop map invariant failed: \(error)")
             }
         }
     }
@@ -430,6 +617,6 @@ public extension BebopMapView where Key: Equatable {
 
 public extension BebopMapView where Key == BebopStringView {
     subscript(key: String) -> Value? {
-        first { $0.key.rawBytes.elementsEqual(key.utf8) }?.value
+        first { $0.key == key }?.value
     }
 }

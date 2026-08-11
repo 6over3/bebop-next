@@ -1,7 +1,8 @@
 import BebopPlugin
+import SwiftBebop
 
 enum GenerateService {
-    nonisolated(unsafe) static var definitionMap: [String: DefinitionDescriptor] = [:]
+    @TaskLocal static var definitionMap: [String: DefinitionDescriptor] = [:]
 
     static func generate(
         _ def: DefinitionDescriptor, options: GeneratorOptions
@@ -20,8 +21,18 @@ enum GenerateService {
         let vis = effectiveVisibility(for: def, options: options)
         let prefix = declPrefix(doc: def.documentation, decorators: def.decorators)
 
-        let methodInfos = try methods.compactMap { m -> MethodInfo? in
+        let methodInfos = try methods.map { m in
             try resolveMethod(m, serviceName: defName)
+        }
+        try validateUniqueGeneratedNames(
+            methodInfos.map(\.swiftName),
+            in: "service '\(defName)'"
+        )
+        var methodIds: Set<UInt32> = []
+        for method in methodInfos where !methodIds.insert(method.methodId).inserted {
+            throw CodegenError.malformedDefinition(
+                "service '\(defName)' has duplicate method ID \(method.methodId)"
+            )
         }
 
         var result: [String] = []
@@ -94,6 +105,11 @@ enum GenerateService {
             throw CodegenError.malformedDefinition(
                 "service '\(serviceName)' method '\(name)' missing id")
         }
+        guard id > BebopReservedMethod.cancel else {
+            throw CodegenError.malformedDefinition(
+                "service '\(serviceName)' method '\(name)' uses reserved method ID \(id)"
+            )
+        }
         guard let reqType = m.requestType else {
             throw CodegenError.malformedDefinition(
                 "service '\(serviceName)' method '\(name)' missing request type")
@@ -103,13 +119,20 @@ enum GenerateService {
                 "service '\(serviceName)' method '\(name)' missing response type")
         }
 
-        let runtimeType = mapMethodType(descriptorMethodType)
+        let runtimeType = try mapMethodType(
+            descriptorMethodType, serviceName: serviceName, methodName: name)
         let reqTypeName = try TypeMapper.swiftType(for: reqType)
         let resTypeName = try TypeMapper.swiftType(for: resType)
-        let reqFqn = reqType.definedFqn ?? ""
-        let resFqn = resType.definedFqn ?? ""
+        guard reqType.kind == .defined, let reqFqn = reqType.definedFqn, !reqFqn.isEmpty else {
+            throw CodegenError.malformedDefinition(
+                "service '\(serviceName)' method '\(name)' request must be a defined record")
+        }
+        guard resType.kind == .defined, let resFqn = resType.definedFqn, !resFqn.isEmpty else {
+            throw CodegenError.malformedDefinition(
+                "service '\(serviceName)' method '\(name)' response must be a defined record")
+        }
 
-        let deconstructed = resolveDeconstructedParams(for: reqType)
+        let deconstructed = try resolveDeconstructedParams(for: reqType)
 
         return MethodInfo(
             name: name,
@@ -126,14 +149,17 @@ enum GenerateService {
         )
     }
 
-    /// Map descriptor MethodType (1-4) to runtime MethodType (0-3).
-    private static func mapMethodType(_ dt: BebopPlugin.MethodType) -> RuntimeMethodType {
+    private static func mapMethodType(
+        _ dt: BebopPlugin.MethodType, serviceName: String, methodName: String
+    ) throws -> RuntimeMethodType {
         switch dt {
         case .unary: .unary
         case .serverStream: .serverStream
         case .clientStream: .clientStream
         case .duplexStream: .duplexStream
-        default: .unary
+        default:
+            throw CodegenError.malformedDefinition(
+                "service '\(serviceName)' method '\(methodName)' has unsupported method type")
         }
     }
 
@@ -141,9 +167,11 @@ enum GenerateService {
 
     private static func resolveDeconstructedParams(
         for type: TypeDescriptor
-    ) -> [(swiftName: String, swiftType: String, isOptional: Bool)]? {
+    ) throws -> [(swiftName: String, swiftType: String, isOptional: Bool)]? {
         guard type.kind == .defined, let fqn = type.definedFqn else { return nil }
-        guard let def = definitionMap[fqn] else { return nil }
+        guard let def = definitionMap[fqn] else {
+            throw CodegenError.malformedDefinition("request type '\(fqn)' is not in the schema")
+        }
 
         let fields: [FieldDescriptor]?
         let isMessage: Bool
@@ -161,9 +189,15 @@ enum GenerateService {
         let fieldList = fields ?? []
         guard fieldList.count <= 4 else { return nil }
 
-        return fieldList.compactMap { f -> (String, String, Bool)? in
-            guard let name = f.name, let fieldType = f.type else { return nil }
-            guard let swiftType = try? TypeMapper.swiftType(for: fieldType) else { return nil }
+        return try fieldList.map { f in
+            guard let name = f.name else {
+                throw CodegenError.malformedDefinition("request type '\(fqn)' has an unnamed field")
+            }
+            guard let fieldType = f.type else {
+                throw CodegenError.malformedDefinition(
+                    "request type '\(fqn)' field '\(name)' has no type")
+            }
+            let swiftType = try TypeMapper.swiftType(for: fieldType)
             return (NamingPolicy.fieldName(name), swiftType, isMessage)
         }
     }
@@ -276,33 +310,33 @@ enum GenerateService {
     }
 
     private static func handlerSignature(_ m: MethodInfo) -> String {
-        let prefix = declPrefix(doc: m.doc, decorators: m.decorators)
+        let prefix = docComment(m.doc)
         switch m.methodType {
         case .unary:
             return """
             \(prefix)func \(m.swiftName)(
-                _ request: \(m.requestTypeName),
+                _ request: \(m.requestTypeName).View,
                 context: RpcContext
             ) async throws -> \(m.responseTypeName)
             """
         case .serverStream:
             return """
             \(prefix)func \(m.swiftName)(
-                _ request: \(m.requestTypeName),
+                _ request: \(m.requestTypeName).View,
                 context: RpcContext
             ) async throws -> AsyncThrowingStream<\(m.responseTypeName), Error>
             """
         case .clientStream:
             return """
             \(prefix)func \(m.swiftName)(
-                _ requests: AsyncThrowingStream<\(m.requestTypeName), Error>,
+                _ requests: AsyncThrowingStream<\(m.requestTypeName).View, Error>,
                 context: RpcContext
             ) async throws -> \(m.responseTypeName)
             """
         case .duplexStream:
             return """
             \(prefix)func \(m.swiftName)(
-                _ requests: AsyncThrowingStream<\(m.requestTypeName), Error>,
+                _ requests: AsyncThrowingStream<\(m.requestTypeName).View, Error>,
                 context: RpcContext
             ) async throws -> AsyncThrowingStream<\(m.responseTypeName), Error>
             """
@@ -326,47 +360,49 @@ enum GenerateService {
             switch m.methodType {
             case .unary:
                 unaryBody.append("case .\(m.swiftName):")
-                unaryBody.append("    let req = try \(m.requestTypeName).decode(from: payload)")
+                unaryBody.append("    let req = try \(m.requestTypeName).View(payload, limits: context.decodeLimits)")
                 unaryBody.append("    let res = try await handler.\(m.swiftName)(req, context: context)")
                 unaryBody.append("    return res.serializedData()")
             case .serverStream:
                 serverStreamBody.append("case .\(m.swiftName):")
-                serverStreamBody.append("    let req = try \(m.requestTypeName).decode(from: payload)")
+                serverStreamBody.append("    let req = try \(m.requestTypeName).View(payload, limits: context.decodeLimits)")
                 serverStreamBody.append(
                     "    let typed = try await handler.\(m.swiftName)(req, context: context)")
-                serverStreamBody.append("    return AsyncThrowingStream<StreamElement, Error> { c in")
-                serverStreamBody.append("        let task = Task {")
-                serverStreamBody.append("            do {")
-                serverStreamBody.append("                for try await item in typed {")
-                serverStreamBody.append("                    try Task.checkCancellation()")
+                serverStreamBody.append("    return BebopStreams.map(typed) { item in")
+                serverStreamBody.append("        try Task.checkCancellation()")
                 serverStreamBody.append(
-                    "                    if let d = context.deadline, d.isPast {")
+                    "        if let d = context.deadline, d.isPast {")
                 serverStreamBody.append(
-                    "                        throw BebopRpcError(code: .deadlineExceeded)")
+                    "            throw BebopRpcError(code: .deadlineExceeded)")
                 serverStreamBody.append(
-                    "                    }")
+                    "        }")
                 serverStreamBody.append(
-                    "                    c.yield(StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))"
+                    "        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())"
                 )
-                serverStreamBody.append("                }")
-                serverStreamBody.append("                c.finish()")
-                serverStreamBody.append("            } catch {")
-                serverStreamBody.append("                c.finish(throwing: error)")
-                serverStreamBody.append("            }")
-                serverStreamBody.append("        }")
-                serverStreamBody.append("        c.onTermination = { _ in task.cancel() }")
                 serverStreamBody.append("    }")
             case .clientStream:
                 clientStreamBody.append("case .\(m.swiftName):")
                 clientStreamBody.append(
-                    "    let (stream, continuation) = AsyncThrowingStream.makeStream(of: \(m.requestTypeName).self)"
+                    "    let inbound = RpcInboundStream<\(m.requestTypeName).View>()"
                 )
                 clientStreamBody.append(
                     "    let task = Task {")
                 clientStreamBody.append(
-                    "        defer { continuation.finish() }")
+                    "        do {")
                 clientStreamBody.append(
-                    "        return try await handler.\(m.swiftName)(stream, context: context)")
+                    "            let response = try await handler.\(m.swiftName)(inbound.stream, context: context)")
+                clientStreamBody.append(
+                    "            await inbound.finish()")
+                clientStreamBody.append(
+                    "            return response")
+                clientStreamBody.append(
+                    "        } catch {")
+                clientStreamBody.append(
+                    "            await inbound.finish(throwing: error)")
+                clientStreamBody.append(
+                    "            throw error")
+                clientStreamBody.append(
+                    "        }")
                 clientStreamBody.append(
                     "    }")
                 clientStreamBody.append("    return (")
@@ -380,51 +416,34 @@ enum GenerateService {
                 clientStreamBody.append(
                     "            }")
                 clientStreamBody.append(
-                    "            let req = try \(m.requestTypeName).decode(from: bytes)")
+                    "            let req = try \(m.requestTypeName).View(bytes, limits: context.decodeLimits)")
                 clientStreamBody.append(
-                    "            if case .terminated = continuation.yield(req) {")
-                clientStreamBody.append(
-                    "                throw BebopRpcError(code: .cancelled, detail: \"stream terminated\")")
-                clientStreamBody.append(
-                    "            }")
+                    "            try await inbound.send(req)")
                 clientStreamBody.append("        },")
                 clientStreamBody.append("        finish: {")
-                clientStreamBody.append("            continuation.finish()")
+                clientStreamBody.append("            await inbound.finish()")
                 clientStreamBody.append("            return try await task.value.serializedData()")
                 clientStreamBody.append("        }")
                 clientStreamBody.append("    )")
             case .duplexStream:
                 duplexStreamBody.append("case .\(m.swiftName):")
                 duplexStreamBody.append(
-                    "    let (stream, continuation) = AsyncThrowingStream.makeStream(of: \(m.requestTypeName).self)"
+                    "    let inbound = RpcInboundStream<\(m.requestTypeName).View>()"
                 )
                 duplexStreamBody.append(
-                    "    let typedResponses = try await handler.\(m.swiftName)(stream, context: context)")
+                    "    let typedResponses = try await handler.\(m.swiftName)(inbound.stream, context: context)")
                 duplexStreamBody.append(
-                    "    let rawResponses = AsyncThrowingStream<StreamElement, Error> { c in")
-                duplexStreamBody.append("        let task = Task {")
-                duplexStreamBody.append("            do {")
-                duplexStreamBody.append("                for try await item in typedResponses {")
-                duplexStreamBody.append("                    try Task.checkCancellation()")
+                    "    let rawResponses = BebopStreams.map(typedResponses, onCancel: { await inbound.finish() }) { item in")
+                duplexStreamBody.append("        try Task.checkCancellation()")
                 duplexStreamBody.append(
-                    "                    if let d = context.deadline, d.isPast {")
+                    "        if let d = context.deadline, d.isPast {")
                 duplexStreamBody.append(
-                    "                        throw BebopRpcError(code: .deadlineExceeded)")
+                    "            throw BebopRpcError(code: .deadlineExceeded)")
                 duplexStreamBody.append(
-                    "                    }")
+                    "        }")
                 duplexStreamBody.append(
-                    "                    c.yield(StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor()))"
+                    "        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())"
                 )
-                duplexStreamBody.append("                }")
-                duplexStreamBody.append("                c.finish()")
-                duplexStreamBody.append("            } catch {")
-                duplexStreamBody.append("                c.finish(throwing: error)")
-                duplexStreamBody.append("            }")
-                duplexStreamBody.append("        }")
-                duplexStreamBody.append("        c.onTermination = { _ in")
-                duplexStreamBody.append("            task.cancel()")
-                duplexStreamBody.append("            continuation.finish()")
-                duplexStreamBody.append("        }")
                 duplexStreamBody.append("    }")
                 duplexStreamBody.append("    return (")
                 duplexStreamBody.append("        send: { bytes in")
@@ -437,15 +456,11 @@ enum GenerateService {
                 duplexStreamBody.append(
                     "            }")
                 duplexStreamBody.append(
-                    "            let req = try \(m.requestTypeName).decode(from: bytes)")
+                    "            let req = try \(m.requestTypeName).View(bytes, limits: context.decodeLimits)")
                 duplexStreamBody.append(
-                    "            if case .terminated = continuation.yield(req) {")
-                duplexStreamBody.append(
-                    "                throw BebopRpcError(code: .cancelled, detail: \"stream terminated\")")
-                duplexStreamBody.append(
-                    "            }")
+                    "            try await inbound.send(req)")
                 duplexStreamBody.append("        },")
-                duplexStreamBody.append("        finish: { continuation.finish() },")
+                duplexStreamBody.append("        finish: { await inbound.finish() },")
                 duplexStreamBody.append("        responses: rawResponses")
                 duplexStreamBody.append("    )")
             }
@@ -641,7 +656,7 @@ enum GenerateService {
         _ serviceName: String, methods: [MethodInfo], vis: String
     ) throws -> String {
         let name = NamingPolicy.typeName(serviceName)
-        let batchStructName = "\(name)_Batch"
+        let batchStructName = "\(name)Batch"
         let accessorName = NamingPolicy.fieldName(serviceName)
 
         var body: [String] = []
@@ -755,7 +770,7 @@ enum GenerateService {
         _ serviceName: String, methods: [MethodInfo], vis: String
     ) throws -> String {
         let name = NamingPolicy.typeName(serviceName)
-        let dispatchStructName = "\(name)_Dispatch"
+        let dispatchStructName = "\(name)Dispatch"
         let accessorName = NamingPolicy.fieldName(serviceName)
 
         let unaryMethods = methods.filter { $0.methodType == .unary }

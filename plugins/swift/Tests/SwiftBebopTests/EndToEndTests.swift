@@ -82,18 +82,18 @@ import Testing
 
     @Test func errorFromHandlerPropagates() async {
         struct FailHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
                 throw BebopRpcError(code: .internal, detail: "boom")
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>,
+                _: AsyncThrowingStream<EchoRequest.View, Error>,
                 context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>,
+                _: AsyncThrowingStream<EchoRequest.View, Error>,
                 context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }

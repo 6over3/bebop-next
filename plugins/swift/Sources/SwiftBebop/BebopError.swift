@@ -14,6 +14,10 @@ public enum BebopDecodingError: Error, Sendable, Equatable {
     case invalidStringTerminator
     /// An indexed message contained an invalid directory or field boundary.
     case malformedMessage
+    /// A configured decoding depth or collection-element limit was exceeded.
+    case limitExceeded
+    /// A wire map contained the same logical key more than once.
+    case duplicateMapKey
     /// A union's discriminator byte did not match any known branch.
     case unknownUnionDiscriminator(UInt8)
     /// A `BebopAny` unpack found a different type URL than expected.

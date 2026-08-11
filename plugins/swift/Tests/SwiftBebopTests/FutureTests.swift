@@ -9,38 +9,59 @@ private struct SlowHandler: WidgetServiceHandler {
         self.delay = delay
     }
 
-    func getWidget(_ request: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+    func getWidget(_ request: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
         try await Task.sleep(for: delay)
-        return EchoResponse(value: request.value)
+        return EchoResponse(value: request.value.string)
     }
 
-    func listWidgets(_: CountRequest, context _: RpcContext) async throws
+    func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
         -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
     func uploadWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> EchoResponse { fatalError() }
     func syncWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
 }
 
 private struct MetadataHandler: WidgetServiceHandler {
-    func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
+    func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
         context.setResponseMetadata("x-trace", "abc-123")
-        return EchoResponse(value: request.value)
+        return EchoResponse(value: request.value.string)
     }
 
-    func listWidgets(_: CountRequest, context _: RpcContext) async throws
+    func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
         -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
     func uploadWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> EchoResponse { fatalError() }
     func syncWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
 }
 
 @Suite struct FutureTests {
+    @Test func duplicateFutureResultsDoNotEvictTheCachedValue() async throws {
+        let resolver = FutureResolver(
+            maxCompletedResults: 1,
+            sendCancel: { _ in },
+            consumeResolveStream: { _, _ in
+                Issue.record("cached result unexpectedly opened a resolve stream")
+            }
+        )
+        let id = BebopUUID.random()
+        resolver.resolve(
+            result: FutureResult(
+                id: id,
+                outcome: .success(FutureSuccess(payload: [1]))
+            )
+        )
+        let expected = FutureOutcome.success(FutureSuccess(payload: [2]))
+        resolver.resolve(result: FutureResult(id: id, outcome: expected))
+
+        #expect(try await resolver.await(id: id) == expected)
+    }
+
     @Test func dispatchUnaryAndAwait() async throws {
         let channel = buildChannel(futuresEnabled: true)
         let dispatcher = channel.makeFutureDispatcher()

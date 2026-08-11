@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "SwiftBebop", targets: ["SwiftBebop"]),
         .library(name: "SwiftBebopFoundation", targets: ["SwiftBebopFoundation"]),
+        .library(name: "BebopPlugin", targets: ["BebopPlugin"]),
         .executable(name: "bebopc-gen-swift", targets: ["bebopc-gen-swift"]),
         .plugin(name: "BebopBuildToolPlugin", targets: ["BebopBuildToolPlugin"]),
         .plugin(name: "BebopCommandPlugin", targets: ["BebopCommandPlugin"])
@@ -19,7 +20,8 @@ let package = Package(
         .executableTarget(
             name: "bebopc-gen-swift",
             dependencies: [
-                "BebopPlugin"
+                "BebopPlugin",
+                "SwiftBebop"
             ],
             path: "plugins/swift/Sources/bebopc-gen-swift"
         ),
@@ -36,7 +38,12 @@ let package = Package(
             ),
             path: "plugins/swift/Sources/BebopCommandPlugin"
         ),
-        .testTarget(name: "SwiftBebopTests", dependencies: ["SwiftBebop", "SwiftBebopFoundation"], path: "plugins/swift/Tests/SwiftBebopTests"),
+        .testTarget(
+            name: "SwiftBebopTests",
+            dependencies: ["SwiftBebop", "SwiftBebopFoundation"],
+            path: "plugins/swift/Tests/SwiftBebopTests",
+            exclude: ["test_service.bop"]
+        ),
         .testTarget(name: "BebopPluginTests", dependencies: ["BebopPlugin"], path: "plugins/swift/Tests/BebopPluginTests"),
         .testTarget(name: "CodegenTests", dependencies: [
             "bebopc-gen-swift",

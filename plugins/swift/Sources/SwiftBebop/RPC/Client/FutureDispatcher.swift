@@ -87,24 +87,14 @@ public extension BebopChannel {
                     context: RpcContext()
                 )
             },
-            openResolveStream: { [self] payload in
+            consumeResolveStream: { [self] payload, consume in
                 let response = try await serverStream(
                     method: BebopReservedMethod.resolve,
                     request: payload,
                     context: RpcContext()
                 )
-                return AsyncThrowingStream { continuation in
-                    let task = Task {
-                        do {
-                            for try await element in response {
-                                continuation.yield(element)
-                            }
-                            continuation.finish()
-                        } catch {
-                            continuation.finish(throwing: error)
-                        }
-                    }
-                    continuation.onTermination = { _ in task.cancel() }
+                for try await element in response {
+                    try consume(element)
                 }
             }
         )

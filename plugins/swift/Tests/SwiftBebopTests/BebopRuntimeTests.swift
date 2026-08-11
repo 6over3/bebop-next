@@ -321,9 +321,10 @@ private func roundTrip<T>(
 }
 
 @Test func bfloat16NaNComparisons() {
-    #expect(BFloat16.nan != BFloat16.nan)
-    #expect(!(BFloat16.nan > BFloat16.nan))
-    #expect(!(BFloat16.nan < BFloat16.nan))
+    let nan = BFloat16.nan
+    #expect(nan != nan)
+    #expect(!(nan > nan))
+    #expect(!(nan < nan))
 }
 
 @Test func bfloat16Hashing() {
@@ -612,6 +613,16 @@ private func indexedMessage(tags sourceTags: [UInt8], fieldLengths: [Int]) -> [U
         try $0.readMapLength()
     }
     #expect(r == 7)
+}
+
+@Test func fixedArrayElementsMayEncodeToZeroBytes() throws {
+    let bytes: [UInt8] = []
+    let values = try bytes.withUnsafeBytes { buffer in
+        var reader = BebopReader(data: buffer)
+        return try reader.readFixedArray(3) { _ in 42 }
+    }
+
+    #expect(values == [42, 42, 42])
 }
 
 // MARK: - Skip

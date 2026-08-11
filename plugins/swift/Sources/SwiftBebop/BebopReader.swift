@@ -5,31 +5,37 @@
 /// `BebopDecodingError.unexpectedEndOfData`.
 ///
 /// - Important: The buffer must remain valid for the lifetime of the reader.
-public struct BebopReader: @unchecked Sendable {
+public struct BebopReader {
     @usableFromInline let base: UnsafeRawPointer
     @usableFromInline let end: Int
     @usableFromInline var limit: Int
     @usableFromInline var limitStack: [Int]
     @usableFromInline var offset: Int
+    @usableFromInline let decodeLimits: BebopDecodeLimits
+    @usableFromInline let depth: UInt16
 
     /// Create a reader over the given buffer.
-    public init(data: UnsafeRawBufferPointer) {
+    public init(
+        data: UnsafeRawBufferPointer,
+        limits: BebopDecodeLimits = .default
+    ) {
+        self.init(data: data, limits: limits, depth: 0)
+    }
+
+    @usableFromInline
+    init(data: UnsafeRawBufferPointer, limits: BebopDecodeLimits, depth: UInt16) {
         base = data.baseAddress ?? UnsafeRawPointer(bitPattern: 1)!
         end = data.count
         limit = data.count
         limitStack = []
         offset = 0
+        decodeLimits = limits
+        self.depth = depth
     }
 
     /// The current byte offset in the buffer.
     @inlinable @inline(__always)
     public var position: Int { offset }
-
-    /// Move the read cursor to an absolute byte offset.
-    @inlinable @inline(__always)
-    public mutating func seek(to position: Int) {
-        offset = position
-    }
 
     @inlinable @inline(__always)
     public var remaining: Int { max(0, limit - offset) }
@@ -183,12 +189,14 @@ public struct BebopReader: @unchecked Sendable {
             start: length == 0 ? nil : (base + offset).assumingMemoryBound(to: UInt8.self),
             count: length
         )
-        let str = String(decoding: bytes, as: UTF8.self)
-        guard str.utf8.elementsEqual(bytes) else {
+        let utf8: UTF8Span
+        do {
+            utf8 = try UTF8Span(validating: bytes.span)
+        } catch {
             throw BebopDecodingError.invalidUTF8
         }
         advance(by: length + 1)
-        return str
+        return String(copying: utf8)
     }
 
     // MARK: - UUID
@@ -296,7 +304,9 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readFixedArray<T>(
         _ count: Int, _ body: (inout BebopReader) throws -> T
     ) throws -> [T] {
-        try ensureBytes(count)
+        guard count >= 0, UInt64(count) <= UInt64(decodeLimits.maxCollectionElements) else {
+            throw BebopDecodingError.limitExceeded
+        }
         var result = [T]()
         result.reserveCapacity(min(count, remaining))
         for _ in 0 ..< count {
@@ -310,7 +320,11 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readDynamicArray<T>(
         _ body: (inout BebopReader) throws -> T
     ) throws -> [T] {
-        let count = try Int(readUInt32())
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
         var result = [T]()
         result.reserveCapacity(min(count, remaining))
         for _ in 0 ..< count {
@@ -324,10 +338,17 @@ public struct BebopReader: @unchecked Sendable {
     public mutating func readDynamicMap<K: Hashable, V>(
         _ body: (inout BebopReader) throws -> (K, V)
     ) throws -> [K: V] {
-        let count = try Int(readUInt32())
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
         var result = [K: V](minimumCapacity: min(count, remaining))
         for _ in 0 ..< count {
             let (k, v) = try body(&self)
+            guard result.index(forKey: k) == nil else {
+                throw BebopDecodingError.duplicateMapKey
+            }
             result[k] = v
         }
         return result
@@ -337,7 +358,11 @@ public struct BebopReader: @unchecked Sendable {
 
     @inlinable
     public mutating func readLengthPrefixedArray<T: BebopScalar>(of type: T.Type) throws -> [T] {
-        let count = try Int(readUInt32())
+        let wireCount = try readUInt32()
+        guard wireCount <= decodeLimits.maxCollectionElements else {
+            throw BebopDecodingError.limitExceeded
+        }
+        let count = Int(wireCount)
         return try readArray(count, of: type)
     }
 
@@ -353,9 +378,18 @@ public struct BebopReader: @unchecked Sendable {
 
     // MARK: - Message helpers
 
-    /// Reads and validates an indexed message, advancing past the entire value.
-    /// Known fields can then be accessed in constant time without copying.
-    public mutating func readMessage() throws -> BebopMessageIndex {
+    /// Reads an indexed message and exposes its fields only for the duration of `body`.
+    ///
+    /// The field accessor is non-escaping, so no pointer into the reader's borrowed
+    /// input can outlive the call.
+    public mutating func readMessage<Result>(
+        _ body: (
+            _ withField: (
+                _ tag: UInt8,
+                _ decode: (inout BebopReader) throws -> Void
+            ) throws -> Void
+        ) throws -> Result
+    ) throws -> Result {
         try ensureBytes(4)
         let bodyLength = Int(UInt32(
             littleEndian: base.loadUnaligned(fromByteOffset: offset, as: UInt32.self)))
@@ -366,7 +400,43 @@ public struct BebopReader: @unchecked Sendable {
         let bytes = UnsafeRawBufferPointer(start: base + offset, count: count)
         let index = try parseMessageIndex(bytes)
         advance(by: count)
-        return BebopMessageIndex(bytes: bytes, index: index)
+        return try body { tag, decode in
+            guard let rank = messageFieldRank(tag: tag, index: index, bytes: bytes) else {
+                return
+            }
+            let range = messageFieldRange(rank: rank, index: index, bytes: bytes)
+            let field = UnsafeRawBufferPointer(
+                start: bytes.baseAddress! + range.lowerBound,
+                count: range.count
+            )
+            var reader = BebopReader(data: field, limits: decodeLimits, depth: depth)
+            try decode(&reader)
+            guard reader.position == field.count else {
+                throw BebopDecodingError.trailingData
+            }
+        }
+    }
+
+    /// Decodes a nested generated record while enforcing the configured depth limit.
+    public mutating func readNested<Value>(
+        _ decode: (inout BebopReader) throws -> Value
+    ) throws -> Value {
+        guard depth < decodeLimits.maxDepth else {
+            throw BebopDecodingError.limitExceeded
+        }
+        var nested = BebopReader(
+            data: UnsafeRawBufferPointer(start: base, count: end),
+            limits: decodeLimits,
+            depth: depth + 1
+        )
+        nested.offset = offset
+        nested.limit = limit
+        nested.limitStack = limitStack
+        let value = try decode(&nested)
+        offset = nested.offset
+        limit = nested.limit
+        limitStack = nested.limitStack
+        return value
     }
 
     /// Begins a non-indexed, length-prefixed value and constrains reads to its body.

@@ -12,6 +12,7 @@ public final class RpcContext: Sendable {
 
     private struct MutableState: Sendable {
         var cancelled = false
+        var decodeLimits = BebopDecodeLimits.default
         var responseMetadata: [String: String] = [:]
         var attachments: [ObjectIdentifier: any Sendable] = [:]
         var cursorQueue: [UInt64] = []
@@ -47,6 +48,11 @@ public final class RpcContext: Sendable {
 
     public var isCancelled: Bool { _state.withLock { $0.cancelled } }
     public func cancel() { _state.withLock { $0.cancelled = true } }
+    public var decodeLimits: BebopDecodeLimits { _state.withLock { $0.decodeLimits } }
+
+    func setDecodeLimits(_ limits: BebopDecodeLimits) {
+        _state.withLock { $0.decodeLimits = limits }
+    }
 
     // MARK: - Response metadata (handler -> transport)
 
@@ -82,30 +88,46 @@ public final class RpcContext: Sendable {
     // MARK: - Derivation
 
     public func deriving(appending extra: [String: String]) -> RpcContext {
-        RpcContext(
+        let context = RpcContext(
             metadata: metadata.merging(extra) { _, new in new },
             deadline: deadline,
             cursor: cursor
         )
+        context.setDecodeLimits(decodeLimits)
+        return context
     }
 
     public func forwarding() -> RpcContext {
-        RpcContext(metadata: metadata, deadline: deadline, cursor: cursor)
+        let context = RpcContext(metadata: metadata, deadline: deadline, cursor: cursor)
+        context.setDecodeLimits(decodeLimits)
+        return context
     }
 
     // MARK: - Transport binding
 
     func binding(to methodId: UInt32) -> RpcContext {
-        RpcContext(methodId: methodId, metadata: metadata, deadline: deadline, cursor: cursor)
+        let context = RpcContext(
+            methodId: methodId,
+            metadata: metadata,
+            deadline: deadline,
+            cursor: cursor
+        )
+        context.setDecodeLimits(decodeLimits)
+        return context
     }
 
     // MARK: - Batch
 
-    func makeBatchContext(upstreamMetadata: [String: String] = [:]) -> RpcContext {
-        RpcContext(
+    func makeBatchContext(
+        methodId: UInt32,
+        upstreamMetadata: [String: String] = [:]
+    ) -> RpcContext {
+        let context = RpcContext(
             methodId: methodId,
             metadata: metadata.merging(upstreamMetadata) { _, new in new },
             deadline: deadline
         )
+        context.setDecodeLimits(decodeLimits)
+        return context
     }
 }

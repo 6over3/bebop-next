@@ -19,6 +19,27 @@ enum GenerateUnion {
         let name = NamingPolicy.typeName(defName)
         let vis = effectiveVisibility(for: def, options: options)
         let prefix = declPrefix(doc: def.documentation, decorators: def.decorators)
+        try validateUniqueGeneratedNames(
+            try branches.map { try branchCaseName($0, unionName: defName) },
+            in: "union '\(defName)'"
+        )
+        var discriminators: Set<UInt8> = []
+        for branch in branches {
+            guard let discriminator = branch.discriminator else {
+                throw CodegenError.malformedDefinition(
+                    "union '\(defName)' branch missing discriminator")
+            }
+            guard discriminator != 0 else {
+                throw CodegenError.malformedDefinition(
+                    "union '\(defName)' discriminator must be between 1 and 255"
+                )
+            }
+            guard discriminators.insert(discriminator).inserted else {
+                throw CodegenError.malformedDefinition(
+                    "union '\(defName)' has duplicate discriminator \(discriminator)"
+                )
+            }
+        }
 
         var body: [String] = []
 
@@ -46,7 +67,9 @@ enum GenerateUnion {
             let caseName = try branchCaseName(branch, unionName: defName)
             let typeName = try branchTypeName(branch, unionName: defName)
             decodeSwitchLines.append("case \(disc):")
-            decodeSwitchLines.append("    result = .\(caseName)(try \(typeName).decode(from: &reader))")
+            decodeSwitchLines.append(
+                "    result = .\(caseName)(try reader.readNested { nested in try \(typeName).decode(from: &nested) })"
+            )
         }
         decodeSwitchLines.append("// @@bebop_insertion_point(decode_switch:\(defName))")
         decodeSwitchLines.append("default:")
@@ -105,7 +128,10 @@ enum GenerateUnion {
         body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
 
         // immutable zero-copy view
-        var viewBody: [String] = ["fileprivate let encoded: BebopView"]
+        var viewBody: [String] = [
+            "\(vis)let encoded: BebopView",
+            "private let _decodeLimits: BebopDecodeLimits",
+        ]
         var valueCases = ["case unknown(discriminator: UInt8, data: BebopView)"]
         for branch in branches {
             let caseName = try branchCaseName(branch, unionName: defName)
@@ -117,35 +143,37 @@ enum GenerateUnion {
         viewBody.append("\(vis)enum Content: Sendable {\n\(valueCaseBody)\n}")
         viewBody.append("\(vis)let discriminator: UInt8")
         viewBody.append("\(vis)let value: Content")
-        viewBody.append("\(vis)init(_ bytes: [UInt8]) throws { try self.init(BebopView(bytes)) }")
+        viewBody.append(
+            "\(vis)init(_ bytes: [UInt8], limits: BebopDecodeLimits = .default) throws { try self.init(BebopView(bytes), limits: limits) }"
+        )
         let initViewBody = [
-            "var reader = BebopViewReader(encoded)",
+            "var reader = BebopViewReader(encoded, limits: limits)",
             "self = try \(name).readView(from: &reader)",
             "try reader.finish()",
         ].map { indent($0) }.joined(separator: "\n")
-        viewBody.append("\(vis)init(_ encoded: BebopView) throws {\n\(initViewBody)\n}")
+        viewBody.append(
+            "\(vis)init(_ encoded: BebopView, limits: BebopDecodeLimits = .default) throws {\n\(initViewBody)\n}"
+        )
         let validatedInitBody = [
             "self.encoded = encoded",
+            "self._decodeLimits = limits",
             "self.discriminator = discriminator",
             "self.value = value",
         ].map { indent($0) }.joined(separator: "\n")
         viewBody.append(
-            "fileprivate init(validated encoded: BebopView, discriminator: UInt8, value: Content) {\n\(validatedInitBody)\n}"
+            "fileprivate init(validated encoded: BebopView, limits: BebopDecodeLimits, discriminator: UInt8, value: Content) {\n\(validatedInitBody)\n}"
         )
         let decodedBody = [
             "try encoded.withUnsafeBytes { bytes in",
-            "    var reader = BebopReader(data: bytes)",
+            "    var reader = BebopReader(data: bytes, limits: _decodeLimits)",
             "    return try \(name).decode(from: &reader)",
             "}",
         ].map { indent($0) }.joined(separator: "\n")
         viewBody.append("\(vis)func decoded() throws -> \(name) {\n\(decodedBody)\n}")
         let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
-        body.append("\(vis)struct View: Sendable {\n\(viewBodyString)\n}")
+        body.append("\(vis)struct View: BebopRecordView {\n\(viewBodyString)\n}")
 
-        var readViewBody = [
-            "let encoded = try reader.readLengthPrefixedView()",
-            "var body = BebopViewReader(encoded)",
-            "_ = try body.readUInt32()",
+        var readViewValueBody = [
             "let discriminator = try body.readByte()",
             "let value: View.Content",
             "switch discriminator {",
@@ -156,17 +184,21 @@ enum GenerateUnion {
             }
             let caseName = try branchCaseName(branch, unionName: defName)
             let typeName = try branchTypeName(branch, unionName: defName)
-            readViewBody.append(
-                "case \(disc): value = .\(caseName)(try \(typeName).readView(from: &body))"
+            readViewValueBody.append(
+                "case \(disc): value = .\(caseName)(try body.readNested { nested in try \(typeName).readView(from: &nested) })"
             )
         }
-        readViewBody.append(
+        readViewValueBody.append(
             "default: value = .unknown(discriminator: discriminator, data: try body.readBytesView(count: body.remaining))"
         )
-        readViewBody.append("}")
-        readViewBody.append("try body.finish()")
+        readViewValueBody.append("}")
+        readViewValueBody.append("return (discriminator, value)")
+        let readViewValueBodyString = readViewValueBody.map { indent($0) }.joined(separator: "\n")
+        var readViewBody = [
+            "let result = try reader.readLengthPrefixedValue { body in\n\(readViewValueBodyString)\n}",
+        ]
         readViewBody.append(
-            "return View(validated: encoded, discriminator: discriminator, value: value)"
+            "return View(validated: result.encoded, limits: reader.limits, discriminator: result.value.0, value: result.value.1)"
         )
         let readViewBodyString = readViewBody.map { indent($0) }.joined(separator: "\n")
         body.append(

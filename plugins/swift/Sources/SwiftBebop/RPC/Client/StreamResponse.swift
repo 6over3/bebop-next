@@ -36,20 +36,9 @@ public struct StreamResponse<Element: Sendable, Metadata: Sendable>: AsyncSequen
     public func map<T: Sendable>(
         _ transform: @escaping @Sendable (Element) throws -> T
     ) -> StreamResponse<T, Metadata> {
-        let source = _stream
-        let mapped = AsyncThrowingStream<(T, UInt64?), any Error> { continuation in
-            let task = Task {
-                do {
-                    for try await (element, cursor) in source {
-                        try Task.checkCancellation()
-                        try continuation.yield((transform(element), cursor))
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
+        let mapped = BebopStreams.map(_stream) { pair in
+            let (element, cursor) = pair
+            return (try transform(element), cursor)
         }
         return StreamResponse<T, Metadata>(stream: mapped, trailing: _trailing)
     }

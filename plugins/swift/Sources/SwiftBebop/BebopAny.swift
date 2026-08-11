@@ -34,17 +34,24 @@ public struct BebopAny: BebopRecord, BebopReflectable {
         (4 + typeURL.utf8.count + 1) + (4 + value.count)
     }
 
-    public struct View: Sendable {
-        fileprivate let encoded: BebopView
+    public struct View: BebopRecordView {
+        public let encoded: BebopView
         public let typeURL: BebopStringView
         public let value: BebopView
+        private let limits: BebopDecodeLimits
 
-        public init(_ bytes: [UInt8]) throws {
-            try self.init(BebopView(bytes))
+        public init(
+            _ bytes: [UInt8],
+            limits: BebopDecodeLimits = .default
+        ) throws {
+            try self.init(BebopView(bytes), limits: limits)
         }
 
-        public init(_ encoded: BebopView) throws {
-            var reader = BebopViewReader(encoded)
+        public init(
+            _ encoded: BebopView,
+            limits: BebopDecodeLimits = .default
+        ) throws {
+            var reader = BebopViewReader(encoded, limits: limits)
             self = try BebopAny.readView(from: &reader)
             try reader.finish()
         }
@@ -52,16 +59,18 @@ public struct BebopAny: BebopRecord, BebopReflectable {
         fileprivate init(
             validated encoded: BebopView,
             typeURL: BebopStringView,
-            value: BebopView
+            value: BebopView,
+            limits: BebopDecodeLimits
         ) {
             self.encoded = encoded
             self.typeURL = typeURL
             self.value = value
+            self.limits = limits
         }
 
         public func decoded() throws -> BebopAny {
             try encoded.withUnsafeBytes { bytes in
-                var reader = BebopReader(data: bytes)
+                var reader = BebopReader(data: bytes, limits: limits)
                 return try BebopAny.decode(from: &reader)
             }
         }
@@ -75,7 +84,8 @@ public struct BebopAny: BebopRecord, BebopReflectable {
         return View(
             validated: reader.view(from: start),
             typeURL: typeURL,
-            value: value)
+            value: value,
+            limits: reader.limits)
     }
 
     // MARK: - Pack / Unpack / Is

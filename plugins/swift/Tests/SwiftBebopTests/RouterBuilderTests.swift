@@ -24,4 +24,36 @@ import Testing
         #expect(router.methodType(for: uploadWidgetsId) == .clientStream)
         #expect(router.methodType(for: syncWidgetsId) == .duplexStream)
     }
+
+    @Test func routerBindsDecodeLimitsToTheCallContext() async throws {
+        let builder = BebopRouterBuilder()
+        builder.register(widgetService: WidgetHandler())
+        builder.config.decodeLimits = BebopDecodeLimits(
+            maxCollectionElements: 7,
+            maxDepth: 4
+        )
+        let router = builder.build()
+        let context = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
+
+        _ = try await router.unary(
+            methodId: getWidgetId,
+            payload: EchoRequest(value: "limits").serializedData(),
+            ctx: context
+        )
+
+        #expect(context.decodeLimits == builder.config.decodeLimits)
+    }
+
+    @Test func routerRejectsMismatchedContextMethodId() async {
+        let router = buildRouter()
+        let context = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
+
+        await #expect(throws: BebopRpcError.self) {
+            _ = try await router.unary(
+                methodId: getWidgetId,
+                payload: EchoRequest(value: "wrong context").serializedData(),
+                ctx: context
+            )
+        }
+    }
 }

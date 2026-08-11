@@ -116,6 +116,16 @@ private enum BytesKey: AttachmentKey {
         #expect(forwarded.responseMetadata.isEmpty)
     }
 
+    @Test func derivedContextsPreserveDecodeLimits() {
+        let context = RpcContext()
+        let limits = BebopDecodeLimits(maxCollectionElements: 12, maxDepth: 3)
+        context.setDecodeLimits(limits)
+
+        #expect(context.deriving(appending: [:]).decodeLimits == limits)
+        #expect(context.forwarding().decodeLimits == limits)
+        #expect(context.makeBatchContext(methodId: 42).decodeLimits == limits)
+    }
+
     @Test func freshContextHasNoMetadata() {
         let ctx = RpcContext()
         #expect(ctx.metadata.isEmpty)
@@ -142,7 +152,11 @@ private enum BytesKey: AttachmentKey {
         let ctx = RpcContext(
             methodId: 1, metadata: ["auth": "token"], deadline: nil
         )
-        let batch = ctx.makeBatchContext(upstreamMetadata: ["widget-id": "42"])
+        let batch = ctx.makeBatchContext(
+            methodId: 42,
+            upstreamMetadata: ["widget-id": "42"]
+        )
+        #expect(batch.methodId == 42)
         #expect(batch.metadata["auth"] == "token")
         #expect(batch.metadata["widget-id"] == "42")
     }
@@ -151,7 +165,10 @@ private enum BytesKey: AttachmentKey {
         let ctx = RpcContext(
             methodId: 1, metadata: ["key": "batch-value"], deadline: nil
         )
-        let batch = ctx.makeBatchContext(upstreamMetadata: ["key": "upstream-value"])
+        let batch = ctx.makeBatchContext(
+            methodId: 42,
+            upstreamMetadata: ["key": "upstream-value"]
+        )
         #expect(batch.metadata["key"] == "upstream-value")
     }
 
@@ -183,7 +200,7 @@ private enum BytesKey: AttachmentKey {
         let ctx = RpcContext(
             methodId: 1, metadata: [:], deadline: nil, cursor: 42
         )
-        let batch = ctx.makeBatchContext()
+        let batch = ctx.makeBatchContext(methodId: 42)
         #expect(batch.cursor == 0)
     }
 }

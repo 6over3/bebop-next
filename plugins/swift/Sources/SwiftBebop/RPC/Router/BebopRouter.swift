@@ -10,10 +10,12 @@ public enum BebopReservedMethod {
 public struct BebopRouterConfig: Sendable {
     public var discoveryEnabled: Bool = true
     public var futuresEnabled: Bool = false
-    public var maxBatchSize: UInt = .max
-    public var maxBatchStreamElements: UInt = .max
-    public var maxPendingFutures: UInt = .max
-    public var maxCompletedFutures: UInt = 10000
+    public var maxBatchSize: UInt = 1_024
+    public var maxBatchStreamElements: UInt = 10_000
+    public var maxPendingFutures: UInt = 10_000
+    public var maxCompletedFutures: UInt = 10_000
+    public var futureSubscriberBufferCapacity: Int = 256
+    public var decodeLimits: BebopDecodeLimits = .default
     public var allowUnauthenticatedFutureOwners: Bool = false
 
     public init() {}
@@ -46,6 +48,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
     public func unary(
         methodId: UInt32, payload: [UInt8], ctx: RpcContext
     ) async throws -> [UInt8] {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         switch methodId {
         case BebopReservedMethod.discovery:
             return try handleDiscovery()
@@ -73,6 +79,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
     public func serverStream(
         methodId: UInt32, payload: [UInt8], ctx: RpcContext
     ) async throws -> AsyncThrowingStream<StreamElement, Error> {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         switch methodId {
         case BebopReservedMethod.resolve:
             return try await handleResolve(payload: payload, ctx: ctx)
@@ -97,6 +107,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         send: @Sendable ([UInt8]) async throws -> Void,
         finish: @Sendable () async throws -> [UInt8]
     ) {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         guard let reg = methods[methodId] else {
             throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
         }
@@ -115,6 +129,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         finish: @Sendable () async throws -> Void,
         responses: AsyncThrowingStream<StreamElement, Error>
     ) {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         guard let reg = methods[methodId] else {
             throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
         }

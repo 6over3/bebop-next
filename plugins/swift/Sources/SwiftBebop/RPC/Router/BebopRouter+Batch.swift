@@ -5,7 +5,7 @@ private extension BatchCall {
 
 extension BebopRouter {
     func handleBatch(payload: [UInt8], ctx: RpcContext) async throws -> [UInt8] {
-        let request = try BatchRequest.decode(from: payload)
+        let request = try BatchRequest.decode(from: payload, limits: config.decodeLimits)
         let calls = request.calls
 
         guard !calls.isEmpty else {
@@ -16,9 +16,7 @@ extension BebopRouter {
             throw BebopRpcError(code: .resourceExhausted, detail: "batch too large")
         }
 
-        try validateBatchCalls(calls)
-
-        let layers = buildExecutionLayers(calls)
+        let layers = try buildExecutionLayers(calls)
         var outcomes: [Int32: BatchOutcome] = [:]
 
         for layer in layers {
@@ -62,49 +60,39 @@ extension BebopRouter {
         return BatchResponse(results: results).serializedData()
     }
 
-    // MARK: - Validation
+    // MARK: - Dependency graph
 
-    private func validateBatchCalls(_ calls: [BatchCall]) throws {
+    private func buildExecutionLayers(_ calls: [BatchCall]) throws -> [[Int]] {
         var seenIds = Set<Int32>(minimumCapacity: calls.count)
-        for call in calls {
+        var callDepth: [Int32: Int] = [:]
+        var layers: [[Int]] = []
+
+        for (index, call) in calls.enumerated() {
             guard call.callId >= 0 else {
                 throw BebopRpcError(code: .invalidArgument, detail: "batch call_id must be >= 0")
             }
             guard seenIds.insert(call.callId).inserted else {
                 throw BebopRpcError(code: .invalidArgument, detail: "duplicate call_id \(call.callId)")
             }
+            let depth: Int
             if call.hasDependency {
-                guard call.inputFrom < call.callId, seenIds.contains(call.inputFrom) else {
+                guard call.inputFrom < call.callId,
+                      let dependencyDepth = callDepth[call.inputFrom]
+                else {
                     throw BebopRpcError(
                         code: .invalidArgument,
                         detail: "call \(call.callId) references invalid input_from \(call.inputFrom)"
                     )
                 }
-            }
-        }
-    }
-
-    // MARK: - Dependency graph
-
-    private func buildExecutionLayers(_ calls: [BatchCall]) -> [[Int]] {
-        let rootDepth = 0
-        var callDepth: [Int32: Int] = [:]
-        for call in calls {
-            if call.hasDependency {
-                callDepth[call.callId] = (callDepth[call.inputFrom] ?? rootDepth) + 1
+                depth = dependencyDepth + 1
             } else {
-                callDepth[call.callId] = rootDepth
+                depth = 0
             }
+            callDepth[call.callId] = depth
+            while layers.count <= depth { layers.append([]) }
+            layers[depth].append(index)
         }
-
-        var depthBuckets: [Int: [Int]] = [:]
-        for (index, call) in calls.enumerated() {
-            let depth = callDepth[call.callId] ?? rootDepth
-            depthBuckets[depth, default: []].append(index)
-        }
-
-        guard let maxDepth = depthBuckets.keys.max() else { return [] }
-        return (rootDepth ... maxDepth).compactMap { depthBuckets[$0] }
+        return layers
     }
 
     // MARK: - Single call execution
@@ -142,7 +130,10 @@ extension BebopRouter {
             return .error(RpcError(code: .notFound, detail: "method \(call.methodId)"))
         }
 
-        let callCtx = ctx.makeBatchContext(upstreamMetadata: upstreamMeta)
+        let callCtx = ctx.makeBatchContext(
+            methodId: call.methodId,
+            upstreamMetadata: upstreamMeta
+        )
 
         do {
             try await runInterceptors(methodId: call.methodId, ctx: callCtx)

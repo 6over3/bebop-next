@@ -4,12 +4,11 @@
 /// (no padding bytes). This is required because Bebop packs scalars contiguously
 /// on the wire, so `stride`-based memcpy is only correct when stride equals size.
 ///
-/// All Bebop primitive scalar types (fixed-width integers, IEEE floats, BFloat16)
-/// conform to this protocol. User-defined types should not conform unless they
-/// genuinely have no padding.
+/// Fixed-width integers, IEEE floats, BFloat16, and BebopUUID conform to this
+/// protocol. User-defined types should not conform unless they genuinely have
+/// no padding and their in-memory representation matches the wire format.
 public protocol BebopScalar: BitwiseCopyable {}
 
-extension Bool: BebopScalar {}
 extension UInt8: BebopScalar {}
 extension Int8: BebopScalar {}
 extension Int16: BebopScalar {}

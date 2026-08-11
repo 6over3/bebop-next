@@ -16,7 +16,7 @@ extension BebopRouter {
         let owner = try requireOwner(ctx)
         try await runInterceptors(methodId: BebopReservedMethod.dispatch, ctx: ctx)
 
-        let req = try FutureDispatchRequest.decode(from: payload)
+        let req = try FutureDispatchRequest.decode(from: payload, limits: config.decodeLimits)
 
         guard let methodId = req.methodId else {
             throw BebopRpcError(code: .invalidArgument, detail: "missing method_id")
@@ -53,6 +53,7 @@ extension BebopRouter {
         let deadline = req.deadline
 
         let innerCtx = RpcContext(
+            methodId: methodId,
             metadata: ctx.metadata.merging(req.metadata ?? [:]) { _, new in new },
             deadline: deadline
         )
@@ -105,44 +106,15 @@ extension BebopRouter {
         let owner = try requireOwner(ctx)
         try await runInterceptors(methodId: BebopReservedMethod.resolve, ctx: ctx)
 
-        let req = try FutureResolveRequest.decode(from: payload)
+        let req = try FutureResolveRequest.decode(from: payload, limits: config.decodeLimits)
         let requestedIds = req.ids
         let (immediate, stream) = try await store.subscribe(
             futureIds: requestedIds,
             owner: owner
         )
 
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                for result in immediate {
-                    continuation.yield(StreamElement(bytes: result.serializedData()))
-                }
-
-                if let requestedIds {
-                    let target = Set(requestedIds)
-                    var resolved = Set(immediate.map(\.id))
-
-                    if target.isSubset(of: resolved) {
-                        continuation.finish()
-                        return
-                    }
-
-                    for await result in stream {
-                        if Task.isCancelled { break }
-                        continuation.yield(StreamElement(bytes: result.serializedData()))
-                        resolved.insert(result.id)
-                        if target.isSubset(of: resolved) { break }
-                    }
-                } else {
-                    for await result in stream {
-                        if Task.isCancelled { break }
-                        continuation.yield(StreamElement(bytes: result.serializedData()))
-                    }
-                }
-
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
+        return BebopStreams.map(immediate, then: stream) { result in
+            StreamElement(bytes: result.serializedData())
         }
     }
 
@@ -156,8 +128,10 @@ extension BebopRouter {
         let owner = try requireOwner(ctx)
         try await runInterceptors(methodId: BebopReservedMethod.cancel, ctx: ctx)
 
-        let req = try FutureCancelRequest.decode(from: payload)
-        try await store.cancel(id: req.id, owner: owner)
+        let req = try FutureCancelRequest.decode(from: payload, limits: config.decodeLimits)
+        guard try await store.cancel(id: req.id, owner: owner) else {
+            throw BebopRpcError(code: .notFound, detail: "future not found")
+        }
         return BebopEmpty().serializedData()
     }
 }

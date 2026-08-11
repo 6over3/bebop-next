@@ -10,13 +10,13 @@ struct LoopbackAuthInfo: AuthInfo {
 
 struct WidgetHandler: WidgetServiceHandler {
     func getWidget(
-        _ request: EchoRequest, context _: RpcContext
+        _ request: EchoRequest.View, context _: RpcContext
     ) async throws -> EchoResponse {
-        EchoResponse(value: request.value)
+        EchoResponse(value: request.value.string)
     }
 
     func listWidgets(
-        _ request: CountRequest, context _: RpcContext
+        _ request: CountRequest.View, context _: RpcContext
     ) async throws -> AsyncThrowingStream<CountResponse, Error> {
         AsyncThrowingStream { c in
             for i in 0 ..< request.n {
@@ -27,24 +27,24 @@ struct WidgetHandler: WidgetServiceHandler {
     }
 
     func uploadWidgets(
-        _ requests: AsyncThrowingStream<EchoRequest, Error>,
+        _ requests: AsyncThrowingStream<EchoRequest.View, Error>,
         context _: RpcContext
     ) async throws -> EchoResponse {
         var parts: [String] = []
         for try await req in requests {
-            parts.append(req.value)
+            parts.append(req.value.string)
         }
         return EchoResponse(value: parts.joined(separator: ","))
     }
 
     func syncWidgets(
-        _ requests: AsyncThrowingStream<EchoRequest, Error>,
+        _ requests: AsyncThrowingStream<EchoRequest.View, Error>,
         context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: EchoResponse.self)
         let task = Task {
             for try await req in requests {
-                continuation.yield(EchoResponse(value: req.value))
+                continuation.yield(EchoResponse(value: req.value.string))
             }
             continuation.finish()
         }

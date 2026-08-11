@@ -28,7 +28,7 @@ import Testing
     #expect(inspection.matchesBytes)
     #expect(inspection.copiedValue == "héllo 🌍")
     #expect(inspection.byteCount == "héllo 🌍".utf8.count)
-    #expect(view.value == "héllo 🌍")
+    #expect(view.string == "héllo 🌍")
 }
 
 @Test func structViewUsesNaturalProperties() throws {
@@ -36,19 +36,32 @@ import Testing
     let view = try BatchSuccess.View(value.serializedData())
 
     #expect(view.payloads.map(Array.init) == [[1, 2, 3], [4]])
-    let metadata = Dictionary(uniqueKeysWithValues: view.metadata.map { ($0.key.value, $0.value.value) })
+    #expect(view.payloads.first?.bytes.elementsEqual([1, 2, 3]) == true)
+    let metadata = Dictionary(
+        uniqueKeysWithValues: view.metadata.map { ($0.key.string, $0.value.string) })
     #expect(metadata == ["trace": "abc"])
     #expect(try view.decoded() == value)
+}
+
+@Test func recordViewsApplyCustomCollectionLimits() {
+    let value = BatchSuccess(payloads: [[1], [2]])
+
+    #expect(throws: BebopDecodingError.limitExceeded) {
+        try BatchSuccess.View(
+            value.serializedData(),
+            limits: BebopDecodeLimits(maxCollectionElements: 1)
+        )
+    }
 }
 
 @Test func messageViewProvidesTypedOptionalFields() throws {
     let value = RpcError(code: .invalidArgument, detail: "bad widget", metadata: ["field": "name"])
     let view = try RpcError.View(value.serializedData())
 
-    #expect(view.code == .invalidArgument)
-    #expect(view.detail?.value == "bad widget")
-    let metadata = try #require(view.metadata)
-    #expect(metadata["field"]?.value == "name")
+    #expect(try view.code == .invalidArgument)
+    #expect(try view.detail?.string == "bad widget")
+    let metadata = try #require(try view.metadata)
+    #expect(metadata["field"]?.string == "name")
     #expect(try view.decoded() == value)
 }
 
@@ -63,7 +76,7 @@ import Testing
         return
     }
     #expect(success.payloads.first.map(Array.init) == [9, 8, 7])
-    #expect(success.metadata["request"]?.value == "42")
+    #expect(success.metadata["request"]?.string == "42")
     #expect(try view.decoded() == value)
 }
 
@@ -77,4 +90,40 @@ import Testing
     }
     #expect(discriminator == 99)
     #expect(Array(data) == [1, 2, 3])
+}
+
+@Test func lengthPrefixedViewsPreserveDecodeDepthLimits() {
+    var reader = BebopViewReader(
+        BebopView([1, 0, 0, 0, 0]),
+        limits: BebopDecodeLimits(maxDepth: 0)
+    )
+
+    #expect(throws: BebopDecodingError.limitExceeded) {
+        try reader.readLengthPrefixedValue { body in
+            try body.readNested { nested in try nested.readByte() }
+        }
+    }
+}
+
+@Test func contiguousByteArrayViewsBorrowTheirPayload() throws {
+    let encoded: [UInt8] = [3, 0, 0, 0, 10, 20, 30]
+    var reader = BebopViewReader(BebopView(encoded))
+    let view = try reader.readContiguousArrayView(elementSize: 1) { reader in
+        try reader.readByte()
+    }
+
+    #expect(view.count == 3)
+    #expect(view.bytes.elementsEqual([10, 20, 30]))
+    #expect(Array(view) == [10, 20, 30])
+    try reader.finish()
+}
+
+@Test func contiguousArrayViewsRejectTruncatedPayloads() {
+    var reader = BebopViewReader(BebopView([2, 0, 0, 0, 1, 0, 0, 0]))
+
+    #expect(throws: BebopDecodingError.unexpectedEndOfData) {
+        try reader.readContiguousArrayView(elementSize: 4) { reader in
+            try reader.readUInt32()
+        }
+    }
 }

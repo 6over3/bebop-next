@@ -67,6 +67,10 @@ enum GenerateEnum {
                 prefix: declPrefix(doc: member.documentation, decorators: member.decorators)
             )
         }
+        try validateUniqueGeneratedNames(
+            memberDecls.map(\.caseName),
+            in: "enum '\(defName)'"
+        )
 
         var body: [String] = []
         body.append("\(vis)typealias View = \(name)")
@@ -160,6 +164,10 @@ enum GenerateEnum {
                 prefix: declPrefix(doc: member.documentation, decorators: member.decorators)
             )
         }
+        try validateUniqueGeneratedNames(
+            memberDecls.filter { $0.value != 0 }.map(\.caseName),
+            in: "flags '\(defName)'"
+        )
 
         var body: [String] = []
         body.append("\(vis)typealias View = \(name)")

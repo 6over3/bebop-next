@@ -102,10 +102,10 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
 
     let view = try TypeDescriptor.View(descriptor.serializedData())
 
-    #expect(view.kind == .array)
-    #expect(view.arrayElement?.kind == .map)
-    #expect(view.arrayElement?.mapKey?.kind == .string)
-    #expect(view.arrayElement?.mapValue?.kind == .uint64)
+    #expect(try view.kind == .array)
+    #expect(try view.arrayElement?.kind == .map)
+    #expect(try view.arrayElement?.mapKey?.kind == .string)
+    #expect(try view.arrayElement?.mapValue?.kind == .uint64)
     #expect(try view.decoded() == descriptor)
 }
 
@@ -474,7 +474,7 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
     let builder = ResponseBuilder()
     builder.addFile(name: "a.swift", content: "code_a")
     builder.addFile(name: "b.swift", content: "code_b")
-    let bytes = try builder.encode()
+    let bytes = builder.encode()
     let resp = try CodeGeneratorResponse.decode(from: bytes)
     #expect(resp.files?.count == 2)
     #expect(resp.files?[0].name == "a.swift")
@@ -484,16 +484,41 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
 
 @Test func responseBuilderSetError() throws {
     let builder = ResponseBuilder()
+    builder.addFile(name: "discarded.swift", content: "")
     builder.setError("fatal error")
-    let bytes = try builder.encode()
+    let bytes = builder.encode()
     let resp = try CodeGeneratorResponse.decode(from: bytes)
     #expect(resp.error == "fatal error")
     #expect(resp.files == nil)
 }
 
+@Test func responseBuilderAddsDiagnostics() throws {
+    let builder = ResponseBuilder()
+    builder.addDiagnostic(Diagnostic(severity: .warning, text: "unused declaration"))
+
+    let response = try CodeGeneratorResponse.decode(from: builder.encode())
+    #expect(response.diagnostics?.count == 1)
+    #expect(response.diagnostics?.first?.severity == .warning)
+    #expect(response.diagnostics?.first?.text == "unused declaration")
+}
+
+@Test func responseBuilderAcceptsConcurrentContributors() async throws {
+    let builder = ResponseBuilder()
+    await withTaskGroup(of: Void.self) { group in
+        for index in 0..<100 {
+            group.addTask {
+                builder.addFile(name: "\(index).swift", content: "\(index)")
+            }
+        }
+    }
+
+    let response = try CodeGeneratorResponse.decode(from: builder.encode())
+    #expect(response.files?.count == 100)
+}
+
 @Test func responseBuilderEmpty() throws {
     let builder = ResponseBuilder()
-    let bytes = try builder.encode()
+    let bytes = builder.encode()
     let resp = try CodeGeneratorResponse.decode(from: bytes)
     #expect(resp.error == nil)
     #expect(resp.files == nil)

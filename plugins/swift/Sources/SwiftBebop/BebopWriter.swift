@@ -48,9 +48,14 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @usableFromInline
     mutating func grow(to minCapacity: Int) {
+        precondition(minCapacity >= 0, "BebopWriter capacity overflow")
         var newCapacity = capacity
         while newCapacity < minCapacity {
-            newCapacity &*= 2
+            if newCapacity > Int.max / 2 {
+                newCapacity = minCapacity
+                break
+            }
+            newCapacity *= 2
         }
         guard let newStorage = realloc(storage, newCapacity) else {
             preconditionFailure("BebopWriter: failed to reallocate \(newCapacity) bytes")
@@ -61,8 +66,10 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @inlinable @inline(__always)
     mutating func ensureCapacity(for additional: Int) {
-        if _slowPath(_count &+ additional > capacity) {
-            grow(to: _count &+ additional)
+        precondition(additional >= 0 && _count <= Int.max - additional, "BebopWriter size overflow")
+        let required = _count + additional
+        if _slowPath(required > capacity) {
+            grow(to: required)
         }
     }
 
@@ -271,7 +278,8 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     public mutating func writeInlineArray< let N: Int, T: BebopScalar > (
         _ array: InlineArray<N, T>
     ) {
-        let byteCount = N &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = N.multipliedReportingOverflow(by: MemoryLayout<T>.stride)
+        precondition(!overflow, "fixed array byte count overflow")
         guard byteCount > 0 else { return }
         ensureCapacity(for: byteCount)
         withUnsafePointer(to: array) { ptr in
@@ -314,7 +322,10 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     /// little-endian wire format (fixed-width integers and IEEE floats).
     @inlinable
     public mutating func writeArray<T: BebopScalar>(_ values: [T]) {
-        let byteCount = values.count &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = values.count.multipliedReportingOverflow(
+            by: MemoryLayout<T>.stride
+        )
+        precondition(!overflow, "array byte count overflow")
         guard byteCount > 0 else { return }
         ensureCapacity(for: byteCount)
         values.withUnsafeBufferPointer { buf in
