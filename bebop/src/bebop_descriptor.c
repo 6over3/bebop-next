@@ -1,25 +1,25 @@
 #include "generated/descriptor.bb.h"
 
-static Bebop_WireCtx* _desc_make_ctx(bebop_host_allocator_t* a)
+static Bebop_Context* _desc_make_ctx(bebop_host_allocator_t* a)
 {
-  Bebop_WireCtxOpts opts = Bebop_WireCtx_DefaultOpts();
+  Bebop_ContextOptions opts = bebop_context_options();
   opts.arena_options.allocator =
-      (Bebop_WireAllocator) {.alloc = (Bebop_WireAllocFn)a->alloc, .ctx = a->ctx};
-  return Bebop_WireCtx_New(&opts);
+      (Bebop_Allocator) {.alloc = (Bebop_AllocFn)a->alloc, .ctx = a->ctx};
+  return bebop_context_new(&opts);
 }
 
-static Bebop_Str _desc_dup_str(Bebop_WireCtx* ctx, const char* s)
+static Bebop_String _desc_dup_str(Bebop_Context* ctx, const char* s)
 {
   if (!s) {
-    return (Bebop_Str) {0};
+    return (Bebop_String) {0};
   }
   const size_t len = strlen(s);
-  char* p = Bebop_WireCtx_Alloc(ctx, len + 1);
+  char* p = bebop_context_alloc(ctx, len + 1);
   if (!p) {
-    return (Bebop_Str) {0};
+    return (Bebop_String) {0};
   }
   memcpy(p, s, len + 1);
-  return (Bebop_Str) {.data = p, .length = (uint32_t)len};
+  return (Bebop_String) {.data = p, .length = (uint32_t)len};
 }
 
 #define DESC_SET_OPT_STR(field, str) \
@@ -37,29 +37,29 @@ static Bebop_Str _desc_dup_str(Bebop_WireCtx* ctx, const char* s)
   } while (0)
 
 struct bebop_descriptor {
-  Bebop_WireCtx* ctx;
+  Bebop_Context* ctx;
   Bebop_DescriptorSet data;
 };
 
 static Bebop_TypeDescriptor* _desc_build_type(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_type_t* src
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_type_t* src
 );
 static void _desc_build_def(
-    Bebop_WireCtx* wctx,
+    Bebop_Context* wctx,
     bebop_context_t* bctx,
     const bebop_def_t* src,
     Bebop_DefinitionDescriptor* dst
 );
 
 static Bebop_TypeDescriptor* _desc_build_type(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_type_t* src
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_type_t* src
 )
 {
   if (!src) {
     return NULL;
   }
 
-  Bebop_TypeDescriptor* t = Bebop_WireCtx_Alloc(wctx, sizeof(*t));
+  Bebop_TypeDescriptor* t = bebop_context_alloc(wctx, sizeof(*t));
   if (!t) {
     return NULL;
   }
@@ -101,7 +101,7 @@ static Bebop_TypeDescriptor* _desc_build_type(
 }
 
 static void _desc_build_literal(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_literal_t* src, Bebop_LiteralValue* dst
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_literal_t* src, Bebop_LiteralValue* dst
 )
 {
   memset(dst, 0, sizeof(*dst));
@@ -132,7 +132,7 @@ static void _desc_build_literal(
       if (src->bytes_val.data && src->bytes_val.len > 0) {
         dst->bytes_value.has_value = true;
         dst->bytes_value.value.length = (uint32_t)src->bytes_val.len;
-        dst->bytes_value.value.data = Bebop_WireCtx_Alloc(wctx, src->bytes_val.len);
+        dst->bytes_value.value.data = bebop_context_alloc(wctx, src->bytes_val.len);
         if (dst->bytes_value.value.data) {
           memcpy(dst->bytes_value.value.data, src->bytes_val.data, src->bytes_val.len);
         }
@@ -159,7 +159,7 @@ static void _desc_build_literal(
 }
 
 static Bebop_DecoratorUsage_Array _desc_build_decorators(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_decorator_t* chain
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_decorator_t* chain
 )
 {
   Bebop_DecoratorUsage_Array result = {0};
@@ -175,7 +175,7 @@ static Bebop_DecoratorUsage_Array _desc_build_decorators(
     return result;
   }
 
-  Bebop_DecoratorUsage* arr = Bebop_WireCtx_Alloc(wctx, count * sizeof(*arr));
+  Bebop_DecoratorUsage* arr = bebop_context_alloc(wctx, count * sizeof(*arr));
   if (!arr) {
     return result;
   }
@@ -188,7 +188,7 @@ static Bebop_DecoratorUsage_Array _desc_build_decorators(
     DESC_SET_OPT_STR(u->fqn, BEBOP_STR(bctx, d->name));
 
     if (d->arg_count > 0 && d->args) {
-      Bebop_DecoratorArg* args = Bebop_WireCtx_Alloc(wctx, d->arg_count * sizeof(*args));
+      Bebop_DecoratorArg* args = bebop_context_alloc(wctx, d->arg_count * sizeof(*args));
       if (args) {
         for (uint32_t j = 0; j < d->arg_count; j++) {
           const bebop_decorator_arg_t* sa = &d->args[j];
@@ -199,32 +199,32 @@ static Bebop_DecoratorUsage_Array _desc_build_decorators(
             }
           }
           const Bebop_DecoratorArg* da = &args[j];
-          memcpy(BEBOP_WIRE_MUTPTR(Bebop_Str, &da->name), &(Bebop_Str) {0}, sizeof(Bebop_Str));
+          memcpy(
+              BEBOP_WIRE_MUTPTR(Bebop_String, &da->name), &(Bebop_String) {0}, sizeof(Bebop_String)
+          );
           if (arg_name) {
-            Bebop_Str s = _desc_dup_str(wctx, arg_name);
-            memcpy(BEBOP_WIRE_MUTPTR(Bebop_Str, &da->name), &s, sizeof(s));
+            Bebop_String s = _desc_dup_str(wctx, arg_name);
+            memcpy(BEBOP_WIRE_MUTPTR(Bebop_String, &da->name), &s, sizeof(s));
           }
           _desc_build_literal(
               wctx, bctx, &sa->value, BEBOP_WIRE_MUTPTR(Bebop_LiteralValue, &da->value)
           );
         }
-        BEBOP_WIRE_SET_SOME(
-            u->args, ((Bebop_DecoratorArg_Array) {.data = args, .length = d->arg_count})
-        );
+        BEBOP_SET(u->args, ((Bebop_DecoratorArg_Array) {.data = args, .length = d->arg_count}));
       }
     }
 
     if (d->export_data && d->export_data->count > 0) {
       const bebop_export_data_t* exp = d->export_data;
       u->export_data.has_value = true;
-      Bebop_Map_Init(&u->export_data.value, wctx, Bebop_MapHash_Str, Bebop_MapEq_Str);
+      bebop_map_init(&u->export_data.value, wctx, BEBOP_MAP_KEY_STRING);
       for (uint32_t j = 0; j < exp->count; j++) {
-        Bebop_Str* key = Bebop_WireCtx_Alloc(wctx, sizeof(Bebop_Str));
-        Bebop_LiteralValue* val = Bebop_WireCtx_Alloc(wctx, sizeof(Bebop_LiteralValue));
+        Bebop_String* key = bebop_context_alloc(wctx, sizeof(Bebop_String));
+        Bebop_LiteralValue* val = bebop_context_alloc(wctx, sizeof(Bebop_LiteralValue));
         if (key && val) {
           *key = _desc_dup_str(wctx, BEBOP_STR(bctx, exp->entries[j].key));
           _desc_build_literal(wctx, bctx, &exp->entries[j].value, val);
-          Bebop_Map_Put(&u->export_data.value, key, val);
+          bebop_map_set(&u->export_data.value, key, val);
         }
       }
     }
@@ -239,7 +239,7 @@ static Bebop_DecoratorUsage_Array _desc_build_decorators(
   do { \
     Bebop_DecoratorUsage_Array _decs = _desc_build_decorators((wctx), (bctx), (chain)); \
     if (_decs.length > 0) { \
-      BEBOP_WIRE_SET_SOME((field), _decs); \
+      BEBOP_SET((field), _decs); \
     } \
   } while (0)
 
@@ -282,13 +282,13 @@ static void _desc_set_span(Bebop_Location* loc, bebop_span_t span)
 }
 
 static void _desc_set_path(
-    Bebop_WireCtx* wctx, Bebop_Location* loc, const int32_t* path, uint32_t path_len
+    Bebop_Context* wctx, Bebop_Location* loc, const int32_t* path, uint32_t path_len
 )
 {
   if (path_len == 0) {
     return;
   }
-  int32_t* p = Bebop_WireCtx_Alloc(wctx, path_len * sizeof(*p));
+  int32_t* p = bebop_context_alloc(wctx, path_len * sizeof(*p));
   if (!p) {
     return;
   }
@@ -315,8 +315,8 @@ static const bebop_token_t* _desc_find_token_at(const bebop_schema_t* schema, ui
   return &schema->tokens.tokens[schema->tokens.count - 1];
 }
 
-static Bebop_Str _desc_extract_comment(
-    Bebop_WireCtx* wctx, const bebop_schema_t* schema, const bebop_trivia_t* t
+static Bebop_String _desc_extract_comment(
+    Bebop_Context* wctx, const bebop_schema_t* schema, const bebop_trivia_t* t
 )
 {
   const char* src = schema->source + t->span.off;
@@ -345,28 +345,28 @@ static Bebop_Str _desc_extract_comment(
   }
 
   if (len == 0) {
-    return (Bebop_Str) {0};
+    return (Bebop_String) {0};
   }
 
-  char* copy = Bebop_WireCtx_Alloc(wctx, len + 1);
+  char* copy = bebop_context_alloc(wctx, len + 1);
   if (!copy) {
-    return (Bebop_Str) {0};
+    return (Bebop_String) {0};
   }
   memcpy(copy, src, len);
   copy[len] = '\0';
-  return (Bebop_Str) {.data = copy, .length = (uint32_t)len};
+  return (Bebop_String) {.data = copy, .length = (uint32_t)len};
 }
 
 static void _desc_extract_comments(
-    Bebop_WireCtx* wctx,
+    Bebop_Context* wctx,
     const bebop_schema_t* schema,
     const bebop_token_t* tok,
-    Bebop_Str* leading,
-    Bebop_Str** detached,
+    Bebop_String* leading,
+    Bebop_String** detached,
     uint32_t* detached_count
 )
 {
-  *leading = (Bebop_Str) {0};
+  *leading = (Bebop_String) {0};
   *detached = NULL;
   *detached_count = 0;
 
@@ -374,7 +374,7 @@ static void _desc_extract_comments(
     return;
   }
 
-  Bebop_Str groups[32];
+  Bebop_String groups[32];
   uint32_t group_count = 0;
   int start_new_group = 1;
   int consecutive_newlines = 0;
@@ -391,7 +391,7 @@ static void _desc_extract_comments(
     } else if (t->kind == BEBOP_TRIVIA_LINE_COMMENT || t->kind == BEBOP_TRIVIA_DOC_COMMENT
                || t->kind == BEBOP_TRIVIA_BLOCK_COMMENT)
     {
-      const Bebop_Str comment = _desc_extract_comment(wctx, schema, t);
+      const Bebop_String comment = _desc_extract_comment(wctx, schema, t);
       if (comment.length > 0 && group_count < 32) {
         if (start_new_group) {
           groups[group_count++] = comment;
@@ -414,7 +414,7 @@ static void _desc_extract_comments(
 
   if (group_count > 1) {
     *detached_count = group_count - 1;
-    *detached = Bebop_WireCtx_Alloc(wctx, (*detached_count) * sizeof(Bebop_Str));
+    *detached = bebop_context_alloc(wctx, (*detached_count) * sizeof(Bebop_String));
     if (*detached) {
       for (uint32_t i = 0; i < *detached_count; i++) {
         (*detached)[i] = groups[i];
@@ -425,12 +425,12 @@ static void _desc_extract_comments(
   }
 }
 
-static Bebop_Str _desc_extract_trailing(
-    Bebop_WireCtx* wctx, const bebop_schema_t* schema, const bebop_token_t* tok
+static Bebop_String _desc_extract_trailing(
+    Bebop_Context* wctx, const bebop_schema_t* schema, const bebop_token_t* tok
 )
 {
   if (!tok || tok->trailing.count == 0) {
-    return (Bebop_Str) {0};
+    return (Bebop_String) {0};
   }
 
   for (uint32_t i = 0; i < tok->trailing.count; i++) {
@@ -439,11 +439,11 @@ static Bebop_Str _desc_extract_trailing(
       return _desc_extract_comment(wctx, schema, t);
     }
   }
-  return (Bebop_Str) {0};
+  return (Bebop_String) {0};
 }
 
 static void _desc_set_comments(
-    Bebop_WireCtx* wctx, const bebop_schema_t* schema, Bebop_Location* loc, uint32_t span_off
+    Bebop_Context* wctx, const bebop_schema_t* schema, Bebop_Location* loc, uint32_t span_off
 )
 {
   const bebop_token_t* tok = _desc_find_token_at(schema, span_off);
@@ -451,8 +451,8 @@ static void _desc_set_comments(
     return;
   }
 
-  Bebop_Str leading;
-  Bebop_Str* detached;
+  Bebop_String leading;
+  Bebop_String* detached;
   uint32_t detached_count;
   _desc_extract_comments(wctx, schema, tok, &leading, &detached, &detached_count);
 
@@ -467,7 +467,7 @@ static void _desc_set_comments(
     loc->detached_comments.value.length = detached_count;
   }
 
-  const Bebop_Str trailing = _desc_extract_trailing(wctx, schema, tok);
+  const Bebop_String trailing = _desc_extract_trailing(wctx, schema, tok);
   if (trailing.length > 0) {
     loc->trailing_comments.has_value = true;
     loc->trailing_comments.value = trailing;
@@ -475,7 +475,7 @@ static void _desc_set_comments(
 }
 
 static uint32_t _desc_build_locations(
-    Bebop_WireCtx* wctx,
+    Bebop_Context* wctx,
     const bebop_def_t* defs,
     Bebop_Location* locs,
     uint32_t idx,
@@ -489,7 +489,7 @@ static uint32_t _desc_build_locations(
     memset(loc, 0, sizeof(*loc));
 
     const uint32_t path_len = parent_path_len + 2;
-    int32_t* path = Bebop_WireCtx_Alloc(wctx, path_len * sizeof(*path));
+    int32_t* path = bebop_context_alloc(wctx, path_len * sizeof(*path));
     if (path) {
       if (parent_path_len > 0) {
         memcpy(path, parent_path, parent_path_len * sizeof(*path));
@@ -611,7 +611,7 @@ static uint32_t _desc_build_locations(
 }
 
 static Bebop_SourceCodeInfo* _desc_build_source_code_info(
-    Bebop_WireCtx* wctx, const bebop_schema_t* src
+    Bebop_Context* wctx, const bebop_schema_t* src
 )
 {
   const uint32_t loc_count = _desc_count_locations(src->definitions);
@@ -619,13 +619,13 @@ static Bebop_SourceCodeInfo* _desc_build_source_code_info(
     return NULL;
   }
 
-  Bebop_SourceCodeInfo* sci = Bebop_WireCtx_Alloc(wctx, sizeof(*sci));
+  Bebop_SourceCodeInfo* sci = bebop_context_alloc(wctx, sizeof(*sci));
   if (!sci) {
     return NULL;
   }
   memset(sci, 0, sizeof(*sci));
 
-  Bebop_Location* locs = Bebop_WireCtx_Alloc(wctx, loc_count * sizeof(*locs));
+  Bebop_Location* locs = bebop_context_alloc(wctx, loc_count * sizeof(*locs));
   if (!locs) {
     return NULL;
   }
@@ -640,7 +640,7 @@ static Bebop_SourceCodeInfo* _desc_build_source_code_info(
 }
 
 static Bebop_FieldDescriptor_Array _desc_build_fields(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_field_t* fields, uint32_t count
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_field_t* fields, uint32_t count
 )
 {
   Bebop_FieldDescriptor_Array result = {0};
@@ -648,7 +648,7 @@ static Bebop_FieldDescriptor_Array _desc_build_fields(
     return result;
   }
 
-  Bebop_FieldDescriptor* arr = Bebop_WireCtx_Alloc(wctx, count * sizeof(*arr));
+  Bebop_FieldDescriptor* arr = bebop_context_alloc(wctx, count * sizeof(*arr));
   if (!arr) {
     return result;
   }
@@ -660,7 +660,7 @@ static Bebop_FieldDescriptor_Array _desc_build_fields(
 
     DESC_SET_OPT_STR(df->name, BEBOP_STR(bctx, sf->name));
     DESC_SET_OPT_STR(df->documentation, BEBOP_STR(bctx, sf->documentation));
-    BEBOP_WIRE_SET_SOME(df->type, _desc_build_type(wctx, bctx, sf->type));
+    BEBOP_SET(df->type, _desc_build_type(wctx, bctx, sf->type));
     DESC_SET_OPT(df->index, sf->index);
     DESC_SET_DECORATORS(df->decorators, wctx, bctx, sf->decorators);
   }
@@ -674,12 +674,12 @@ static Bebop_FieldDescriptor_Array _desc_build_fields(
   do { \
     Bebop_FieldDescriptor_Array _flds = _desc_build_fields((wctx), (bctx), (fields_ptr), (cnt)); \
     if (_flds.length > 0) { \
-      BEBOP_WIRE_SET_SOME((field), _flds); \
+      BEBOP_SET((field), _flds); \
     } \
   } while (0)
 
 static Bebop_DefinitionDescriptor_Array _desc_build_nested(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_def_t* parent
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_def_t* parent
 )
 {
   Bebop_DefinitionDescriptor_Array result = {0};
@@ -688,7 +688,7 @@ static Bebop_DefinitionDescriptor_Array _desc_build_nested(
   }
 
   Bebop_DefinitionDescriptor* arr =
-      Bebop_WireCtx_Alloc(wctx, parent->nested_def_count * sizeof(*arr));
+      bebop_context_alloc(wctx, parent->nested_def_count * sizeof(*arr));
   if (!arr) {
     return result;
   }
@@ -704,7 +704,7 @@ static Bebop_DefinitionDescriptor_Array _desc_build_nested(
 }
 
 static void _desc_build_def(
-    Bebop_WireCtx* wctx,
+    Bebop_Context* wctx,
     bebop_context_t* bctx,
     const bebop_def_t* src,
     Bebop_DefinitionDescriptor* dst
@@ -712,8 +712,8 @@ static void _desc_build_def(
 {
   memset(dst, 0, sizeof(*dst));
 
-  BEBOP_WIRE_SET_SOME(dst->kind, (Bebop_DefinitionKind)src->kind);
-  BEBOP_WIRE_SET_SOME(dst->visibility, (Bebop_Visibility)src->visibility);
+  BEBOP_SET(dst->kind, (Bebop_DefinitionKind)src->kind);
+  BEBOP_SET(dst->visibility, (Bebop_Visibility)src->visibility);
   DESC_SET_OPT_STR(dst->name, BEBOP_STR(bctx, src->name));
   DESC_SET_OPT_STR(dst->fqn, BEBOP_STR(bctx, src->fqn));
   DESC_SET_OPT_STR(dst->documentation, BEBOP_STR(bctx, src->documentation));
@@ -721,13 +721,13 @@ static void _desc_build_def(
   {
     const Bebop_DefinitionDescriptor_Array nested = _desc_build_nested(wctx, bctx, src);
     if (nested.length > 0) {
-      BEBOP_WIRE_SET_SOME(dst->nested, nested);
+      BEBOP_SET(dst->nested, nested);
     }
   }
 
   switch (src->kind) {
     case BEBOP_DEF_ENUM: {
-      Bebop_EnumDef* ed = Bebop_WireCtx_Alloc(wctx, sizeof(*ed));
+      Bebop_EnumDef* ed = bebop_context_alloc(wctx, sizeof(*ed));
       if (!ed) {
         break;
       }
@@ -747,7 +747,7 @@ static void _desc_build_def(
 
       if (src->enum_def.member_count > 0) {
         Bebop_EnumMemberDescriptor* members =
-            Bebop_WireCtx_Alloc(wctx, src->enum_def.member_count * sizeof(*members));
+            bebop_context_alloc(wctx, src->enum_def.member_count * sizeof(*members));
         if (members) {
           for (uint32_t i = 0; i < src->enum_def.member_count; i++) {
             const bebop_enum_member_t* sm = &src->enum_def.members[i];
@@ -770,7 +770,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_STRUCT: {
-      Bebop_StructDef* sd = Bebop_WireCtx_Alloc(wctx, sizeof(*sd));
+      Bebop_StructDef* sd = bebop_context_alloc(wctx, sizeof(*sd));
       if (!sd) {
         break;
       }
@@ -786,7 +786,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_MESSAGE: {
-      Bebop_MessageDef* md = Bebop_WireCtx_Alloc(wctx, sizeof(*md));
+      Bebop_MessageDef* md = bebop_context_alloc(wctx, sizeof(*md));
       if (!md) {
         break;
       }
@@ -802,7 +802,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_UNION: {
-      Bebop_UnionDef* ud = Bebop_WireCtx_Alloc(wctx, sizeof(*ud));
+      Bebop_UnionDef* ud = bebop_context_alloc(wctx, sizeof(*ud));
       if (!ud) {
         break;
       }
@@ -810,7 +810,7 @@ static void _desc_build_def(
 
       if (src->union_def.branch_count > 0) {
         Bebop_UnionBranchDescriptor* branches =
-            Bebop_WireCtx_Alloc(wctx, src->union_def.branch_count * sizeof(*branches));
+            bebop_context_alloc(wctx, src->union_def.branch_count * sizeof(*branches));
         if (branches) {
           for (uint32_t i = 0; i < src->union_def.branch_count; i++) {
             const bebop_union_branch_t* sb = &src->union_def.branches[i];
@@ -842,7 +842,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_SERVICE: {
-      Bebop_ServiceDef* svd = Bebop_WireCtx_Alloc(wctx, sizeof(*svd));
+      Bebop_ServiceDef* svd = bebop_context_alloc(wctx, sizeof(*svd));
       if (!svd) {
         break;
       }
@@ -850,7 +850,7 @@ static void _desc_build_def(
 
       if (src->service_def.method_count > 0) {
         Bebop_MethodDescriptor* methods =
-            Bebop_WireCtx_Alloc(wctx, src->service_def.method_count * sizeof(*methods));
+            bebop_context_alloc(wctx, src->service_def.method_count * sizeof(*methods));
         if (methods) {
           for (uint32_t i = 0; i < src->service_def.method_count; i++) {
             const bebop_method_t* sm = &src->service_def.methods[i];
@@ -879,7 +879,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_CONST: {
-      Bebop_ConstDef* cd = Bebop_WireCtx_Alloc(wctx, sizeof(*cd));
+      Bebop_ConstDef* cd = bebop_context_alloc(wctx, sizeof(*cd));
       if (!cd) {
         break;
       }
@@ -888,7 +888,7 @@ static void _desc_build_def(
       cd->type.has_value = true;
       cd->type.value = _desc_build_type(wctx, bctx, src->const_def.type);
 
-      Bebop_LiteralValue* val = Bebop_WireCtx_Alloc(wctx, sizeof(*val));
+      Bebop_LiteralValue* val = bebop_context_alloc(wctx, sizeof(*val));
       if (val) {
         _desc_build_literal(wctx, bctx, &src->const_def.value, val);
         cd->value.has_value = true;
@@ -901,7 +901,7 @@ static void _desc_build_def(
     }
 
     case BEBOP_DEF_DECORATOR: {
-      Bebop_DecoratorDef* dd = Bebop_WireCtx_Alloc(wctx, sizeof(*dd));
+      Bebop_DecoratorDef* dd = bebop_context_alloc(wctx, sizeof(*dd));
       if (!dd) {
         break;
       }
@@ -913,30 +913,30 @@ static void _desc_build_def(
       if (src->decorator_def.validate_span.len > 0 && src->schema && src->schema->source) {
         const char* lua_src = src->schema->source + src->decorator_def.validate_span.off;
         const size_t lua_len = src->decorator_def.validate_span.len;
-        char* copy = Bebop_WireCtx_Alloc(wctx, lua_len + 1);
+        char* copy = bebop_context_alloc(wctx, lua_len + 1);
         if (copy) {
           memcpy(copy, lua_src, lua_len);
           copy[lua_len] = '\0';
           dd->validate_source.has_value = true;
-          dd->validate_source.value = (Bebop_Str) {.data = copy, .length = (uint32_t)lua_len};
+          dd->validate_source.value = (Bebop_String) {.data = copy, .length = (uint32_t)lua_len};
         }
       }
 
       if (src->decorator_def.export_span.len > 0 && src->schema && src->schema->source) {
         const char* lua_src = src->schema->source + src->decorator_def.export_span.off;
         const size_t lua_len = src->decorator_def.export_span.len;
-        char* copy = Bebop_WireCtx_Alloc(wctx, lua_len + 1);
+        char* copy = bebop_context_alloc(wctx, lua_len + 1);
         if (copy) {
           memcpy(copy, lua_src, lua_len);
           copy[lua_len] = '\0';
           dd->export_source.has_value = true;
-          dd->export_source.value = (Bebop_Str) {.data = copy, .length = (uint32_t)lua_len};
+          dd->export_source.value = (Bebop_String) {.data = copy, .length = (uint32_t)lua_len};
         }
       }
 
       if (src->decorator_def.param_count > 0) {
         Bebop_DecoratorParamDef* params =
-            Bebop_WireCtx_Alloc(wctx, src->decorator_def.param_count * sizeof(*params));
+            bebop_context_alloc(wctx, src->decorator_def.param_count * sizeof(*params));
         if (params) {
           for (uint32_t i = 0; i < src->decorator_def.param_count; i++) {
             const bebop_macro_param_def_t* sp = &src->decorator_def.params[i];
@@ -949,7 +949,7 @@ static void _desc_build_def(
             DESC_SET_OPT(dp->required, sp->required);
 
             if (sp->default_value) {
-              Bebop_LiteralValue* dv = Bebop_WireCtx_Alloc(wctx, sizeof(*dv));
+              Bebop_LiteralValue* dv = bebop_context_alloc(wctx, sizeof(*dv));
               if (dv) {
                 _desc_build_literal(wctx, bctx, sp->default_value, dv);
                 dp->default_value.has_value = true;
@@ -959,7 +959,7 @@ static void _desc_build_def(
 
             if (sp->allowed_value_count > 0 && sp->allowed_values) {
               Bebop_LiteralValue* allowed =
-                  Bebop_WireCtx_Alloc(wctx, sp->allowed_value_count * sizeof(*allowed));
+                  bebop_context_alloc(wctx, sp->allowed_value_count * sizeof(*allowed));
               if (allowed) {
                 for (uint32_t j = 0; j < sp->allowed_value_count; j++) {
                   _desc_build_literal(wctx, bctx, &sp->allowed_values[j], &allowed[j]);
@@ -987,10 +987,10 @@ static void _desc_build_def(
 }
 
 static Bebop_SchemaDescriptor* _desc_build_schema(
-    Bebop_WireCtx* wctx, bebop_context_t* bctx, const bebop_schema_t* src, bebop_desc_flags_t flags
+    Bebop_Context* wctx, bebop_context_t* bctx, const bebop_schema_t* src, bebop_desc_flags_t flags
 )
 {
-  Bebop_SchemaDescriptor* s = Bebop_WireCtx_Alloc(wctx, sizeof(*s));
+  Bebop_SchemaDescriptor* s = bebop_context_alloc(wctx, sizeof(*s));
   if (!s) {
     return NULL;
   }
@@ -1001,7 +1001,7 @@ static Bebop_SchemaDescriptor* _desc_build_schema(
   DESC_SET_OPT(s->edition, (Bebop_Edition)src->edition);
 
   if (src->import_count > 0 && src->imports) {
-    Bebop_Str* imports = Bebop_WireCtx_Alloc(wctx, src->import_count * sizeof(*imports));
+    Bebop_String* imports = bebop_context_alloc(wctx, src->import_count * sizeof(*imports));
     if (imports) {
       for (uint32_t i = 0; i < src->import_count; i++) {
         imports[i] = _desc_dup_str(wctx, BEBOP_STR(bctx, src->imports[i].path));
@@ -1014,7 +1014,7 @@ static Bebop_SchemaDescriptor* _desc_build_schema(
 
   if (src->definition_count > 0) {
     Bebop_DefinitionDescriptor* defs =
-        Bebop_WireCtx_Alloc(wctx, src->definition_count * sizeof(*defs));
+        bebop_context_alloc(wctx, src->definition_count * sizeof(*defs));
     if (defs) {
       uint32_t i = 0;
       for (const bebop_def_t* d = src->definitions; d; d = d->next, i++) {
@@ -1048,14 +1048,14 @@ bebop_status_t bebop_descriptor_build(
   bebop_context_t* bctx = result->ctx;
   bebop_host_allocator_t alloc = bctx->host.allocator;
 
-  Bebop_WireCtx* wctx = _desc_make_ctx(&alloc);
+  Bebop_Context* wctx = _desc_make_ctx(&alloc);
   if (!wctx) {
     return BEBOP_FATAL;
   }
 
-  bebop_descriptor_t* desc = Bebop_WireCtx_Alloc(wctx, sizeof(*desc));
+  bebop_descriptor_t* desc = bebop_context_alloc(wctx, sizeof(*desc));
   if (!desc) {
-    Bebop_WireCtx_Free(wctx);
+    bebop_context_free(wctx);
     return BEBOP_FATAL;
   }
   memset(desc, 0, sizeof(*desc));
@@ -1063,7 +1063,7 @@ bebop_status_t bebop_descriptor_build(
 
   const uint32_t schema_count = bebop_result_schema_count(result);
   if (schema_count > 0) {
-    Bebop_SchemaDescriptor* schemas = Bebop_WireCtx_Alloc(wctx, schema_count * sizeof(*schemas));
+    Bebop_SchemaDescriptor* schemas = bebop_context_alloc(wctx, schema_count * sizeof(*schemas));
     if (schemas) {
       for (uint32_t i = 0; i < schema_count; i++) {
         const bebop_schema_t* src = bebop_result_schema_at(result, i);
@@ -1090,18 +1090,18 @@ bebop_status_t bebop_descriptor_encode(
     return BEBOP_FATAL;
   }
 
-  Bebop_Writer* w;
-  if (Bebop_WireCtx_Writer(desc->ctx, &w) != BEBOP_WIRE_OK) {
+  Bebop_Writer* w = bebop_context_writer(desc->ctx, 0);
+  if (!w) {
     return BEBOP_FATAL;
   }
 
-  if (Bebop_DescriptorSet_Encode(w, &desc->data) != BEBOP_WIRE_OK) {
+  if (Bebop_DescriptorSet_encode(w, &desc->data) != BEBOP_RESULT_OK) {
     return BEBOP_FATAL;
   }
 
-  uint8_t* buf = NULL;
-  size_t len = 0;
-  Bebop_Writer_Buf(w, &buf, &len);
+  const Bebop_View buf_view = bebop_writer_view(w);
+  const uint8_t* buf = buf_view.data;
+  const size_t len = buf_view.length;
 
   *out_buf = buf;
   *out_len = len;
@@ -1116,27 +1116,21 @@ bebop_status_t bebop_descriptor_decode(
     return BEBOP_FATAL;
   }
 
-  Bebop_WireCtx* wctx = _desc_make_ctx(&ctx->host.allocator);
+  Bebop_Context* wctx = _desc_make_ctx(&ctx->host.allocator);
   if (!wctx) {
     return BEBOP_FATAL;
   }
 
-  bebop_descriptor_t* desc = Bebop_WireCtx_Alloc(wctx, sizeof(*desc));
+  bebop_descriptor_t* desc = bebop_context_alloc(wctx, sizeof(*desc));
   if (!desc) {
-    Bebop_WireCtx_Free(wctx);
+    bebop_context_free(wctx);
     return BEBOP_FATAL;
   }
   memset(desc, 0, sizeof(*desc));
   desc->ctx = wctx;
 
-  Bebop_Reader* rd;
-  if (Bebop_WireCtx_Reader(wctx, buf, len, &rd) != BEBOP_WIRE_OK) {
-    Bebop_WireCtx_Free(wctx);
-    return BEBOP_FATAL;
-  }
-
-  if (Bebop_DescriptorSet_Decode(wctx, rd, &desc->data) != BEBOP_WIRE_OK) {
-    Bebop_WireCtx_Free(wctx);
+  if (Bebop_DescriptorSet_decode(wctx, bebop_view(buf, len), &desc->data) != BEBOP_RESULT_OK) {
+    bebop_context_free(wctx);
     return BEBOP_FATAL;
   }
 
@@ -1147,21 +1141,21 @@ bebop_status_t bebop_descriptor_decode(
 void bebop_descriptor_free(bebop_descriptor_t* desc)
 {
   if (desc && desc->ctx) {
-    Bebop_WireCtx_Free(desc->ctx);
+    bebop_context_free(desc->ctx);
   }
 }
 
 uint32_t bebop_descriptor_schema_count(const bebop_descriptor_t* desc)
 {
-  return desc && BEBOP_WIRE_IS_SOME(desc->data.schemas) ? (uint32_t)desc->data.schemas.value.length
-                                                        : 0;
+  return desc && BEBOP_HAS_VALUE(desc->data.schemas) ? (uint32_t)desc->data.schemas.value.length
+                                                     : 0;
 }
 
 const bebop_descriptor_schema_t* bebop_descriptor_schema_at(
     const bebop_descriptor_t* desc, uint32_t idx
 )
 {
-  if (!desc || !BEBOP_WIRE_IS_SOME(desc->data.schemas) || idx >= desc->data.schemas.value.length) {
+  if (!desc || !BEBOP_HAS_VALUE(desc->data.schemas) || idx >= desc->data.schemas.value.length) {
     return NULL;
   }
   return &desc->data.schemas.value.data[idx];
@@ -1169,27 +1163,27 @@ const bebop_descriptor_schema_t* bebop_descriptor_schema_at(
 
 const char* bebop_descriptor_schema_path(const bebop_descriptor_schema_t* s)
 {
-  return s && BEBOP_WIRE_IS_SOME(s->path) ? s->path.value.data : NULL;
+  return s && BEBOP_HAS_VALUE(s->path) ? s->path.value.data : NULL;
 }
 
 const char* bebop_descriptor_schema_package(const bebop_descriptor_schema_t* s)
 {
-  return s && BEBOP_WIRE_IS_SOME(s->package) ? s->package.value.data : NULL;
+  return s && BEBOP_HAS_VALUE(s->package) ? s->package.value.data : NULL;
 }
 
 bebop_edition_t bebop_descriptor_schema_edition(const bebop_descriptor_schema_t* s)
 {
-  return s && BEBOP_WIRE_IS_SOME(s->edition) ? (bebop_edition_t)s->edition.value : BEBOP_ED_UNKNOWN;
+  return s && BEBOP_HAS_VALUE(s->edition) ? (bebop_edition_t)s->edition.value : BEBOP_ED_UNKNOWN;
 }
 
 uint32_t bebop_descriptor_schema_import_count(const bebop_descriptor_schema_t* s)
 {
-  return s && BEBOP_WIRE_IS_SOME(s->imports) ? (uint32_t)s->imports.value.length : 0;
+  return s && BEBOP_HAS_VALUE(s->imports) ? (uint32_t)s->imports.value.length : 0;
 }
 
 const char* bebop_descriptor_schema_import_at(const bebop_descriptor_schema_t* s, uint32_t idx)
 {
-  if (!s || !BEBOP_WIRE_IS_SOME(s->imports) || idx >= s->imports.value.length) {
+  if (!s || !BEBOP_HAS_VALUE(s->imports) || idx >= s->imports.value.length) {
     return NULL;
   }
   return s->imports.value.data[idx].data;
@@ -1197,14 +1191,14 @@ const char* bebop_descriptor_schema_import_at(const bebop_descriptor_schema_t* s
 
 uint32_t bebop_descriptor_schema_def_count(const bebop_descriptor_schema_t* s)
 {
-  return s && BEBOP_WIRE_IS_SOME(s->definitions) ? (uint32_t)s->definitions.value.length : 0;
+  return s && BEBOP_HAS_VALUE(s->definitions) ? (uint32_t)s->definitions.value.length : 0;
 }
 
 const bebop_descriptor_def_t* bebop_descriptor_schema_def_at(
     const bebop_descriptor_schema_t* s, uint32_t idx
 )
 {
-  if (!s || !BEBOP_WIRE_IS_SOME(s->definitions) || idx >= s->definitions.value.length) {
+  if (!s || !BEBOP_HAS_VALUE(s->definitions) || idx >= s->definitions.value.length) {
     return NULL;
   }
   return &s->definitions.value.data[idx];
@@ -1214,45 +1208,45 @@ const bebop_descriptor_source_code_info_t* bebop_descriptor_schema_source_code_i
     const bebop_descriptor_schema_t* s
 )
 {
-  return s && BEBOP_WIRE_IS_SOME(s->source_code_info) ? s->source_code_info.value : NULL;
+  return s && BEBOP_HAS_VALUE(s->source_code_info) ? s->source_code_info.value : NULL;
 }
 
 bebop_def_kind_t bebop_descriptor_def_kind(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->kind) ? (bebop_def_kind_t)d->kind.value : BEBOP_DEF_UNKNOWN;
+  return d && BEBOP_HAS_VALUE(d->kind) ? (bebop_def_kind_t)d->kind.value : BEBOP_DEF_UNKNOWN;
 }
 
 const char* bebop_descriptor_def_name(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->name) ? d->name.value.data : NULL;
+  return d && BEBOP_HAS_VALUE(d->name) ? d->name.value.data : NULL;
 }
 
 const char* bebop_descriptor_def_fqn(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->fqn) ? d->fqn.value.data : NULL;
+  return d && BEBOP_HAS_VALUE(d->fqn) ? d->fqn.value.data : NULL;
 }
 
 const char* bebop_descriptor_def_documentation(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->documentation) ? d->documentation.value.data : NULL;
+  return d && BEBOP_HAS_VALUE(d->documentation) ? d->documentation.value.data : NULL;
 }
 
 bebop_visibility_t bebop_descriptor_def_visibility(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->visibility) ? (bebop_visibility_t)d->visibility.value
-                                                : BEBOP_VIS_DEFAULT;
+  return d && BEBOP_HAS_VALUE(d->visibility) ? (bebop_visibility_t)d->visibility.value
+                                             : BEBOP_VIS_DEFAULT;
 }
 
 uint32_t bebop_descriptor_def_decorator_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorators) ? (uint32_t)d->decorators.value.length : 0;
+  return d && BEBOP_HAS_VALUE(d->decorators) ? (uint32_t)d->decorators.value.length : 0;
 }
 
 const bebop_descriptor_usage_t* bebop_descriptor_def_decorator_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->decorators) || idx >= d->decorators.value.length) {
+  if (!d || !BEBOP_HAS_VALUE(d->decorators) || idx >= d->decorators.value.length) {
     return NULL;
   }
   return &d->decorators.value.data[idx];
@@ -1260,14 +1254,14 @@ const bebop_descriptor_usage_t* bebop_descriptor_def_decorator_at(
 
 uint32_t bebop_descriptor_def_nested_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->nested) ? (uint32_t)d->nested.value.length : 0;
+  return d && BEBOP_HAS_VALUE(d->nested) ? (uint32_t)d->nested.value.length : 0;
 }
 
 const bebop_descriptor_def_t* bebop_descriptor_def_nested_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->nested) || idx >= d->nested.value.length) {
+  if (!d || !BEBOP_HAS_VALUE(d->nested) || idx >= d->nested.value.length) {
     return NULL;
   }
   return &d->nested.value.data[idx];
@@ -1278,13 +1272,13 @@ uint32_t bebop_descriptor_def_field_count(const bebop_descriptor_def_t* d)
   if (!d) {
     return 0;
   }
-  if (BEBOP_WIRE_IS_SOME(d->struct_def) && d->struct_def.value
-      && BEBOP_WIRE_IS_SOME(d->struct_def.value->fields))
+  if (BEBOP_HAS_VALUE(d->struct_def) && d->struct_def.value
+      && BEBOP_HAS_VALUE(d->struct_def.value->fields))
   {
     return (uint32_t)d->struct_def.value->fields.value.length;
   }
-  if (BEBOP_WIRE_IS_SOME(d->message_def) && d->message_def.value
-      && BEBOP_WIRE_IS_SOME(d->message_def.value->fields))
+  if (BEBOP_HAS_VALUE(d->message_def) && d->message_def.value
+      && BEBOP_HAS_VALUE(d->message_def.value->fields))
   {
     return (uint32_t)d->message_def.value->fields.value.length;
   }
@@ -1298,15 +1292,15 @@ const bebop_descriptor_field_t* bebop_descriptor_def_field_at(
   if (!d) {
     return NULL;
   }
-  if (BEBOP_WIRE_IS_SOME(d->struct_def) && d->struct_def.value
-      && BEBOP_WIRE_IS_SOME(d->struct_def.value->fields))
+  if (BEBOP_HAS_VALUE(d->struct_def) && d->struct_def.value
+      && BEBOP_HAS_VALUE(d->struct_def.value->fields))
   {
     if (idx < d->struct_def.value->fields.value.length) {
       return &d->struct_def.value->fields.value.data[idx];
     }
   }
-  if (BEBOP_WIRE_IS_SOME(d->message_def) && d->message_def.value
-      && BEBOP_WIRE_IS_SOME(d->message_def.value->fields))
+  if (BEBOP_HAS_VALUE(d->message_def) && d->message_def.value
+      && BEBOP_HAS_VALUE(d->message_def.value->fields))
   {
     if (idx < d->message_def.value->fields.value.length) {
       return &d->message_def.value->fields.value.data[idx];
@@ -1317,24 +1311,24 @@ const bebop_descriptor_field_t* bebop_descriptor_def_field_at(
 
 bool bebop_descriptor_def_is_mutable(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->struct_def) && d->struct_def.value
-          && BEBOP_WIRE_IS_SOME(d->struct_def.value->is_mutable)
+  return d && BEBOP_HAS_VALUE(d->struct_def) && d->struct_def.value
+          && BEBOP_HAS_VALUE(d->struct_def.value->is_mutable)
       ? d->struct_def.value->is_mutable.value
       : false;
 }
 
 uint32_t bebop_descriptor_def_fixed_size(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->struct_def) && d->struct_def.value
-          && BEBOP_WIRE_IS_SOME(d->struct_def.value->fixed_size)
+  return d && BEBOP_HAS_VALUE(d->struct_def) && d->struct_def.value
+          && BEBOP_HAS_VALUE(d->struct_def.value->fixed_size)
       ? d->struct_def.value->fixed_size.value
       : 0;
 }
 
 uint32_t bebop_descriptor_def_member_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->enum_def) && d->enum_def.value
-          && BEBOP_WIRE_IS_SOME(d->enum_def.value->members)
+  return d && BEBOP_HAS_VALUE(d->enum_def) && d->enum_def.value
+          && BEBOP_HAS_VALUE(d->enum_def.value->members)
       ? (uint32_t)d->enum_def.value->members.value.length
       : 0;
 }
@@ -1343,8 +1337,8 @@ const bebop_descriptor_member_t* bebop_descriptor_def_member_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->enum_def) || !d->enum_def.value
-      || !BEBOP_WIRE_IS_SOME(d->enum_def.value->members))
+  if (!d || !BEBOP_HAS_VALUE(d->enum_def) || !d->enum_def.value
+      || !BEBOP_HAS_VALUE(d->enum_def.value->members))
   {
     return NULL;
   }
@@ -1356,24 +1350,24 @@ const bebop_descriptor_member_t* bebop_descriptor_def_member_at(
 
 bebop_type_kind_t bebop_descriptor_def_base_type(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->enum_def) && d->enum_def.value
-          && BEBOP_WIRE_IS_SOME(d->enum_def.value->base_type)
+  return d && BEBOP_HAS_VALUE(d->enum_def) && d->enum_def.value
+          && BEBOP_HAS_VALUE(d->enum_def.value->base_type)
       ? (bebop_type_kind_t)d->enum_def.value->base_type.value
       : BEBOP_TYPE_UNKNOWN;
 }
 
 bool bebop_descriptor_def_is_flags(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->enum_def) && d->enum_def.value
-          && BEBOP_WIRE_IS_SOME(d->enum_def.value->is_flags)
+  return d && BEBOP_HAS_VALUE(d->enum_def) && d->enum_def.value
+          && BEBOP_HAS_VALUE(d->enum_def.value->is_flags)
       ? d->enum_def.value->is_flags.value
       : false;
 }
 
 uint32_t bebop_descriptor_def_branch_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->union_def) && d->union_def.value
-          && BEBOP_WIRE_IS_SOME(d->union_def.value->branches)
+  return d && BEBOP_HAS_VALUE(d->union_def) && d->union_def.value
+          && BEBOP_HAS_VALUE(d->union_def.value->branches)
       ? (uint32_t)d->union_def.value->branches.value.length
       : 0;
 }
@@ -1382,8 +1376,8 @@ const bebop_descriptor_branch_t* bebop_descriptor_def_branch_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->union_def) || !d->union_def.value
-      || !BEBOP_WIRE_IS_SOME(d->union_def.value->branches))
+  if (!d || !BEBOP_HAS_VALUE(d->union_def) || !d->union_def.value
+      || !BEBOP_HAS_VALUE(d->union_def.value->branches))
   {
     return NULL;
   }
@@ -1395,8 +1389,8 @@ const bebop_descriptor_branch_t* bebop_descriptor_def_branch_at(
 
 uint32_t bebop_descriptor_def_method_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->service_def) && d->service_def.value
-          && BEBOP_WIRE_IS_SOME(d->service_def.value->methods)
+  return d && BEBOP_HAS_VALUE(d->service_def) && d->service_def.value
+          && BEBOP_HAS_VALUE(d->service_def.value->methods)
       ? (uint32_t)d->service_def.value->methods.value.length
       : 0;
 }
@@ -1405,8 +1399,8 @@ const bebop_descriptor_method_t* bebop_descriptor_def_method_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->service_def) || !d->service_def.value
-      || !BEBOP_WIRE_IS_SOME(d->service_def.value->methods))
+  if (!d || !BEBOP_HAS_VALUE(d->service_def) || !d->service_def.value
+      || !BEBOP_HAS_VALUE(d->service_def.value->methods))
   {
     return NULL;
   }
@@ -1418,40 +1412,40 @@ const bebop_descriptor_method_t* bebop_descriptor_def_method_at(
 
 const bebop_descriptor_type_t* bebop_descriptor_def_const_type(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->const_def) && d->const_def.value
-          && BEBOP_WIRE_IS_SOME(d->const_def.value->type)
+  return d && BEBOP_HAS_VALUE(d->const_def) && d->const_def.value
+          && BEBOP_HAS_VALUE(d->const_def.value->type)
       ? d->const_def.value->type.value
       : NULL;
 }
 
 const bebop_descriptor_literal_t* bebop_descriptor_def_const_value(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->const_def) && d->const_def.value
-          && BEBOP_WIRE_IS_SOME(d->const_def.value->value)
+  return d && BEBOP_HAS_VALUE(d->const_def) && d->const_def.value
+          && BEBOP_HAS_VALUE(d->const_def.value->value)
       ? d->const_def.value->value.value
       : NULL;
 }
 
 bebop_decorator_target_t bebop_descriptor_def_targets(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorator_def) && d->decorator_def.value
-          && BEBOP_WIRE_IS_SOME(d->decorator_def.value->targets)
+  return d && BEBOP_HAS_VALUE(d->decorator_def) && d->decorator_def.value
+          && BEBOP_HAS_VALUE(d->decorator_def.value->targets)
       ? (bebop_decorator_target_t)d->decorator_def.value->targets.value
       : BEBOP_TARGET_NONE;
 }
 
 bool bebop_descriptor_def_allow_multiple(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorator_def) && d->decorator_def.value
-          && BEBOP_WIRE_IS_SOME(d->decorator_def.value->allow_multiple)
+  return d && BEBOP_HAS_VALUE(d->decorator_def) && d->decorator_def.value
+          && BEBOP_HAS_VALUE(d->decorator_def.value->allow_multiple)
       ? d->decorator_def.value->allow_multiple.value
       : false;
 }
 
 uint32_t bebop_descriptor_def_param_count(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorator_def) && d->decorator_def.value
-          && BEBOP_WIRE_IS_SOME(d->decorator_def.value->params)
+  return d && BEBOP_HAS_VALUE(d->decorator_def) && d->decorator_def.value
+          && BEBOP_HAS_VALUE(d->decorator_def.value->params)
       ? (uint32_t)d->decorator_def.value->params.value.length
       : 0;
 }
@@ -1460,8 +1454,8 @@ const bebop_descriptor_param_t* bebop_descriptor_def_param_at(
     const bebop_descriptor_def_t* d, uint32_t idx
 )
 {
-  if (!d || !BEBOP_WIRE_IS_SOME(d->decorator_def) || !d->decorator_def.value
-      || !BEBOP_WIRE_IS_SOME(d->decorator_def.value->params))
+  if (!d || !BEBOP_HAS_VALUE(d->decorator_def) || !d->decorator_def.value
+      || !BEBOP_HAS_VALUE(d->decorator_def.value->params))
   {
     return NULL;
   }
@@ -1473,57 +1467,57 @@ const bebop_descriptor_param_t* bebop_descriptor_def_param_at(
 
 const char* bebop_descriptor_def_validate_source(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorator_def) && d->decorator_def.value
-          && BEBOP_WIRE_IS_SOME(d->decorator_def.value->validate_source)
+  return d && BEBOP_HAS_VALUE(d->decorator_def) && d->decorator_def.value
+          && BEBOP_HAS_VALUE(d->decorator_def.value->validate_source)
       ? d->decorator_def.value->validate_source.value.data
       : NULL;
 }
 
 const char* bebop_descriptor_def_export_source(const bebop_descriptor_def_t* d)
 {
-  return d && BEBOP_WIRE_IS_SOME(d->decorator_def) && d->decorator_def.value
-          && BEBOP_WIRE_IS_SOME(d->decorator_def.value->export_source)
+  return d && BEBOP_HAS_VALUE(d->decorator_def) && d->decorator_def.value
+          && BEBOP_HAS_VALUE(d->decorator_def.value->export_source)
       ? d->decorator_def.value->export_source.value.data
       : NULL;
 }
 
 const char* bebop_descriptor_param_name(const bebop_descriptor_param_t* p)
 {
-  return p && BEBOP_WIRE_IS_SOME(p->name) ? p->name.value.data : NULL;
+  return p && BEBOP_HAS_VALUE(p->name) ? p->name.value.data : NULL;
 }
 
 const char* bebop_descriptor_param_description(const bebop_descriptor_param_t* p)
 {
-  return p && BEBOP_WIRE_IS_SOME(p->description) ? p->description.value.data : NULL;
+  return p && BEBOP_HAS_VALUE(p->description) ? p->description.value.data : NULL;
 }
 
 bebop_type_kind_t bebop_descriptor_param_type(const bebop_descriptor_param_t* p)
 {
-  return p && BEBOP_WIRE_IS_SOME(p->type) ? (bebop_type_kind_t)p->type.value : BEBOP_TYPE_UNKNOWN;
+  return p && BEBOP_HAS_VALUE(p->type) ? (bebop_type_kind_t)p->type.value : BEBOP_TYPE_UNKNOWN;
 }
 
 bool bebop_descriptor_param_required(const bebop_descriptor_param_t* p)
 {
-  return p && BEBOP_WIRE_IS_SOME(p->required) ? p->required.value : false;
+  return p && BEBOP_HAS_VALUE(p->required) ? p->required.value : false;
 }
 
 const bebop_descriptor_literal_t* bebop_descriptor_param_default_value(
     const bebop_descriptor_param_t* p
 )
 {
-  return p && BEBOP_WIRE_IS_SOME(p->default_value) ? p->default_value.value : NULL;
+  return p && BEBOP_HAS_VALUE(p->default_value) ? p->default_value.value : NULL;
 }
 
 uint32_t bebop_descriptor_param_allowed_count(const bebop_descriptor_param_t* p)
 {
-  return p && BEBOP_WIRE_IS_SOME(p->allowed_values) ? (uint32_t)p->allowed_values.value.length : 0;
+  return p && BEBOP_HAS_VALUE(p->allowed_values) ? (uint32_t)p->allowed_values.value.length : 0;
 }
 
 const bebop_descriptor_literal_t* bebop_descriptor_param_allowed_at(
     const bebop_descriptor_param_t* p, uint32_t idx
 )
 {
-  if (!p || !BEBOP_WIRE_IS_SOME(p->allowed_values) || idx >= p->allowed_values.value.length) {
+  if (!p || !BEBOP_HAS_VALUE(p->allowed_values) || idx >= p->allowed_values.value.length) {
     return NULL;
   }
   return &p->allowed_values.value.data[idx];
@@ -1531,34 +1525,34 @@ const bebop_descriptor_literal_t* bebop_descriptor_param_allowed_at(
 
 const char* bebop_descriptor_field_name(const bebop_descriptor_field_t* f)
 {
-  return f && BEBOP_WIRE_IS_SOME(f->name) ? f->name.value.data : NULL;
+  return f && BEBOP_HAS_VALUE(f->name) ? f->name.value.data : NULL;
 }
 
 const char* bebop_descriptor_field_documentation(const bebop_descriptor_field_t* f)
 {
-  return f && BEBOP_WIRE_IS_SOME(f->documentation) ? f->documentation.value.data : NULL;
+  return f && BEBOP_HAS_VALUE(f->documentation) ? f->documentation.value.data : NULL;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_field_type(const bebop_descriptor_field_t* f)
 {
-  return f && BEBOP_WIRE_IS_SOME(f->type) ? f->type.value : NULL;
+  return f && BEBOP_HAS_VALUE(f->type) ? f->type.value : NULL;
 }
 
 uint32_t bebop_descriptor_field_index(const bebop_descriptor_field_t* f)
 {
-  return f && BEBOP_WIRE_IS_SOME(f->index) ? f->index.value : 0;
+  return f && BEBOP_HAS_VALUE(f->index) ? f->index.value : 0;
 }
 
 uint32_t bebop_descriptor_field_decorator_count(const bebop_descriptor_field_t* f)
 {
-  return f && BEBOP_WIRE_IS_SOME(f->decorators) ? (uint32_t)f->decorators.value.length : 0;
+  return f && BEBOP_HAS_VALUE(f->decorators) ? (uint32_t)f->decorators.value.length : 0;
 }
 
 const bebop_descriptor_usage_t* bebop_descriptor_field_decorator_at(
     const bebop_descriptor_field_t* f, uint32_t idx
 )
 {
-  if (!f || !BEBOP_WIRE_IS_SOME(f->decorators) || idx >= f->decorators.value.length) {
+  if (!f || !BEBOP_HAS_VALUE(f->decorators) || idx >= f->decorators.value.length) {
     return NULL;
   }
   return &f->decorators.value.data[idx];
@@ -1566,29 +1560,29 @@ const bebop_descriptor_usage_t* bebop_descriptor_field_decorator_at(
 
 const char* bebop_descriptor_member_name(const bebop_descriptor_member_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->name) ? m->name.value.data : NULL;
+  return m && BEBOP_HAS_VALUE(m->name) ? m->name.value.data : NULL;
 }
 
 const char* bebop_descriptor_member_documentation(const bebop_descriptor_member_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->documentation) ? m->documentation.value.data : NULL;
+  return m && BEBOP_HAS_VALUE(m->documentation) ? m->documentation.value.data : NULL;
 }
 
 uint64_t bebop_descriptor_member_value(const bebop_descriptor_member_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->value) ? m->value.value : 0;
+  return m && BEBOP_HAS_VALUE(m->value) ? m->value.value : 0;
 }
 
 uint32_t bebop_descriptor_member_decorator_count(const bebop_descriptor_member_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->decorators) ? (uint32_t)m->decorators.value.length : 0;
+  return m && BEBOP_HAS_VALUE(m->decorators) ? (uint32_t)m->decorators.value.length : 0;
 }
 
 const bebop_descriptor_usage_t* bebop_descriptor_member_decorator_at(
     const bebop_descriptor_member_t* m, uint32_t idx
 )
 {
-  if (!m || !BEBOP_WIRE_IS_SOME(m->decorators) || idx >= m->decorators.value.length) {
+  if (!m || !BEBOP_HAS_VALUE(m->decorators) || idx >= m->decorators.value.length) {
     return NULL;
   }
   return &m->decorators.value.data[idx];
@@ -1596,22 +1590,22 @@ const bebop_descriptor_usage_t* bebop_descriptor_member_decorator_at(
 
 uint8_t bebop_descriptor_branch_discriminator(const bebop_descriptor_branch_t* b)
 {
-  return b && BEBOP_WIRE_IS_SOME(b->discriminator) ? b->discriminator.value : 0;
+  return b && BEBOP_HAS_VALUE(b->discriminator) ? b->discriminator.value : 0;
 }
 
 const char* bebop_descriptor_branch_documentation(const bebop_descriptor_branch_t* b)
 {
-  return b && BEBOP_WIRE_IS_SOME(b->documentation) ? b->documentation.value.data : NULL;
+  return b && BEBOP_HAS_VALUE(b->documentation) ? b->documentation.value.data : NULL;
 }
 
 const char* bebop_descriptor_branch_inline_fqn(const bebop_descriptor_branch_t* b)
 {
-  return b && BEBOP_WIRE_IS_SOME(b->inline_fqn) ? b->inline_fqn.value.data : NULL;
+  return b && BEBOP_HAS_VALUE(b->inline_fqn) ? b->inline_fqn.value.data : NULL;
 }
 
 const char* bebop_descriptor_branch_type_ref_fqn(const bebop_descriptor_branch_t* b)
 {
-  return b && BEBOP_WIRE_IS_SOME(b->type_ref_fqn) ? b->type_ref_fqn.value.data : NULL;
+  return b && BEBOP_HAS_VALUE(b->type_ref_fqn) ? b->type_ref_fqn.value.data : NULL;
 }
 
 const char* bebop_descriptor_branch_name(const bebop_descriptor_branch_t* b)
@@ -1620,11 +1614,11 @@ const char* bebop_descriptor_branch_name(const bebop_descriptor_branch_t* b)
     return NULL;
   }
   // Explicit name (type-reference branches)
-  if (BEBOP_WIRE_IS_SOME(b->name)) {
+  if (BEBOP_HAS_VALUE(b->name)) {
     return b->name.value.data;
   }
   // For inline branches, extract name from inline_fqn (last component after dot)
-  if (BEBOP_WIRE_IS_SOME(b->inline_fqn)) {
+  if (BEBOP_HAS_VALUE(b->inline_fqn)) {
     const char* fqn = b->inline_fqn.value.data;
     const char* last_dot = strrchr(fqn, '.');
     return last_dot ? last_dot + 1 : fqn;
@@ -1634,14 +1628,14 @@ const char* bebop_descriptor_branch_name(const bebop_descriptor_branch_t* b)
 
 uint32_t bebop_descriptor_branch_decorator_count(const bebop_descriptor_branch_t* b)
 {
-  return b && BEBOP_WIRE_IS_SOME(b->decorators) ? (uint32_t)b->decorators.value.length : 0;
+  return b && BEBOP_HAS_VALUE(b->decorators) ? (uint32_t)b->decorators.value.length : 0;
 }
 
 const bebop_descriptor_usage_t* bebop_descriptor_branch_decorator_at(
     const bebop_descriptor_branch_t* b, uint32_t idx
 )
 {
-  if (!b || !BEBOP_WIRE_IS_SOME(b->decorators) || idx >= b->decorators.value.length) {
+  if (!b || !BEBOP_HAS_VALUE(b->decorators) || idx >= b->decorators.value.length) {
     return NULL;
   }
   return &b->decorators.value.data[idx];
@@ -1649,45 +1643,45 @@ const bebop_descriptor_usage_t* bebop_descriptor_branch_decorator_at(
 
 const char* bebop_descriptor_method_name(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->name) ? m->name.value.data : NULL;
+  return m && BEBOP_HAS_VALUE(m->name) ? m->name.value.data : NULL;
 }
 
 const char* bebop_descriptor_method_documentation(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->documentation) ? m->documentation.value.data : NULL;
+  return m && BEBOP_HAS_VALUE(m->documentation) ? m->documentation.value.data : NULL;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_method_request(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->request_type) ? m->request_type.value : NULL;
+  return m && BEBOP_HAS_VALUE(m->request_type) ? m->request_type.value : NULL;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_method_response(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->response_type) ? m->response_type.value : NULL;
+  return m && BEBOP_HAS_VALUE(m->response_type) ? m->response_type.value : NULL;
 }
 
 bebop_method_type_t bebop_descriptor_method_type(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->method_type) ? (bebop_method_type_t)m->method_type.value
-                                                 : BEBOP_METHOD_UNKNOWN;
+  return m && BEBOP_HAS_VALUE(m->method_type) ? (bebop_method_type_t)m->method_type.value
+                                              : BEBOP_METHOD_UNKNOWN;
 }
 
 uint32_t bebop_descriptor_method_id(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->id) ? m->id.value : 0;
+  return m && BEBOP_HAS_VALUE(m->id) ? m->id.value : 0;
 }
 
 uint32_t bebop_descriptor_method_decorator_count(const bebop_descriptor_method_t* m)
 {
-  return m && BEBOP_WIRE_IS_SOME(m->decorators) ? (uint32_t)m->decorators.value.length : 0;
+  return m && BEBOP_HAS_VALUE(m->decorators) ? (uint32_t)m->decorators.value.length : 0;
 }
 
 const bebop_descriptor_usage_t* bebop_descriptor_method_decorator_at(
     const bebop_descriptor_method_t* m, uint32_t idx
 )
 {
-  if (!m || !BEBOP_WIRE_IS_SOME(m->decorators) || idx >= m->decorators.value.length) {
+  if (!m || !BEBOP_HAS_VALUE(m->decorators) || idx >= m->decorators.value.length) {
     return NULL;
   }
   return &m->decorators.value.data[idx];
@@ -1695,7 +1689,7 @@ const bebop_descriptor_usage_t* bebop_descriptor_method_decorator_at(
 
 bebop_type_kind_t bebop_descriptor_type_kind(const bebop_descriptor_type_t* t)
 {
-  return t && BEBOP_WIRE_IS_SOME(t->kind) ? (bebop_type_kind_t)t->kind.value : BEBOP_TYPE_UNKNOWN;
+  return t && BEBOP_HAS_VALUE(t->kind) ? (bebop_type_kind_t)t->kind.value : BEBOP_TYPE_UNKNOWN;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_type_element(const bebop_descriptor_type_t* t)
@@ -1703,10 +1697,10 @@ const bebop_descriptor_type_t* bebop_descriptor_type_element(const bebop_descrip
   if (!t) {
     return NULL;
   }
-  if (BEBOP_WIRE_IS_SOME(t->array_element)) {
+  if (BEBOP_HAS_VALUE(t->array_element)) {
     return t->array_element.value;
   }
-  if (BEBOP_WIRE_IS_SOME(t->fixed_array_element)) {
+  if (BEBOP_HAS_VALUE(t->fixed_array_element)) {
     return t->fixed_array_element.value;
   }
   return NULL;
@@ -1714,65 +1708,65 @@ const bebop_descriptor_type_t* bebop_descriptor_type_element(const bebop_descrip
 
 uint32_t bebop_descriptor_type_fixed_size(const bebop_descriptor_type_t* t)
 {
-  return t && BEBOP_WIRE_IS_SOME(t->fixed_array_size) ? t->fixed_array_size.value : 0;
+  return t && BEBOP_HAS_VALUE(t->fixed_array_size) ? t->fixed_array_size.value : 0;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_type_key(const bebop_descriptor_type_t* t)
 {
-  return t && BEBOP_WIRE_IS_SOME(t->map_key) ? t->map_key.value : NULL;
+  return t && BEBOP_HAS_VALUE(t->map_key) ? t->map_key.value : NULL;
 }
 
 const bebop_descriptor_type_t* bebop_descriptor_type_value(const bebop_descriptor_type_t* t)
 {
-  return t && BEBOP_WIRE_IS_SOME(t->map_value) ? t->map_value.value : NULL;
+  return t && BEBOP_HAS_VALUE(t->map_value) ? t->map_value.value : NULL;
 }
 
 const char* bebop_descriptor_type_fqn(const bebop_descriptor_type_t* t)
 {
-  return t && BEBOP_WIRE_IS_SOME(t->defined_fqn) ? t->defined_fqn.value.data : NULL;
+  return t && BEBOP_HAS_VALUE(t->defined_fqn) ? t->defined_fqn.value.data : NULL;
 }
 
 bebop_literal_kind_t bebop_descriptor_literal_kind(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->kind) ? (bebop_literal_kind_t)l->kind.value
-                                          : BEBOP_LITERAL_UNKNOWN;
+  return l && BEBOP_HAS_VALUE(l->kind) ? (bebop_literal_kind_t)l->kind.value
+                                       : BEBOP_LITERAL_UNKNOWN;
 }
 
 bool bebop_descriptor_literal_as_bool(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->bool_value) ? l->bool_value.value : false;
+  return l && BEBOP_HAS_VALUE(l->bool_value) ? l->bool_value.value : false;
 }
 
 int64_t bebop_descriptor_literal_as_int(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->int_value) ? l->int_value.value : 0;
+  return l && BEBOP_HAS_VALUE(l->int_value) ? l->int_value.value : 0;
 }
 
 double bebop_descriptor_literal_as_float(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->float_value) ? l->float_value.value : 0.0;
+  return l && BEBOP_HAS_VALUE(l->float_value) ? l->float_value.value : 0.0;
 }
 
 const char* bebop_descriptor_literal_as_string(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->string_value) ? l->string_value.value.data : NULL;
+  return l && BEBOP_HAS_VALUE(l->string_value) ? l->string_value.value.data : NULL;
 }
 
 const uint8_t* bebop_descriptor_literal_as_uuid(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->uuid_value) ? l->uuid_value.value.bytes : NULL;
+  return l && BEBOP_HAS_VALUE(l->uuid_value) ? l->uuid_value.value.bytes : NULL;
 }
 
 const char* bebop_descriptor_literal_raw_value(const bebop_descriptor_literal_t* l)
 {
-  return l && BEBOP_WIRE_IS_SOME(l->raw_value) ? l->raw_value.value.data : NULL;
+  return l && BEBOP_HAS_VALUE(l->raw_value) ? l->raw_value.value.data : NULL;
 }
 
 const uint8_t* bebop_descriptor_literal_as_bytes(
     const bebop_descriptor_literal_t* l, size_t* out_len
 )
 {
-  if (!l || !BEBOP_WIRE_IS_SOME(l->bytes_value)) {
+  if (!l || !BEBOP_HAS_VALUE(l->bytes_value)) {
     if (out_len) {
       *out_len = 0;
     }
@@ -1791,7 +1785,7 @@ void bebop_descriptor_literal_as_timestamp(
     int32_t* out_offset_ms
 )
 {
-  if (!l || !BEBOP_WIRE_IS_SOME(l->timestamp_value)) {
+  if (!l || !BEBOP_HAS_VALUE(l->timestamp_value)) {
     if (out_seconds) {
       *out_seconds = 0;
     }
@@ -1818,7 +1812,7 @@ void bebop_descriptor_literal_as_duration(
     const bebop_descriptor_literal_t* l, int64_t* out_seconds, int32_t* out_nanos
 )
 {
-  if (!l || !BEBOP_WIRE_IS_SOME(l->duration_value)) {
+  if (!l || !BEBOP_HAS_VALUE(l->duration_value)) {
     if (out_seconds) {
       *out_seconds = 0;
     }
@@ -1837,17 +1831,17 @@ void bebop_descriptor_literal_as_duration(
 
 const char* bebop_descriptor_usage_fqn(const bebop_descriptor_usage_t* u)
 {
-  return u && BEBOP_WIRE_IS_SOME(u->fqn) ? u->fqn.value.data : NULL;
+  return u && BEBOP_HAS_VALUE(u->fqn) ? u->fqn.value.data : NULL;
 }
 
 uint32_t bebop_descriptor_usage_arg_count(const bebop_descriptor_usage_t* u)
 {
-  return u && BEBOP_WIRE_IS_SOME(u->args) ? (uint32_t)u->args.value.length : 0;
+  return u && BEBOP_HAS_VALUE(u->args) ? (uint32_t)u->args.value.length : 0;
 }
 
 const char* bebop_descriptor_usage_arg_name(const bebop_descriptor_usage_t* u, uint32_t idx)
 {
-  if (!u || !BEBOP_WIRE_IS_SOME(u->args) || idx >= u->args.value.length) {
+  if (!u || !BEBOP_HAS_VALUE(u->args) || idx >= u->args.value.length) {
     return NULL;
   }
   return u->args.value.data[idx].name.data;
@@ -1857,7 +1851,7 @@ const bebop_descriptor_literal_t* bebop_descriptor_usage_arg_value(
     const bebop_descriptor_usage_t* u, uint32_t idx
 )
 {
-  if (!u || !BEBOP_WIRE_IS_SOME(u->args) || idx >= u->args.value.length) {
+  if (!u || !BEBOP_HAS_VALUE(u->args) || idx >= u->args.value.length) {
     return NULL;
   }
   return &u->args.value.data[idx].value;
@@ -1865,37 +1859,37 @@ const bebop_descriptor_literal_t* bebop_descriptor_usage_arg_value(
 
 uint32_t bebop_descriptor_usage_export_count(const bebop_descriptor_usage_t* u)
 {
-  return u && BEBOP_WIRE_IS_SOME(u->export_data) ? (uint32_t)u->export_data.value.length : 0;
+  return u && BEBOP_HAS_VALUE(u->export_data) ? (uint32_t)u->export_data.value.length : 0;
 }
 
 const char* bebop_descriptor_usage_export_key_at(const bebop_descriptor_usage_t* u, uint32_t idx)
 {
-  if (!u || !BEBOP_WIRE_IS_SOME(u->export_data) || idx >= u->export_data.value.length) {
+  if (!u || !BEBOP_HAS_VALUE(u->export_data) || idx >= u->export_data.value.length) {
     return NULL;
   }
   Bebop_MapIter it;
-  Bebop_MapIter_Init(&it, &u->export_data.value);
+  bebop_map_iter_init(&it, &u->export_data.value);
   void* key = NULL;
   for (uint32_t i = 0; i <= idx; i++) {
-    if (!Bebop_MapIter_Next(&it, &key, NULL)) {
+    if (!bebop_map_iter_next(&it, &key, NULL)) {
       return NULL;
     }
   }
-  return key ? ((Bebop_Str*)key)->data : NULL;
+  return key ? ((Bebop_String*)key)->data : NULL;
 }
 
 const bebop_descriptor_literal_t* bebop_descriptor_usage_export_value_at(
     const bebop_descriptor_usage_t* u, uint32_t idx
 )
 {
-  if (!u || !BEBOP_WIRE_IS_SOME(u->export_data) || idx >= u->export_data.value.length) {
+  if (!u || !BEBOP_HAS_VALUE(u->export_data) || idx >= u->export_data.value.length) {
     return NULL;
   }
   Bebop_MapIter it;
-  Bebop_MapIter_Init(&it, &u->export_data.value);
+  bebop_map_iter_init(&it, &u->export_data.value);
   void* val = NULL;
   for (uint32_t i = 0; i <= idx; i++) {
-    if (!Bebop_MapIter_Next(&it, NULL, &val)) {
+    if (!bebop_map_iter_next(&it, NULL, &val)) {
       return NULL;
     }
   }
@@ -1904,14 +1898,14 @@ const bebop_descriptor_literal_t* bebop_descriptor_usage_export_value_at(
 
 uint32_t bebop_descriptor_location_count(const bebop_descriptor_source_code_info_t* sci)
 {
-  return sci && BEBOP_WIRE_IS_SOME(sci->locations) ? (uint32_t)sci->locations.value.length : 0;
+  return sci && BEBOP_HAS_VALUE(sci->locations) ? (uint32_t)sci->locations.value.length : 0;
 }
 
 const bebop_descriptor_location_t* bebop_descriptor_location_at(
     const bebop_descriptor_source_code_info_t* sci, uint32_t idx
 )
 {
-  if (!sci || !BEBOP_WIRE_IS_SOME(sci->locations) || idx >= sci->locations.value.length) {
+  if (!sci || !BEBOP_HAS_VALUE(sci->locations) || idx >= sci->locations.value.length) {
     return NULL;
   }
   return &sci->locations.value.data[idx];
@@ -1921,7 +1915,7 @@ const int32_t* bebop_descriptor_location_path(
     const bebop_descriptor_location_t* loc, uint32_t* out_count
 )
 {
-  if (!loc || !BEBOP_WIRE_IS_SOME(loc->path)) {
+  if (!loc || !BEBOP_HAS_VALUE(loc->path)) {
     if (out_count) {
       *out_count = 0;
     }
@@ -1935,23 +1929,22 @@ const int32_t* bebop_descriptor_location_path(
 
 const int32_t* bebop_descriptor_location_span(const bebop_descriptor_location_t* loc)
 {
-  return loc && BEBOP_WIRE_IS_SOME(loc->span) ? loc->span.value : NULL;
+  return loc && BEBOP_HAS_VALUE(loc->span) ? loc->span.value : NULL;
 }
 
 const char* bebop_descriptor_location_leading(const bebop_descriptor_location_t* loc)
 {
-  return loc && BEBOP_WIRE_IS_SOME(loc->leading_comments) ? loc->leading_comments.value.data : NULL;
+  return loc && BEBOP_HAS_VALUE(loc->leading_comments) ? loc->leading_comments.value.data : NULL;
 }
 
 const char* bebop_descriptor_location_trailing(const bebop_descriptor_location_t* loc)
 {
-  return loc && BEBOP_WIRE_IS_SOME(loc->trailing_comments) ? loc->trailing_comments.value.data
-                                                           : NULL;
+  return loc && BEBOP_HAS_VALUE(loc->trailing_comments) ? loc->trailing_comments.value.data : NULL;
 }
 
 uint32_t bebop_descriptor_location_detached_count(const bebop_descriptor_location_t* loc)
 {
-  return loc && BEBOP_WIRE_IS_SOME(loc->detached_comments)
+  return loc && BEBOP_HAS_VALUE(loc->detached_comments)
       ? (uint32_t)loc->detached_comments.value.length
       : 0;
 }
@@ -1960,7 +1953,7 @@ const char* bebop_descriptor_location_detached_at(
     const bebop_descriptor_location_t* loc, uint32_t idx
 )
 {
-  if (!loc || !BEBOP_WIRE_IS_SOME(loc->detached_comments)
+  if (!loc || !BEBOP_HAS_VALUE(loc->detached_comments)
       || idx >= loc->detached_comments.value.length)
   {
     return NULL;

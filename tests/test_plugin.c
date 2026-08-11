@@ -382,15 +382,19 @@ void test_request_with_host_options(void)
   TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_request_decode(ctx, buf, len, &decoded));
 
   TEST_ASSERT_EQUAL_UINT32(3, bebop_plugin_request_host_option_count(decoded));
-  TEST_ASSERT_EQUAL_STRING("namespace", bebop_plugin_request_host_option_key(decoded, 0));
-  TEST_ASSERT_EQUAL_STRING("MyApp", bebop_plugin_request_host_option_value(decoded, 0));
-  TEST_ASSERT_EQUAL_STRING("emit_source_info", bebop_plugin_request_host_option_key(decoded, 1));
-  TEST_ASSERT_EQUAL_STRING("true", bebop_plugin_request_host_option_value(decoded, 1));
-  TEST_ASSERT_EQUAL_STRING("optimize", bebop_plugin_request_host_option_key(decoded, 2));
-  TEST_ASSERT_EQUAL_STRING("speed", bebop_plugin_request_host_option_value(decoded, 2));
-
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_key(decoded, 99));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_value(decoded, 99));
+  bebop_plugin_option_iterator_t options = bebop_plugin_request_host_options(decoded);
+  const char* key;
+  const char* value;
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("namespace", key);
+  TEST_ASSERT_EQUAL_STRING("MyApp", value);
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("emit_source_info", key);
+  TEST_ASSERT_EQUAL_STRING("true", value);
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("optimize", key);
+  TEST_ASSERT_EQUAL_STRING("speed", value);
+  TEST_ASSERT_FALSE(bebop_plugin_option_next(&options, &key, &value));
 
   bebop_plugin_request_free(decoded);
   bebop_plugin_request_free(req);
@@ -411,8 +415,8 @@ void test_request_accessors_null(void)
   TEST_ASSERT_NULL(bebop_plugin_request_schema_at(NULL, 0));
 
   TEST_ASSERT_EQUAL_UINT32(0, bebop_plugin_request_host_option_count(NULL));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_key(NULL, 0));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_value(NULL, 0));
+  bebop_plugin_option_iterator_t options = bebop_plugin_request_host_options(NULL);
+  TEST_ASSERT_FALSE(bebop_plugin_option_next(&options, NULL, NULL));
 }
 
 void test_response_accessors_null(void);

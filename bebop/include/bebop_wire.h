@@ -65,38 +65,11 @@ extern "C" {
 #ifndef BEBOP_WIRE_HOT
 #if defined(__GNUC__) || defined(__clang__)
 #define BEBOP_WIRE_HOT __attribute__((hot))
-#define BEBOP_WIRE_COLD __attribute__((cold))
 #define BEBOP_WIRE_PURE __attribute__((pure))
-#define BEBOP_WIRE_FLATTEN __attribute__((flatten))
 #else
 #define BEBOP_WIRE_HOT
-#define BEBOP_WIRE_COLD
 #define BEBOP_WIRE_PURE
-#define BEBOP_WIRE_FLATTEN
 #endif
-#endif
-
-#ifndef BEBOP_WIRE_RESTRICT
-#if defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER)
-#define BEBOP_WIRE_RESTRICT __restrict
-#else
-#define BEBOP_WIRE_RESTRICT
-#endif
-#endif
-
-#ifndef BEBOP_WIRE_TRY
-#define BEBOP_WIRE_TRY(expr) \
-  do { \
-    Bebop_WireResult _r = (expr); \
-    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) \
-      return _r; \
-  } while (0)
-#define BEBOP_WIRE_TRY_NEG(expr) \
-  do { \
-    Bebop_WireResult _r = (expr); \
-    if (BEBOP_WIRE_UNLIKELY(_r != BEBOP_WIRE_OK)) \
-      return -(int)_r; \
-  } while (0)
 #endif
 
 #ifndef BEBOP_WIRE_PREFETCH
@@ -164,13 +137,13 @@ extern "C" {
 // #region Error Handling
 
 typedef enum {
-  BEBOP_WIRE_OK = 0,
-  BEBOP_WIRE_ERR_MALFORMED = 1,
-  BEBOP_WIRE_ERR_OVERFLOW = 2,
-  BEBOP_WIRE_ERR_OOM = 3,
-  BEBOP_WIRE_ERR_NULL = 4,
-  BEBOP_WIRE_ERR_INVALID = 5
-} Bebop_WireResult;
+  BEBOP_RESULT_OK = 0,
+  BEBOP_RESULT_MALFORMED = 1,
+  BEBOP_RESULT_OVERFLOW = 2,
+  BEBOP_RESULT_OOM = 3,
+  BEBOP_RESULT_NULL = 4,
+  BEBOP_RESULT_INVALID = 5
+} Bebop_Result;
 
 // #endregion
 
@@ -180,48 +153,48 @@ typedef enum {
 //   ptr==NULL, old==0  -> malloc(new)
 //   new==0             -> free(ptr, old), returns NULL
 //   otherwise          -> realloc(ptr, old, new)
-typedef void* (*Bebop_WireAllocFn)(void* ptr, size_t old_size, size_t new_size, void* ctx);
+typedef void* (*Bebop_AllocFn)(void* ptr, size_t old_size, size_t new_size, void* ctx);
 
 typedef struct {
-  Bebop_WireAllocFn alloc;
+  Bebop_AllocFn alloc;
   void* ctx;
-} Bebop_WireAllocator;
+} Bebop_Allocator;
 
 // #endregion
 
 // #region Core Data Types
 
 // clang-format off
-#ifndef BEBOP_WIRE_DEPRECATED
+#ifndef BEBOP_DEPRECATED
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
   #ifdef __has_c_attribute
     #if __has_c_attribute(deprecated)
-      #define BEBOP_WIRE_DEPRECATED [[deprecated]]
-      #define BEBOP_WIRE_DEPRECATED_MSG(msg) [[deprecated(msg)]]
+      #define BEBOP_DEPRECATED [[deprecated]]
+      #define BEBOP_DEPRECATED_MSG(msg) [[deprecated(msg)]]
     #endif
   #endif
 #endif
 
-#ifndef BEBOP_WIRE_DEPRECATED
+#ifndef BEBOP_DEPRECATED
   #if defined(__cplusplus) && __cplusplus >= 201402L
     #ifdef __has_cpp_attribute
       #if __has_cpp_attribute(deprecated)
-        #define BEBOP_WIRE_DEPRECATED [[deprecated]]
-        #define BEBOP_WIRE_DEPRECATED_MSG(msg) [[deprecated(msg)]]
+        #define BEBOP_DEPRECATED [[deprecated]]
+        #define BEBOP_DEPRECATED_MSG(msg) [[deprecated(msg)]]
       #endif
     #endif
   #endif
 
-  #ifndef BEBOP_WIRE_DEPRECATED
+  #ifndef BEBOP_DEPRECATED
     #if defined(__GNUC__) || defined(__clang__)
-      #define BEBOP_WIRE_DEPRECATED __attribute__((deprecated))
-      #define BEBOP_WIRE_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
+      #define BEBOP_DEPRECATED __attribute__((deprecated))
+      #define BEBOP_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
     #elif defined(_MSC_VER)
-      #define BEBOP_WIRE_DEPRECATED __declspec(deprecated)
-      #define BEBOP_WIRE_DEPRECATED_MSG(msg) __declspec(deprecated(msg))
+      #define BEBOP_DEPRECATED __declspec(deprecated)
+      #define BEBOP_DEPRECATED_MSG(msg) __declspec(deprecated(msg))
     #else
-      #define BEBOP_WIRE_DEPRECATED
-      #define BEBOP_WIRE_DEPRECATED_MSG(msg)
+      #define BEBOP_DEPRECATED
+      #define BEBOP_DEPRECATED_MSG(msg)
     #endif
   #endif
 #endif
@@ -286,7 +259,7 @@ typedef __bf16 Bebop_BFloat16;
 typedef uint16_t Bebop_BFloat16;
 #endif
 
-static inline float Bebop_BFloat16_ToFloat(Bebop_BFloat16 v)
+static inline float bebop_bfloat16_to_float(Bebop_BFloat16 v)
 {
 #if BEBOP_WIRE_HAS_BF16
   return (float)v;
@@ -298,7 +271,7 @@ static inline float Bebop_BFloat16_ToFloat(Bebop_BFloat16 v)
 #endif
 }
 
-static inline Bebop_BFloat16 Bebop_BFloat16_FromFloat(float f)
+static inline Bebop_BFloat16 bebop_bfloat16_from_float(float f)
 {
 #if BEBOP_WIRE_HAS_BF16
   return (__bf16)f;
@@ -332,7 +305,7 @@ typedef struct {
 typedef struct {
   const char* data;
   size_t length;
-} Bebop_Str;
+} Bebop_String;
 
 // Zero-copy byte array view
 typedef struct {
@@ -346,6 +319,31 @@ typedef struct {
   const uint8_t* data;
   size_t length;
 } Bebop_View;
+
+// Allocation-free cursor over an encoded array or map. Generated next()
+// functions advance remaining and decrement remaining_count. A non-OK result
+// ends iteration and records malformed input without requiring error plumbing
+// in the loop body.
+typedef struct {
+  Bebop_View remaining;
+  uint32_t remaining_count;
+  Bebop_Result result;
+} Bebop_ViewIterator;
+
+static inline Bebop_String bebop_string_view(const char* data, size_t length)
+{
+  return (Bebop_String) {.data = data, .length = length};
+}
+
+static inline Bebop_Bytes bebop_bytes(const void* data, size_t length)
+{
+  return (Bebop_Bytes) {.data = (const uint8_t*)data, .length = length};
+}
+
+static inline Bebop_View bebop_view(const void* data, size_t length)
+{
+  return (Bebop_View) {.data = (const uint8_t*)data, .length = length};
+}
 
 // #endregion
 
@@ -465,13 +463,12 @@ typedef struct {
 } Bebop_Duration_Array;
 
 typedef struct {
-  Bebop_Str* data;
+  Bebop_String* data;
   size_t length;
   size_t capacity;
-} Bebop_Str_Array;
+} Bebop_String_Array;
 
 #define BEBOP_ARRAY_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
-#define BEBOP_DECONST(type, ptr) ((type*)&(ptr))
 
 // Check if array is a borrowed view (zero-copy from decode)
 #define BEBOP_ARRAY_IS_VIEW(arr) ((arr).capacity == 0)
@@ -486,13 +483,13 @@ typedef struct {
 
 // Push element to array, growing if needed (uses arena realloc optimization)
 // Asserts if called on a decoded view (capacity=0 but data!=NULL)
-#define BEBOP_WIRE_ARRAY_PUSH(ctx, arr, val) \
+#define BEBOP_ARRAY_PUSH(ctx, arr, val) \
   do { \
     assert(((arr).capacity > 0 || (arr).data == NULL) && "cannot push to decoded view"); \
     if ((arr).length >= (arr).capacity) { \
       size_t _old_cap = (arr).capacity; \
       size_t _new_cap = _old_cap ? _old_cap * 2 : 8; \
-      (arr).data = Bebop_WireCtx_Realloc( \
+      (arr).data = bebop_context_realloc( \
           (ctx), (arr).data, _old_cap * sizeof(*(arr).data), _new_cap * sizeof(*(arr).data) \
       ); \
       (arr).capacity = _new_cap; \
@@ -504,7 +501,7 @@ typedef struct {
 
 // #region Forward Declarations
 
-typedef struct Bebop_WireCtx Bebop_WireCtx;
+typedef struct Bebop_Context Bebop_Context;
 
 typedef struct Bebop_Reader Bebop_Reader;
 typedef struct Bebop_Writer Bebop_Writer;
@@ -516,6 +513,22 @@ typedef struct Bebop_Any Bebop_Any;
 
 typedef uint64_t (*Bebop_MapHashFn)(const void* key);
 typedef bool (*Bebop_MapEqFn)(const void* a, const void* b);
+
+typedef enum {
+  BEBOP_MAP_KEY_BOOL,
+  BEBOP_MAP_KEY_I8,
+  BEBOP_MAP_KEY_U8,
+  BEBOP_MAP_KEY_I16,
+  BEBOP_MAP_KEY_U16,
+  BEBOP_MAP_KEY_I32,
+  BEBOP_MAP_KEY_U32,
+  BEBOP_MAP_KEY_I64,
+  BEBOP_MAP_KEY_U64,
+  BEBOP_MAP_KEY_I128,
+  BEBOP_MAP_KEY_U128,
+  BEBOP_MAP_KEY_STRING,
+  BEBOP_MAP_KEY_UUID
+} Bebop_MapKeyKind;
 
 typedef struct {
   void* key;
@@ -530,7 +543,7 @@ typedef struct {
   size_t growth_left;  // insertions before resize
   Bebop_MapHashFn hash;
   Bebop_MapEqFn eq;
-  Bebop_WireCtx* ctx;
+  Bebop_Context* ctx;
 } Bebop_Map;
 
 // Iterator for map traversal
@@ -539,166 +552,94 @@ typedef struct {
   size_t index;
 } Bebop_MapIter;
 
-BEBOP_API void Bebop_Map_Init(
-    Bebop_Map* m, Bebop_WireCtx* ctx, Bebop_MapHashFn hash, Bebop_MapEqFn eq
-);
-BEBOP_API void* Bebop_Map_Get(const Bebop_Map* m, const void* key);
-BEBOP_API bool Bebop_Map_Put(Bebop_Map* m, void* key, void* value);
-BEBOP_API bool Bebop_Map_Del(Bebop_Map* m, const void* key);
-BEBOP_API void Bebop_Map_Clear(Bebop_Map* m);
+BEBOP_API void bebop_map_init(Bebop_Map* map, Bebop_Context* context, Bebop_MapKeyKind key_kind);
+BEBOP_API void* bebop_map_get(const Bebop_Map* m, const void* key);
+BEBOP_API bool bebop_map_set(Bebop_Map* m, void* key, void* value);
+BEBOP_API bool bebop_map_remove(Bebop_Map* m, const void* key);
+BEBOP_API void bebop_map_clear(Bebop_Map* m);
 
 // Iterator functions
-BEBOP_API void Bebop_MapIter_Init(Bebop_MapIter* it, const Bebop_Map* m);
-BEBOP_API bool Bebop_MapIter_Next(Bebop_MapIter* it, void** key, void** value);
+BEBOP_API void bebop_map_iter_init(Bebop_MapIter* it, const Bebop_Map* m);
+BEBOP_API bool bebop_map_iter_next(Bebop_MapIter* it, void** key, void** value);
 
-// Map key hash functions (for use with Bebop_Map_Init)
-BEBOP_API uint64_t Bebop_MapHash_Bool(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_Byte(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_I8(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_U8(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_I16(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_U16(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_I32(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_U32(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_I64(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_U64(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_I128(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_U128(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_Str(const void* key);
-BEBOP_API uint64_t Bebop_MapHash_UUID(const void* key);
-
-// Map key equality functions (for use with Bebop_Map_Init)
-BEBOP_API bool Bebop_MapEq_Bool(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_Byte(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_I8(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_U8(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_I16(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_U16(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_I32(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_U32(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_I64(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_U64(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_I128(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_U128(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_Str(const void* a, const void* b);
-BEBOP_API bool Bebop_MapEq_UUID(const void* a, const void* b);
-
-// Type-safe access macros
-#define BEBOP_MAP_KEY(bucket, type) ((type*)(bucket)->key)
-#define BEBOP_MAP_VAL(bucket, type) ((type*)(bucket)->value)
-
-// Type-specific map initialization macros
-#define BEBOP_MAP_INIT_BOOL(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_Bool, Bebop_MapEq_Bool)
-#define BEBOP_MAP_INIT_BYTE(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_Byte, Bebop_MapEq_Byte)
-#define BEBOP_MAP_INIT_I8(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_I8, Bebop_MapEq_I8)
-#define BEBOP_MAP_INIT_U8(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_U8, Bebop_MapEq_U8)
-#define BEBOP_MAP_INIT_I16(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_I16, Bebop_MapEq_I16)
-#define BEBOP_MAP_INIT_U16(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_U16, Bebop_MapEq_U16)
-#define BEBOP_MAP_INIT_I32(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_I32, Bebop_MapEq_I32)
-#define BEBOP_MAP_INIT_U32(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_U32, Bebop_MapEq_U32)
-#define BEBOP_MAP_INIT_I64(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_I64, Bebop_MapEq_I64)
-#define BEBOP_MAP_INIT_U64(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_U64, Bebop_MapEq_U64)
-#define BEBOP_MAP_INIT_I128(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_I128, Bebop_MapEq_I128)
-#define BEBOP_MAP_INIT_U128(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_U128, Bebop_MapEq_U128)
-#define BEBOP_MAP_INIT_STR(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_Str, Bebop_MapEq_Str)
-#define BEBOP_MAP_INIT_UUID(m, ctx) Bebop_Map_Init(m, ctx, Bebop_MapHash_UUID, Bebop_MapEq_UUID)
-
-// Helper to allocate and put a string-keyed entry
-#define BEBOP_MAP_PUT_STR(ctx, m, key_str, val_ptr) \
-  do { \
-    Bebop_Str* _k = (Bebop_Str*)Bebop_WireCtx_Alloc(ctx, sizeof(Bebop_Str)); \
-    if (_k) { \
-      _k->data = (key_str); \
-      _k->length = (uint32_t)strlen(key_str); \
-      Bebop_Map_Put(m, _k, val_ptr); \
-    } \
-  } while (0)
+#ifndef __cplusplus
+#define BEBOP_MAP_INIT(map, context, key_type) \
+  bebop_map_init( \
+      (map), \
+      (context), \
+      _Generic( \
+          (key_type) {0}, \
+          bool: BEBOP_MAP_KEY_BOOL, \
+          int8_t: BEBOP_MAP_KEY_I8, \
+          uint8_t: BEBOP_MAP_KEY_U8, \
+          int16_t: BEBOP_MAP_KEY_I16, \
+          uint16_t: BEBOP_MAP_KEY_U16, \
+          int32_t: BEBOP_MAP_KEY_I32, \
+          uint32_t: BEBOP_MAP_KEY_U32, \
+          int64_t: BEBOP_MAP_KEY_I64, \
+          uint64_t: BEBOP_MAP_KEY_U64, \
+          Bebop_Int128: BEBOP_MAP_KEY_I128, \
+          Bebop_UInt128: BEBOP_MAP_KEY_U128, \
+          Bebop_String: BEBOP_MAP_KEY_STRING, \
+          Bebop_UUID: BEBOP_MAP_KEY_UUID \
+      ) \
+  )
+#endif
 
 // #endregion
 
 // #region Optional Type System
 
-#define BEBOP_WIRE_OPT(T) \
+#define BEBOP_OPTIONAL(T) \
   struct { \
     bool has_value; \
     T value; \
   }
 
-#define BEBOP_WIRE_OPT_FA(T, ...) \
+#define BEBOP_OPTIONAL_FIXED(T, ...) \
   struct { \
     bool has_value; \
     T value __VA_ARGS__; \
   }
 
-#define BEBOP_WIRE_NONE() {.has_value = false}
-#define BEBOP_WIRE_SOME(val) {.has_value = true, .value = (val)}
-#define BEBOP_WIRE_IS_SOME(optional) ((optional).has_value)
-#define BEBOP_WIRE_IS_NONE(optional) (!(optional).has_value)
-#define BEBOP_WIRE_UNWRAP(optional) ((optional).value)
-#define BEBOP_WIRE_UNWRAP_OR(optional, default_val) \
+#define BEBOP_NONE() {.has_value = false}
+#define BEBOP_SOME(val) {.has_value = true, .value = (val)}
+#define BEBOP_HAS_VALUE(optional) ((optional).has_value)
+#define BEBOP_IS_EMPTY(optional) (!(optional).has_value)
+#define BEBOP_VALUE(optional) ((optional).value)
+#define BEBOP_VALUE_OR(optional, default_val) \
   ((optional).has_value ? (optional).value : (default_val))
 
-#define BEBOP_WIRE_SET_SOME(optional_field, val) \
+#define BEBOP_SET(optional_field, val) \
   do { \
     (optional_field).has_value = true; \
     (optional_field).value = (val); \
   } while (0)
 
-#define BEBOP_WIRE_SET_NONE(optional_field) \
+#define BEBOP_CLEAR(optional_field) \
   do { \
     (optional_field).has_value = false; \
   } while (0)
 
-#define BEBOP_WIRE_SET_OPT(writer, optional, write_func) \
-  do { \
-    Bebop_WireResult _res = Bebop_Writer_SetBool(writer, (optional).has_value); \
-    if (_res != BEBOP_WIRE_OK) \
-      return _res; \
-    if ((optional).has_value) { \
-      _res = write_func(writer, (optional).value); \
-      if (_res != BEBOP_WIRE_OK) \
-        return _res; \
-    } \
-  } while (0)
-
-#define BEBOP_WIRE_GET_OPT(reader, optional_ptr, read_func) \
-  do { \
-    Bebop_WireResult _res = Bebop_Reader_GetBool(reader, &(optional_ptr)->has_value); \
-    if (_res != BEBOP_WIRE_OK) \
-      return _res; \
-    if ((optional_ptr)->has_value) { \
-      _res = read_func(reader, &(optional_ptr)->value); \
-      if (_res != BEBOP_WIRE_OK) \
-        return _res; \
-    } \
-  } while (0)
-
 // #endregion
 
-// #region Builder Helpers
+// #region Value Helpers
 
-#define BEBOP_WIRE_STR(s) ((Bebop_Str) {.data = (s), .length = sizeof(s) - 1})
-#define BEBOP_WIRE_STR_N(ptr, len) ((Bebop_Str) {.data = (ptr), .length = (len)})
-#define BEBOP_WIRE_STR_EQ(s, cstr) \
+#define BEBOP_STRING(s) ((Bebop_String) {.data = (s), .length = sizeof(s) - 1})
+#define BEBOP_STRING_EQUALS(s, cstr) \
   ((s).length == sizeof(cstr) - 1 && memcmp((s).data, (cstr), (s).length) == 0)
-#define BEBOP_WIRE_STR_EQ_N(s, cstr) \
-  ((s).length == strlen(cstr) && memcmp((s).data, (cstr), (s).length) == 0)
-#define BEBOP_WIRE_STR_CMP(a, b) \
-  ((a).length == (b).length && memcmp((a).data, (b).data, (a).length) == 0)
-#define BEBOP_WIRE_BYTES(ptr, len) ((Bebop_Bytes) {.data = (const uint8_t*)(ptr), .length = (len)})
-#define BEBOP_WIRE_UUID(s) Bebop_UUID_FromString(s)
-#define BEBOP_WIRE_TIMESTAMP(sec, ns) \
+#define BEBOP_TIMESTAMP(sec, ns) \
   ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = 0})
-#define BEBOP_WIRE_TIMESTAMP_OFFSET(sec, ns, off_ms) \
+#define BEBOP_TIMESTAMP_OFFSET(sec, ns, off_ms) \
   ((Bebop_Timestamp) {.seconds = (sec), .nanos = (ns), .offset_ms = (off_ms)})
-#define BEBOP_WIRE_DURATION(sec, ns) ((Bebop_Duration) {.seconds = (sec), .nanos = (ns)})
+#define BEBOP_DURATION(sec, ns) ((Bebop_Duration) {.seconds = (sec), .nanos = (ns)})
 
 #if !BEBOP_WIRE_HAS_I128
-#define BEBOP_WIRE_I128(hi, lo) ((Bebop_Int128) {.low = (lo), .high = (hi)})
-#define BEBOP_WIRE_U128(hi, lo) ((Bebop_UInt128) {.low = (lo), .high = (hi)})
+#define BEBOP_I128(hi, lo) ((Bebop_Int128) {.low = (lo), .high = (hi)})
+#define BEBOP_U128(hi, lo) ((Bebop_UInt128) {.low = (lo), .high = (hi)})
 #endif
 
-#define BEBOP_WIRE_BF16(f) Bebop_BFloat16_FromFloat(f)
+#define BEBOP_BF16(f) bebop_bfloat16_from_float(f)
 
 // #endregion
 
@@ -707,136 +648,135 @@ BEBOP_API bool Bebop_MapEq_UUID(const void* a, const void* b);
 typedef struct {
   size_t initial_block_size;
   size_t max_block_size;
-  Bebop_WireAllocator allocator;
-} Bebop_ArenaOpts;
+  Bebop_Allocator allocator;
+} Bebop_ArenaOptions;
 
 // Caps generated-decoder recursion on untrusted input; 0 means
 // BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH.
 #define BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH 64
 
 typedef struct {
-  Bebop_ArenaOpts arena_options;
+  Bebop_ArenaOptions arena_options;
   size_t initial_writer_size;
   uint32_t max_decode_depth;
-} Bebop_WireCtxOpts;
+} Bebop_ContextOptions;
 
 // #endregion
 
 // #region Context API
 
-BEBOP_API Bebop_WireCtx* Bebop_WireCtx_New(const Bebop_WireCtxOpts* options);
-BEBOP_API void Bebop_WireCtx_Free(Bebop_WireCtx* ctx);
-BEBOP_API void Bebop_WireCtx_Reset(Bebop_WireCtx* ctx);
-BEBOP_API size_t Bebop_WireCtx_Allocated(const Bebop_WireCtx* ctx);
-BEBOP_API size_t Bebop_WireCtx_Used(const Bebop_WireCtx* ctx);
-BEBOP_API void* Bebop_WireCtx_Alloc(Bebop_WireCtx* ctx, size_t size);
-BEBOP_API void* Bebop_WireCtx_Realloc(
-    Bebop_WireCtx* ctx, void* ptr, size_t old_size, size_t new_size
+BEBOP_API Bebop_ContextOptions bebop_context_options(void);
+// NULL uses bebop_context_options().
+BEBOP_API Bebop_Context* bebop_context_new(const Bebop_ContextOptions* options);
+BEBOP_API void bebop_context_free(Bebop_Context* ctx);
+BEBOP_API void bebop_context_reset(Bebop_Context* ctx);
+BEBOP_API size_t bebop_context_allocated(const Bebop_Context* ctx);
+BEBOP_API size_t bebop_context_used(const Bebop_Context* ctx);
+BEBOP_API void* bebop_context_alloc(Bebop_Context* ctx, size_t size);
+BEBOP_API void* bebop_context_realloc(
+    Bebop_Context* ctx, void* ptr, size_t old_size, size_t new_size
 );
 // Overflow-checked count * elem_size allocation; NULL on overflow or OOM.
-BEBOP_API void* Bebop_WireCtx_AllocArray(Bebop_WireCtx* ctx, size_t count, size_t elem_size);
-BEBOP_API Bebop_WireCtxOpts Bebop_WireCtx_DefaultOpts(void);
-BEBOP_API Bebop_WireResult Bebop_WireCtx_EnterDecode(Bebop_WireCtx* ctx);
-BEBOP_API void Bebop_WireCtx_LeaveDecode(Bebop_WireCtx* ctx);
+BEBOP_API void* bebop_context_alloc_array(Bebop_Context* ctx, size_t count, size_t elem_size);
+BEBOP_API Bebop_Result bebop_context_enter_decode(Bebop_Context* ctx);
+BEBOP_API void bebop_context_leave_decode(Bebop_Context* ctx);
 
 // #endregion
 
 // #region Reader API
 
-BEBOP_API Bebop_WireResult Bebop_WireCtx_Reader(
-    Bebop_WireCtx* ctx, const uint8_t* buf, size_t len, Bebop_Reader** out
-);
-BEBOP_API void Bebop_Reader_Reset(Bebop_Reader* rd, const uint8_t* buf, size_t len);
-BEBOP_API void Bebop_Reader_Seek(Bebop_Reader* rd, const uint8_t* pos);
-BEBOP_API void Bebop_Reader_Skip(Bebop_Reader* rd, size_t amount);
-BEBOP_API size_t Bebop_Reader_Pos(const Bebop_Reader* rd);
-BEBOP_API const uint8_t* Bebop_Reader_Ptr(const Bebop_Reader* rd);
-BEBOP_API size_t Bebop_Reader_Remaining(const Bebop_Reader* rd);
+BEBOP_API Bebop_Reader* bebop_context_reader(Bebop_Context* ctx, Bebop_View source);
+BEBOP_API void bebop_reader_reset(Bebop_Reader* rd, Bebop_View source);
+BEBOP_API void bebop_reader_seek(Bebop_Reader* rd, const uint8_t* pos);
+BEBOP_API void bebop_reader_skip(Bebop_Reader* rd, size_t amount);
+BEBOP_API size_t bebop_reader_position(const Bebop_Reader* rd);
+BEBOP_API const uint8_t* bebop_reader_data(const Bebop_Reader* rd);
+BEBOP_API size_t bebop_reader_remaining(const Bebop_Reader* rd);
 // Clamp the readable window to len bytes from the current position so nested
-// frames cannot read past their parent; restore with PopLimit.
-BEBOP_API Bebop_WireResult Bebop_Reader_PushLimit(
+// frames cannot read past their parent; restore with bebop_reader_pop_limit().
+BEBOP_API Bebop_Result bebop_reader_push_limit(
     Bebop_Reader* rd, uint32_t len, const uint8_t** old_end
 );
-BEBOP_API void Bebop_Reader_PopLimit(Bebop_Reader* rd, const uint8_t* old_end);
+BEBOP_API void bebop_reader_pop_limit(Bebop_Reader* rd, const uint8_t* old_end);
 
-BEBOP_API Bebop_WireResult Bebop_Reader_GetByte(Bebop_Reader* rd, uint8_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetI8(Bebop_Reader* rd, int8_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetU16(Bebop_Reader* rd, uint16_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetU32(Bebop_Reader* rd, uint32_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetU64(Bebop_Reader* rd, uint64_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetI16(Bebop_Reader* rd, int16_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetI32(Bebop_Reader* rd, int32_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetI64(Bebop_Reader* rd, int64_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetBool(Bebop_Reader* rd, bool* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetF16(Bebop_Reader* rd, Bebop_Float16* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetBF16(Bebop_Reader* rd, Bebop_BFloat16* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetF32(Bebop_Reader* rd, float* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetF64(Bebop_Reader* rd, double* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetI128(Bebop_Reader* rd, Bebop_Int128* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetU128(Bebop_Reader* rd, Bebop_UInt128* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetUUID(Bebop_Reader* rd, Bebop_UUID* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetTimestamp(Bebop_Reader* rd, Bebop_Timestamp* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetDuration(Bebop_Reader* rd, Bebop_Duration* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetLen(Bebop_Reader* rd, uint32_t* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetStr(Bebop_Reader* rd, Bebop_Str* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetByteArray(Bebop_Reader* rd, Bebop_Bytes* out);
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedBytes(
+BEBOP_API Bebop_Result bebop_reader_read_byte(Bebop_Reader* rd, uint8_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_i8(Bebop_Reader* rd, int8_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_u16(Bebop_Reader* rd, uint16_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_u32(Bebop_Reader* rd, uint32_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_u64(Bebop_Reader* rd, uint64_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_i16(Bebop_Reader* rd, int16_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_i32(Bebop_Reader* rd, int32_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_i64(Bebop_Reader* rd, int64_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_bool(Bebop_Reader* rd, bool* out);
+BEBOP_API Bebop_Result bebop_reader_read_f16(Bebop_Reader* rd, Bebop_Float16* out);
+BEBOP_API Bebop_Result bebop_reader_read_bf16(Bebop_Reader* rd, Bebop_BFloat16* out);
+BEBOP_API Bebop_Result bebop_reader_read_f32(Bebop_Reader* rd, float* out);
+BEBOP_API Bebop_Result bebop_reader_read_f64(Bebop_Reader* rd, double* out);
+BEBOP_API Bebop_Result bebop_reader_read_i128(Bebop_Reader* rd, Bebop_Int128* out);
+BEBOP_API Bebop_Result bebop_reader_read_u128(Bebop_Reader* rd, Bebop_UInt128* out);
+BEBOP_API Bebop_Result bebop_reader_read_uuid(Bebop_Reader* rd, Bebop_UUID* out);
+BEBOP_API Bebop_Result bebop_reader_read_timestamp(Bebop_Reader* rd, Bebop_Timestamp* out);
+BEBOP_API Bebop_Result bebop_reader_read_duration(Bebop_Reader* rd, Bebop_Duration* out);
+BEBOP_API Bebop_Result bebop_reader_read_length(Bebop_Reader* rd, uint32_t* out);
+BEBOP_API Bebop_Result bebop_reader_read_string(Bebop_Reader* rd, Bebop_String* out);
+BEBOP_API Bebop_Result bebop_reader_read_bytes(Bebop_Reader* rd, Bebop_Bytes* out);
+BEBOP_API Bebop_Result bebop_reader_read_fixed_bytes(
     Bebop_Reader* rd, size_t count, Bebop_Bytes* out
 );
 
 // Fixed array readers
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedU8Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_u8_array(
     Bebop_Reader* rd, uint8_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedI8Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_i8_array(
     Bebop_Reader* rd, int8_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedBoolArray(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_bool_array(
     Bebop_Reader* rd, bool* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedU16Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_u16_array(
     Bebop_Reader* rd, uint16_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedI16Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_i16_array(
     Bebop_Reader* rd, int16_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedU32Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_u32_array(
     Bebop_Reader* rd, uint32_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedI32Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_i32_array(
     Bebop_Reader* rd, int32_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedU64Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_u64_array(
     Bebop_Reader* rd, uint64_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedI64Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_i64_array(
     Bebop_Reader* rd, int64_t* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedF16Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_f16_array(
     Bebop_Reader* rd, Bebop_Float16* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedBF16Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_bf16_array(
     Bebop_Reader* rd, Bebop_BFloat16* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedF32Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_f32_array(
     Bebop_Reader* rd, float* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedF64Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_f64_array(
     Bebop_Reader* rd, double* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedI128Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_i128_array(
     Bebop_Reader* rd, Bebop_Int128* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedU128Array(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_u128_array(
     Bebop_Reader* rd, Bebop_UInt128* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedUUIDArray(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_uuid_array(
     Bebop_Reader* rd, Bebop_UUID* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedTimestampArray(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_timestamp_array(
     Bebop_Reader* rd, Bebop_Timestamp* out, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedDurationArray(
+BEBOP_API Bebop_Result bebop_reader_read_fixed_duration_array(
     Bebop_Reader* rd, Bebop_Duration* out, size_t count
 );
 
@@ -844,150 +784,140 @@ BEBOP_API Bebop_WireResult Bebop_Reader_GetFixedDurationArray(
 
 // #region Writer API
 
-BEBOP_API Bebop_WireResult Bebop_WireCtx_Writer(Bebop_WireCtx* ctx, Bebop_Writer** out);
-BEBOP_API Bebop_WireResult Bebop_WireCtx_WriterHint(
-    Bebop_WireCtx* ctx, size_t hint, Bebop_Writer** out
-);
-BEBOP_API void Bebop_Writer_Reset(Bebop_Writer* w);
-BEBOP_API Bebop_WireResult Bebop_Writer_Ensure(Bebop_Writer* w, size_t additional);
-BEBOP_API size_t Bebop_Writer_Len(const Bebop_Writer* w);
-BEBOP_API Bebop_View Bebop_Writer_View(const Bebop_Writer* w);
-BEBOP_API size_t Bebop_Writer_Remaining(const Bebop_Writer* w);
-BEBOP_API Bebop_WireResult Bebop_Writer_Buf(Bebop_Writer* w, uint8_t** buf, size_t* len);
+BEBOP_API Bebop_Writer* bebop_context_writer(Bebop_Context* ctx, size_t capacity);
+BEBOP_API void bebop_writer_reset(Bebop_Writer* w);
+BEBOP_API Bebop_Result bebop_writer_reserve(Bebop_Writer* w, size_t additional);
+BEBOP_API size_t bebop_writer_length(const Bebop_Writer* w);
+BEBOP_API Bebop_View bebop_writer_view(const Bebop_Writer* w);
+BEBOP_API size_t bebop_writer_available(const Bebop_Writer* w);
 
-BEBOP_API Bebop_WireResult Bebop_Writer_SetByte(Bebop_Writer* w, uint8_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI8(Bebop_Writer* w, int8_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU16(Bebop_Writer* w, uint16_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU32(Bebop_Writer* w, uint32_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU64(Bebop_Writer* w, uint64_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI16(Bebop_Writer* w, int16_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI32(Bebop_Writer* w, int32_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI64(Bebop_Writer* w, int64_t val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetBool(Bebop_Writer* w, bool val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF16(Bebop_Writer* w, Bebop_Float16 val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetBF16(Bebop_Writer* w, Bebop_BFloat16 val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF32(Bebop_Writer* w, float val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF64(Bebop_Writer* w, double val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI128(Bebop_Writer* w, Bebop_Int128 val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU128(Bebop_Writer* w, Bebop_UInt128 val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetUUID(Bebop_Writer* w, Bebop_UUID val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetTimestamp(Bebop_Writer* w, Bebop_Timestamp val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetDuration(Bebop_Writer* w, Bebop_Duration val);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetStr(Bebop_Writer* w, const char* data, size_t len);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetStrView(Bebop_Writer* w, Bebop_Str view);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetByteArray(
-    Bebop_Writer* w, const uint8_t* data, size_t len
-);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetByteArrayView(Bebop_Writer* w, Bebop_Bytes view);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedBytes(
-    Bebop_Writer* w, const uint8_t* data, size_t count
-);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetLen(Bebop_Writer* w, size_t* pos);
-BEBOP_API Bebop_WireResult Bebop_Writer_FillLen(Bebop_Writer* w, size_t pos, uint32_t len);
+BEBOP_API Bebop_Result bebop_writer_write_byte(Bebop_Writer* w, uint8_t val);
+BEBOP_API Bebop_Result bebop_writer_write_i8(Bebop_Writer* w, int8_t val);
+BEBOP_API Bebop_Result bebop_writer_write_u16(Bebop_Writer* w, uint16_t val);
+BEBOP_API Bebop_Result bebop_writer_write_u32(Bebop_Writer* w, uint32_t val);
+BEBOP_API Bebop_Result bebop_writer_write_u64(Bebop_Writer* w, uint64_t val);
+BEBOP_API Bebop_Result bebop_writer_write_i16(Bebop_Writer* w, int16_t val);
+BEBOP_API Bebop_Result bebop_writer_write_i32(Bebop_Writer* w, int32_t val);
+BEBOP_API Bebop_Result bebop_writer_write_i64(Bebop_Writer* w, int64_t val);
+BEBOP_API Bebop_Result bebop_writer_write_bool(Bebop_Writer* w, bool val);
+BEBOP_API Bebop_Result bebop_writer_write_f16(Bebop_Writer* w, Bebop_Float16 val);
+BEBOP_API Bebop_Result bebop_writer_write_bf16(Bebop_Writer* w, Bebop_BFloat16 val);
+BEBOP_API Bebop_Result bebop_writer_write_f32(Bebop_Writer* w, float val);
+BEBOP_API Bebop_Result bebop_writer_write_f64(Bebop_Writer* w, double val);
+BEBOP_API Bebop_Result bebop_writer_write_i128(Bebop_Writer* w, Bebop_Int128 val);
+BEBOP_API Bebop_Result bebop_writer_write_u128(Bebop_Writer* w, Bebop_UInt128 val);
+BEBOP_API Bebop_Result bebop_writer_write_uuid(Bebop_Writer* w, Bebop_UUID val);
+BEBOP_API Bebop_Result bebop_writer_write_timestamp(Bebop_Writer* w, Bebop_Timestamp val);
+BEBOP_API Bebop_Result bebop_writer_write_duration(Bebop_Writer* w, Bebop_Duration val);
+BEBOP_API Bebop_Result bebop_writer_write_string(Bebop_Writer* w, Bebop_String view);
+BEBOP_API Bebop_Result bebop_writer_write_bytes(Bebop_Writer* w, Bebop_Bytes view);
+BEBOP_API Bebop_Result bebop_writer_write_fixed_bytes(Bebop_Writer* w, Bebop_Bytes bytes);
+BEBOP_API Bebop_Result bebop_writer_begin_length(Bebop_Writer* w, size_t* pos);
+BEBOP_API Bebop_Result bebop_writer_end_length(Bebop_Writer* w, size_t pos, uint32_t len);
 
 // Bulk array writers
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU8Array(
+BEBOP_API Bebop_Result bebop_writer_write_u8_array(
     Bebop_Writer* w, const uint8_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI8Array(Bebop_Writer* w, const int8_t* data, size_t len);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU16Array(
+BEBOP_API Bebop_Result bebop_writer_write_i8_array(Bebop_Writer* w, const int8_t* data, size_t len);
+BEBOP_API Bebop_Result bebop_writer_write_u16_array(
     Bebop_Writer* w, const uint16_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI16Array(
+BEBOP_API Bebop_Result bebop_writer_write_i16_array(
     Bebop_Writer* w, const int16_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU32Array(
+BEBOP_API Bebop_Result bebop_writer_write_u32_array(
     Bebop_Writer* w, const uint32_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI32Array(
+BEBOP_API Bebop_Result bebop_writer_write_i32_array(
     Bebop_Writer* w, const int32_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU64Array(
+BEBOP_API Bebop_Result bebop_writer_write_u64_array(
     Bebop_Writer* w, const uint64_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI64Array(
+BEBOP_API Bebop_Result bebop_writer_write_i64_array(
     Bebop_Writer* w, const int64_t* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF16Array(
+BEBOP_API Bebop_Result bebop_writer_write_f16_array(
     Bebop_Writer* w, const Bebop_Float16* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetBF16Array(
+BEBOP_API Bebop_Result bebop_writer_write_bf16_array(
     Bebop_Writer* w, const Bebop_BFloat16* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF32Array(Bebop_Writer* w, const float* data, size_t len);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetF64Array(
+BEBOP_API Bebop_Result bebop_writer_write_f32_array(Bebop_Writer* w, const float* data, size_t len);
+BEBOP_API Bebop_Result bebop_writer_write_f64_array(
     Bebop_Writer* w, const double* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetI128Array(
+BEBOP_API Bebop_Result bebop_writer_write_i128_array(
     Bebop_Writer* w, const Bebop_Int128* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetU128Array(
+BEBOP_API Bebop_Result bebop_writer_write_u128_array(
     Bebop_Writer* w, const Bebop_UInt128* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetBoolArray(Bebop_Writer* w, const bool* data, size_t len);
-BEBOP_API Bebop_WireResult Bebop_Writer_SetUUIDArray(
+BEBOP_API Bebop_Result bebop_writer_write_bool_array(Bebop_Writer* w, const bool* data, size_t len);
+BEBOP_API Bebop_Result bebop_writer_write_uuid_array(
     Bebop_Writer* w, const Bebop_UUID* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetTimestampArray(
+BEBOP_API Bebop_Result bebop_writer_write_timestamp_array(
     Bebop_Writer* w, const Bebop_Timestamp* data, size_t len
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetDurationArray(
+BEBOP_API Bebop_Result bebop_writer_write_duration_array(
     Bebop_Writer* w, const Bebop_Duration* data, size_t len
 );
 
 // Fixed array writers (no length prefix)
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedU8Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_u8_array(
     Bebop_Writer* w, const uint8_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedI8Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_i8_array(
     Bebop_Writer* w, const int8_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedBoolArray(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_bool_array(
     Bebop_Writer* w, const bool* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedU16Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_u16_array(
     Bebop_Writer* w, const uint16_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedI16Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_i16_array(
     Bebop_Writer* w, const int16_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedU32Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_u32_array(
     Bebop_Writer* w, const uint32_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedI32Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_i32_array(
     Bebop_Writer* w, const int32_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedU64Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_u64_array(
     Bebop_Writer* w, const uint64_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedI64Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_i64_array(
     Bebop_Writer* w, const int64_t* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedF16Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_f16_array(
     Bebop_Writer* w, const Bebop_Float16* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedBF16Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_bf16_array(
     Bebop_Writer* w, const Bebop_BFloat16* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedF32Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_f32_array(
     Bebop_Writer* w, const float* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedF64Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_f64_array(
     Bebop_Writer* w, const double* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedI128Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_i128_array(
     Bebop_Writer* w, const Bebop_Int128* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedU128Array(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_u128_array(
     Bebop_Writer* w, const Bebop_UInt128* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedUUIDArray(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_uuid_array(
     Bebop_Writer* w, const Bebop_UUID* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedTimestampArray(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_timestamp_array(
     Bebop_Writer* w, const Bebop_Timestamp* data, size_t count
 );
-BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedDurationArray(
+BEBOP_API Bebop_Result bebop_writer_write_fixed_duration_array(
     Bebop_Writer* w, const Bebop_Duration* data, size_t count
 );
 
@@ -995,11 +925,11 @@ BEBOP_API Bebop_WireResult Bebop_Writer_SetFixedDurationArray(
 
 // #region Utility Functions
 
-BEBOP_API Bebop_UUID Bebop_UUID_FromString(const char* str);
-BEBOP_API size_t Bebop_UUID_ToString(Bebop_UUID uuid, char* buf, size_t len);
-BEBOP_API bool Bebop_UUID_Equal(Bebop_UUID a, Bebop_UUID b);
-BEBOP_API Bebop_Str Bebop_Str_FromCStr(const char* str);
-BEBOP_API bool Bebop_Str_Equal(Bebop_Str a, Bebop_Str b);
+BEBOP_API Bebop_UUID bebop_uuid_parse(const char* str);
+BEBOP_API size_t bebop_uuid_format(Bebop_UUID uuid, char* buf, size_t len);
+BEBOP_API bool bebop_uuid_equal(Bebop_UUID a, Bebop_UUID b);
+BEBOP_API Bebop_String bebop_string(const char* str);
+BEBOP_API bool bebop_string_equal(Bebop_String a, Bebop_String b);
 
 // #endregion
 
@@ -1008,8 +938,8 @@ BEBOP_API bool Bebop_Str_Equal(Bebop_Str a, Bebop_Str b);
 extern const char BEBOP_TYPE_URL_PREFIX[];
 
 typedef size_t (*Bebop_SizeFn)(const void* record);
-typedef Bebop_WireResult (*Bebop_EncodeFn)(Bebop_Writer* w, const void* record);
-typedef Bebop_WireResult (*Bebop_DecodeFn)(Bebop_WireCtx* ctx, Bebop_Reader* r, void* record);
+typedef Bebop_Result (*Bebop_EncodeFn)(Bebop_Writer* w, const void* record);
+typedef Bebop_Result (*Bebop_DecodeFn)(Bebop_Context* ctx, Bebop_Reader* r, void* record);
 
 typedef struct {
   const char* type_fqn;
@@ -1019,94 +949,17 @@ typedef struct {
   Bebop_DecodeFn decode_fn;
 } Bebop_TypeInfo;
 
-BEBOP_API Bebop_WireResult Bebop_Any_Pack(
-    Bebop_WireCtx* ctx, Bebop_Any* any, const void* record, const Bebop_TypeInfo* type_info
+BEBOP_API Bebop_Result bebop_any_pack(
+    Bebop_Context* ctx, Bebop_Any* any, const void* record, const Bebop_TypeInfo* type_info
 );
 
-BEBOP_API bool Bebop_Any_Is(const Bebop_Any* any, const char* type_fqn);
+BEBOP_API bool bebop_any_is(const Bebop_Any* any, const char* type_fqn);
 
-BEBOP_API const char* Bebop_Any_TypeName(const Bebop_Any* any);
+BEBOP_API const char* bebop_any_type_name(const Bebop_Any* any);
 
-BEBOP_API Bebop_WireResult Bebop_Any_Unpack(
-    Bebop_WireCtx* ctx, const Bebop_Any* any, void* record, const Bebop_TypeInfo* type_info
+BEBOP_API Bebop_Result bebop_any_unpack(
+    Bebop_Context* ctx, const Bebop_Any* any, void* record, const Bebop_TypeInfo* type_info
 );
-
-// #endregion
-
-// #region Work Stack for Iterative Encode/Decode/Size
-
-#ifndef BEBOP_WIRE_WORK_STACK_SIZE
-#define BEBOP_WIRE_WORK_STACK_SIZE 64
-#endif
-
-struct Bebop_Work;
-struct Bebop_WorkStack;
-
-typedef int (*Bebop_EncodeStepFn)(
-    Bebop_Writer* w, struct Bebop_WorkStack* stack, struct Bebop_Work* item
-);
-typedef int (*Bebop_DecodeStepFn)(
-    Bebop_WireCtx* ctx, Bebop_Reader* rd, struct Bebop_WorkStack* stack, struct Bebop_Work* item
-);
-typedef size_t (*Bebop_SizeStepFn)(struct Bebop_WorkStack* stack, struct Bebop_Work* item);
-
-typedef struct Bebop_Work {
-  void* data;
-  uint32_t state;
-
-  union {
-    Bebop_EncodeStepFn encode;
-    Bebop_DecodeStepFn decode;
-    Bebop_SizeStepFn size;
-  } step;
-
-  union {
-    struct {
-      size_t len_pos;
-      size_t start_pos;
-    } enc;
-
-    struct {
-      const uint8_t* end;
-    } dec;
-  };
-} Bebop_Work;
-
-typedef struct Bebop_WorkStack {
-  Bebop_Work items[BEBOP_WIRE_WORK_STACK_SIZE];
-  uint8_t depth;
-} Bebop_WorkStack;
-
-static inline void Bebop_WorkStack_Init(Bebop_WorkStack* s)
-{
-  s->depth = 0;
-}
-
-static inline bool Bebop_WorkStack_Push(Bebop_WorkStack* s, Bebop_Work w)
-{
-  if (s->depth >= BEBOP_WIRE_WORK_STACK_SIZE) {
-    return false;
-  }
-  s->items[s->depth++] = w;
-  return true;
-}
-
-static inline Bebop_Work* Bebop_WorkStack_Top(Bebop_WorkStack* s)
-{
-  return s->depth > 0 ? &s->items[s->depth - 1] : NULL;
-}
-
-static inline void Bebop_WorkStack_Pop(Bebop_WorkStack* s)
-{
-  if (s->depth > 0) {
-    s->depth--;
-  }
-}
-
-static inline Bebop_Work* Bebop_WorkStack_PopGet(Bebop_WorkStack* s)
-{
-  return s->depth > 0 ? &s->items[--s->depth] : NULL;
-}
 
 // #endregion
 
@@ -1286,225 +1139,6 @@ _Static_assert(sizeof(Bebop_Duration) == 12, "sizeof(Bebop_Duration) should be 1
 
 // #endregion
 
-// #region BBM - Type-Safe Map Macros (GNU/Clang only)
-//
-// These macros provide ergonomic, type-safe map operations using C11 _Generic
-// and GNU extensions (__typeof__, statement expressions).
-//
-// Usage:
-//   Bebop_Map scores;
-//   BBM_INIT(&scores, ctx, Bebop_Str);
-//
-//   BBM_BEGIN(&scores, ctx, Bebop_Str, int32_t)
-//     BBM_PUT("alice", 100);
-//     BBM_PUT("bob", 200);
-//     int32_t* val = BBM_GET("alice");  // returns int32_t*, no cast needed
-//     if (BBM_HAS("charlie")) { ... }
-//     BBM_DEL("bob");
-//     BBM_EACH(name, score) { printf("%.*s: %d\n", ...); }
-//   BBM_END()
-//
-
-// Generic init - derives hash/eq from key type (C11 _Generic)
-#define BBM_INIT(m, ctx, KT) \
-  _Generic( \
-      (KT) {0}, \
-      bool: Bebop_Map_Init((m), (ctx), Bebop_MapHash_Bool, Bebop_MapEq_Bool), \
-      int8_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_I8, Bebop_MapEq_I8), \
-      uint8_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_U8, Bebop_MapEq_U8), \
-      int16_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_I16, Bebop_MapEq_I16), \
-      uint16_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_U16, Bebop_MapEq_U16), \
-      int32_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_I32, Bebop_MapEq_I32), \
-      uint32_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_U32, Bebop_MapEq_U32), \
-      int64_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_I64, Bebop_MapEq_I64), \
-      uint64_t: Bebop_Map_Init((m), (ctx), Bebop_MapHash_U64, Bebop_MapEq_U64), \
-      Bebop_Int128: Bebop_Map_Init((m), (ctx), Bebop_MapHash_I128, Bebop_MapEq_I128), \
-      Bebop_UInt128: Bebop_Map_Init((m), (ctx), Bebop_MapHash_U128, Bebop_MapEq_U128), \
-      Bebop_Str: Bebop_Map_Init((m), (ctx), Bebop_MapHash_Str, Bebop_MapEq_Str), \
-      Bebop_UUID: Bebop_Map_Init((m), (ctx), Bebop_MapHash_UUID, Bebop_MapEq_UUID) \
-  )
-
-// Block scope - declares key/value types for operations
-#define BBM_BEGIN(m, ctx, KT, VT) \
-  { \
-    Bebop_Map* _bbm = (m); \
-    Bebop_WireCtx* _bbc = (ctx); \
-    typedef KT _bbK; \
-    typedef VT _bbV; \
-    typedef struct { \
-      _bbK w; \
-    } _bbKW; \
-    typedef struct { \
-      _bbV w; \
-    } _bbVW; \
-    (void)_bbm; \
-    (void)_bbc; \
-    (void)sizeof(_bbKW); \
-    (void)sizeof(_bbVW);
-
-#define BBM_END() }
-
-// String creation helpers
-#define BBM_STR(s) ((Bebop_Str) {.data = (s), .length = (uint32_t)strlen(s)})
-#define BBM_STRLIT(s) ((Bebop_Str) {.data = ("" s ""), .length = sizeof(s) - 1})
-
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(__cplusplus)
-
-// Internal helpers - take void* so all _Generic branches type-check
-static inline void _bbm_put_str(
-    Bebop_Map* m, Bebop_WireCtx* c, const void* kptr, const void* v, size_t vsz
-)
-{
-  const char* str = *(const char* const*)kptr;
-  Bebop_Str* kp = (Bebop_Str*)Bebop_WireCtx_Alloc(c, sizeof(Bebop_Str));
-  void* vp = Bebop_WireCtx_Alloc(c, vsz);
-  if (kp && vp) {
-    kp->data = str;
-    kp->length = (uint32_t)strlen(str);
-    memcpy(vp, v, vsz);
-    Bebop_Map_Put(m, kp, vp);
-  }
-}
-
-static inline void _bbm_put_any(
-    Bebop_Map* m, Bebop_WireCtx* c, const void* kptr, size_t ksz, const void* v, size_t vsz
-)
-{
-  void* kp = Bebop_WireCtx_Alloc(c, ksz);
-  void* vp = Bebop_WireCtx_Alloc(c, vsz);
-  if (kp && vp) {
-    memcpy(kp, kptr, ksz);
-    memcpy(vp, v, vsz);
-    Bebop_Map_Put(m, kp, vp);
-  }
-}
-
-static inline void* _bbm_get_str(Bebop_Map* m, const void* kptr)
-{
-  const char* s = *(const char* const*)kptr;
-  Bebop_Str key = {.data = s, .length = (uint32_t)strlen(s)};
-  return Bebop_Map_Get(m, &key);
-}
-
-static inline void* _bbm_get_any(Bebop_Map* m, const void* kptr)
-{
-  return Bebop_Map_Get(m, kptr);
-}
-
-static inline bool _bbm_has_str(Bebop_Map* m, const void* kptr)
-{
-  const char* s = *(const char* const*)kptr;
-  Bebop_Str key = {.data = s, .length = (uint32_t)strlen(s)};
-  return Bebop_Map_Get(m, &key) != NULL;
-}
-
-static inline bool _bbm_has_any(Bebop_Map* m, const void* kptr)
-{
-  return Bebop_Map_Get(m, kptr) != NULL;
-}
-
-static inline bool _bbm_del_str(Bebop_Map* m, const void* kptr)
-{
-  const char* s = *(const char* const*)kptr;
-  Bebop_Str key = {.data = s, .length = (uint32_t)strlen(s)};
-  return Bebop_Map_Del(m, &key);
-}
-
-static inline bool _bbm_del_any(Bebop_Map* m, const void* kptr)
-{
-  return Bebop_Map_Del(m, kptr);
-}
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#pragma GCC diagnostic ignored "-Wunused-value"
-#pragma GCC diagnostic ignored "-Wmissing-braces"
-#endif
-
-// PUT: BBM_PUT(key, value) or BBM_PUT(key, {.x=1, .y=2})
-// String literals auto-convert to Bebop_Str keys
-#define BBM_PUT(k, ...) \
-  do { \
-    __typeof__((0, (k))) _k = (k); \
-    _bbV _v = ((_bbVW) {__VA_ARGS__}).w; \
-    _Generic( \
-        _k, \
-        char*: _bbm_put_str(_bbm, _bbc, (const void*)&_k, &_v, sizeof(_v)), \
-        const char*: _bbm_put_str(_bbm, _bbc, (const void*)&_k, &_v, sizeof(_v)), \
-        default: _bbm_put_any(_bbm, _bbc, &((_bbKW) {_k}).w, sizeof(_bbK), &_v, sizeof(_v)) \
-    ); \
-  } while (0)
-
-// GET: returns VT* or NULL - no cast needed
-#define BBM_GET(k) \
-  ({ \
-    __typeof__((0, (k))) _gk = (k); \
-    (_bbV*)_Generic( \
-        _gk, \
-        char*: _bbm_get_str(_bbm, (const void*)&_gk), \
-        const char*: _bbm_get_str(_bbm, (const void*)&_gk), \
-        default: _bbm_get_any(_bbm, &((_bbKW) {_gk}).w) \
-    ); \
-  })
-
-// HAS: returns bool
-#define BBM_HAS(k) \
-  ({ \
-    __typeof__((0, (k))) _hk = (k); \
-    _Generic( \
-        _hk, \
-        char*: _bbm_has_str(_bbm, (const void*)&_hk), \
-        const char*: _bbm_has_str(_bbm, (const void*)&_hk), \
-        default: _bbm_has_any(_bbm, &((_bbKW) {_hk}).w) \
-    ); \
-  })
-
-// DEL: returns bool (true if deleted)
-#define BBM_DEL(k) \
-  ({ \
-    __typeof__((0, (k))) _dk = (k); \
-    _Generic( \
-        _dk, \
-        char*: _bbm_del_str(_bbm, (const void*)&_dk), \
-        const char*: _bbm_del_str(_bbm, (const void*)&_dk), \
-        default: _bbm_del_any(_bbm, &((_bbKW) {_dk}).w) \
-    ); \
-  })
-
-// LEN: map length
-#define BBM_LEN() (_bbm->length)
-
-// EACH: iterate inside BBM_BEGIN/END block
-#define BBM_EACH(kvar, vvar) \
-  for (struct { \
-         Bebop_MapIter it; \
-         _bbK* k; \
-         _bbV* v; \
-       } _f = {.it = {_bbm, 0}}; \
-       Bebop_MapIter_Next(&_f.it, (void**)&_f.k, (void**)&_f.v);) \
-    for (_bbK* kvar = _f.k; kvar; kvar = NULL) \
-      for (_bbV* vvar = _f.v; vvar; vvar = NULL)
-
-// FOREACH: iterate outside block (requires explicit types)
-#define BBM_FOREACH(m, KT, kvar, VT, vvar) \
-  for (struct { \
-         Bebop_MapIter it; \
-         KT* k; \
-         VT* v; \
-         int _s; \
-       } _f = {.it = {m, 0}, ._s = 1}; \
-       _f._s && Bebop_MapIter_Next(&_f.it, (void**)&_f.k, (void**)&_f.v);) \
-    for (KT* kvar = _f.k; kvar; kvar = NULL) \
-      for (VT* vvar = _f.v; vvar; vvar = NULL)
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
-#endif  // __GNUC__ || __clang__ (BBM macros not available on MSVC)
-
-// #endregion
 
 #ifdef __cplusplus
 }

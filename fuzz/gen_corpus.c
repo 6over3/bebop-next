@@ -1,325 +1,227 @@
-// Generate seed corpus for fuzz_json_wire
+// Generate seed inputs for fuzz_json_decode.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // clang-format off
 #include "bebop_wire.c"
-#include "../tests/generated/json.bb.c"
+#include "../tests/generated/bebop/json.bb.c"
 // clang-format on
 
-static void* corpus_alloc(void* ptr, size_t old, size_t new, void* ctx)
+typedef struct {
+  const char* key;
+  Bebop_Value value;
+} JsonField;
+
+static void* corpus_alloc(void* pointer, size_t old_size, size_t new_size, void* context)
 {
-  (void)ctx;
-  (void)old;
-  if (new == 0) {
-    free(ptr);
+  (void)context;
+  (void)old_size;
+  if (new_size == 0) {
+    free(pointer);
     return NULL;
   }
-  return realloc(ptr, new);
+  return realloc(pointer, new_size);
 }
 
-static bebop_wire_ctx_t* make_ctx(void)
+static Bebop_Context* make_context(void)
 {
-  bebop_wire_ctx_opts_t opts = bebop_wire_ctx_default_opts();
-  opts.arena_options.allocator.alloc = corpus_alloc;
-  return bebop_wire_ctx_new_with_opts(&opts);
+  Bebop_ContextOptions options = bebop_context_options();
+  options.arena_options.allocator.alloc = corpus_alloc;
+  return bebop_context_new(&options);
 }
 
-static void write_corpus(const char* name, bebop_wire_ctx_t* ctx, bebop_wire_writer_t* w)
+static Bebop_Value json_null(void)
 {
-  (void)ctx;
-  uint8_t* buf;
-  size_t len;
-  bebop_wire_writer_buf(w, &buf, &len);
+  return (Bebop_Value) {.discriminator = BEBOP_VALUE_NULL, .null = {0}};
+}
+
+static Bebop_Value json_bool(bool value)
+{
+  return (Bebop_Value) {
+      .discriminator = BEBOP_VALUE_BOOL,
+      .bool_ = {.value = BEBOP_SOME(value)},
+  };
+}
+
+static Bebop_Value json_number(double value)
+{
+  return (Bebop_Value) {
+      .discriminator = BEBOP_VALUE_NUMBER,
+      .number = {.value = BEBOP_SOME(value)},
+  };
+}
+
+static Bebop_Value json_string(const char* value)
+{
+  return (Bebop_Value) {
+      .discriminator = BEBOP_VALUE_STRING,
+      .string = {
+          .value = BEBOP_SOME(((Bebop_String) {.data = value, .length = (uint32_t)strlen(value)})),
+      },
+  };
+}
+
+static Bebop_Value json_list(Bebop_Value* values, size_t length)
+{
+  return (Bebop_Value) {
+      .discriminator = BEBOP_VALUE_LIST,
+      .list = {.values = BEBOP_SOME(((Bebop_Value_Array) {.data = values, .length = length}))},
+  };
+}
+
+static Bebop_Value json_object(Bebop_Context* context, const JsonField* fields, size_t count)
+{
+  Bebop_Map map;
+  bebop_map_init(&map, context, BEBOP_MAP_KEY_STRING);
+  for (size_t i = 0; i < count; i++) {
+    Bebop_String* key = bebop_context_alloc(context, sizeof(*key));
+    Bebop_Value* value = bebop_context_alloc(context, sizeof(*value));
+    if (!key || !value) {
+      return json_null();
+    }
+    *key = (Bebop_String) {
+        .data = fields[i].key,
+        .length = (uint32_t)strlen(fields[i].key),
+    };
+    *value = fields[i].value;
+    if (!bebop_map_set(&map, key, value)) {
+      return json_null();
+    }
+  }
+  return (Bebop_Value) {
+      .discriminator = BEBOP_VALUE_MAP,
+      .map = {.fields = BEBOP_SOME(map)},
+  };
+}
+
+static bool write_seed(Bebop_Context* context, const char* name, const Bebop_Value* value)
+{
+  Bebop_Writer* writer = bebop_context_writer(context, 0);
+  if (!writer || Bebop_Value_encode(writer, value) != BEBOP_RESULT_OK) {
+    return false;
+  }
 
   char path[256];
-  snprintf(path, sizeof(path), "corpus/json_wire/%s", name);
-  FILE* f = fopen(path, "wb");
-  if (f) {
-    fwrite(buf, 1, len, f);
-    fclose(f);
-    printf("Wrote %s (%zu bytes)\n", path, len);
+  if (snprintf(path, sizeof(path), "corpus/json_wire/%s", name) < 0) {
+    return false;
   }
+  FILE* file = fopen(path, "wb");
+  if (!file) {
+    return false;
+  }
+  const Bebop_View encoded = bebop_writer_view(writer);
+  const bool wrote = fwrite(encoded.data, 1, encoded.length, file) == encoded.length;
+  fclose(file);
+  if (wrote) {
+    printf("Wrote %s (%zu bytes)\n", path, encoded.length);
+  }
+  return wrote;
 }
 
-#define STR(s) ((bebop_wire_str_t) {.data = (s), .length = sizeof(s) - 1})
-#define JSON_NULL_VAL() ((json_JsonValue) {.discriminator = JSON_JSONVALUE_NULL_DISC})
-#define JSON_BOOL_VAL(v) \
-  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_BOOL_DISC, \
-                     .bool_ = {.value = {.has_value = true, .value = (v)}}})
-#define JSON_NUM_VAL(v) \
-  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_NUMBER_DISC, \
-                     .number = {.value = {.has_value = true, .value = (v)}}})
-#define JSON_STR_VAL(s) \
-  ((json_JsonValue) {.discriminator = JSON_JSONVALUE_STRING_DISC, \
-                     .string = {.value = {.has_value = true, .value = STR(s)}}})
+static bool write_scalar_seeds(void)
+{
+  Bebop_Context* context = make_context();
+  if (!context) {
+    return false;
+  }
+  const Bebop_Value values[] = {
+      json_null(),
+      json_bool(true),
+      json_bool(false),
+      json_number(0.0),
+      json_number(-1.0),
+      json_number(3.14159265358979),
+      json_string(""),
+      json_string("hello world"),
+  };
+  const char* names[] = {
+      "null",
+      "bool_true",
+      "bool_false",
+      "num_zero",
+      "num_negative",
+      "num_pi",
+      "str_empty",
+      "str_hello",
+  };
+  bool success = true;
+  for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
+    success = write_seed(context, names[i], &values[i]) && success;
+  }
+  bebop_context_free(context);
+  return success;
+}
+
+static bool write_structured_seeds(void)
+{
+  Bebop_Context* context = make_context();
+  if (!context) {
+    return false;
+  }
+
+  JsonField package_fields[] = {
+      {"name", json_string("bebop")},
+      {"version", json_string("1.0.0")},
+      {"private", json_bool(true)},
+  };
+  Bebop_Value package = json_object(context, package_fields, 3);
+
+  JsonField point_a_fields[] = {{"x", json_number(10)}, {"y", json_number(20)}};
+  JsonField point_b_fields[] = {{"x", json_number(30)}, {"y", json_number(40)}};
+  Bebop_Value points[] = {
+      json_object(context, point_a_fields, 2),
+      json_object(context, point_b_fields, 2),
+  };
+  Bebop_Value coordinates = json_list(points, 2);
+
+  Bebop_Value nested_numbers[] = {json_number(3), json_number(4)};
+  Bebop_Value mixed_values[] = {
+      json_number(1),
+      json_string("two"),
+      json_bool(true),
+      json_null(),
+      json_list(nested_numbers, 2),
+  };
+  Bebop_Value mixed = json_list(mixed_values, 5);
+  Bebop_Value empty_list = json_list(NULL, 0);
+  Bebop_Value empty_object = json_object(context, NULL, 0);
+
+  JsonField leaf_fields[] = {{"d", json_number(42)}};
+  Bebop_Value leaf = json_object(context, leaf_fields, 1);
+  JsonField level_c_fields[] = {{"c", leaf}};
+  Bebop_Value level_c = json_object(context, level_c_fields, 1);
+  JsonField level_b_fields[] = {{"b", level_c}};
+  Bebop_Value level_b = json_object(context, level_b_fields, 1);
+  JsonField level_a_fields[] = {{"a", level_b}};
+  Bebop_Value deep = json_object(context, level_a_fields, 1);
+
+  const struct {
+    const char* name;
+    const Bebop_Value* value;
+  } seeds[] = {
+      {"obj_package", &package},
+      {"arr_coords", &coordinates},
+      {"arr_mixed", &mixed},
+      {"arr_empty", &empty_list},
+      {"obj_empty", &empty_object},
+      {"obj_deep_nested", &deep},
+  };
+
+  bool success = true;
+  for (size_t i = 0; i < sizeof(seeds) / sizeof(seeds[0]); i++) {
+    success = write_seed(context, seeds[i].name, seeds[i].value) && success;
+  }
+  bebop_context_free(context);
+  return success;
+}
 
 int main(void)
 {
-  // Basic types
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_NULL_VAL();
-    json_JsonValue_encode(w, &val);
-    write_corpus("null", ctx, w);
-    bebop_wire_ctx_free(ctx);
+  if (!write_scalar_seeds() || !write_structured_seeds()) {
+    fputs("Failed to generate corpus\n", stderr);
+    return EXIT_FAILURE;
   }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_BOOL_VAL(true);
-    json_JsonValue_encode(w, &val);
-    write_corpus("bool_true", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_BOOL_VAL(false);
-    json_JsonValue_encode(w, &val);
-    write_corpus("bool_false", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_NUM_VAL(0.0);
-    json_JsonValue_encode(w, &val);
-    write_corpus("num_zero", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_NUM_VAL(-1.0);
-    json_JsonValue_encode(w, &val);
-    write_corpus("num_negative", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_NUM_VAL(3.14159265358979);
-    json_JsonValue_encode(w, &val);
-    write_corpus("num_pi", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_STR_VAL("");
-    json_JsonValue_encode(w, &val);
-    write_corpus("str_empty", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = JSON_STR_VAL("hello world");
-    json_JsonValue_encode(w, &val);
-    write_corpus("str_hello", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Realistic: package.json-like object
-  // {"name": "bebop", "version": "1.0.0", "private": true}
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    bebop_str_json_jsonvalue_map_entry_t entries[] = {
-        {.key = STR("name"), .value = JSON_STR_VAL("bebop")},
-        {.key = STR("version"), .value = JSON_STR_VAL("1.0.0")},
-        {.key = STR("private"), .value = JSON_BOOL_VAL(true)},
-    };
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = entries, .length = 3}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("obj_package", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Realistic: coordinates array
-  // [{"x": 10, "y": 20}, {"x": 30, "y": 40}]
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-
-    bebop_str_json_jsonvalue_map_entry_t pt1_entries[] = {
-        {.key = STR("x"), .value = JSON_NUM_VAL(10)},
-        {.key = STR("y"), .value = JSON_NUM_VAL(20)},
-    };
-    bebop_str_json_jsonvalue_map_entry_t pt2_entries[] = {
-        {.key = STR("x"), .value = JSON_NUM_VAL(30)},
-        {.key = STR("y"), .value = JSON_NUM_VAL(40)},
-    };
-    json_JsonValue items[] = {
-        {.discriminator = JSON_JSONVALUE_OBJECT_DISC,
-         .object = {.entries = {.has_value = true, .value = {.entries = pt1_entries, .length = 2}}}},
-        {.discriminator = JSON_JSONVALUE_OBJECT_DISC,
-         .object = {.entries = {.has_value = true, .value = {.entries = pt2_entries, .length = 2}}}},
-    };
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true, .value = {.data = items, .length = 2}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("arr_coords", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Realistic: API response with nested data
-  // {"status": "ok", "data": {"users": [{"id": 1, "name": "alice"}]}}
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-
-    bebop_str_json_jsonvalue_map_entry_t user_entries[] = {
-        {.key = STR("id"), .value = JSON_NUM_VAL(1)},
-        {.key = STR("name"), .value = JSON_STR_VAL("alice")},
-    };
-    json_JsonValue user = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = user_entries, .length = 2}}}
-    };
-    json_JsonValue users_arr = {
-        .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true, .value = {.data = &user, .length = 1}}}
-    };
-    bebop_str_json_jsonvalue_map_entry_t data_entries[] = {
-        {.key = STR("users"), .value = users_arr},
-    };
-    json_JsonValue data = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = data_entries, .length = 1}}}
-    };
-    bebop_str_json_jsonvalue_map_entry_t root_entries[] = {
-        {.key = STR("status"), .value = JSON_STR_VAL("ok")},
-        {.key = STR("data"), .value = data},
-    };
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = root_entries, .length = 2}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("obj_api_response", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Mixed array: [1, "two", true, null, [3, 4]]
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-
-    json_JsonValue nested[] = {JSON_NUM_VAL(3), JSON_NUM_VAL(4)};
-    json_JsonValue nested_arr = {
-        .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true, .value = {.data = nested, .length = 2}}}
-    };
-    json_JsonValue items[] = {
-        JSON_NUM_VAL(1),
-        JSON_STR_VAL("two"),
-        JSON_BOOL_VAL(true),
-        JSON_NULL_VAL(),
-        nested_arr,
-    };
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true, .value = {.data = items, .length = 5}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("arr_mixed", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Empty containers
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_ARRAY_DISC,
-        .array = {.items = {.has_value = true, .value = {.data = NULL, .length = 0}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("arr_empty", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = NULL, .length = 0}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("obj_empty", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  // Deeply nested: {"a": {"b": {"c": {"d": 42}}}}
-  {
-    bebop_wire_ctx_t* ctx = make_ctx();
-    bebop_wire_writer_t* w;
-    bebop_wire_ctx_writer(ctx, &w);
-
-    bebop_str_json_jsonvalue_map_entry_t d_entries[] = {
-        {.key = STR("d"), .value = JSON_NUM_VAL(42)},
-    };
-    json_JsonValue d = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = d_entries, .length = 1}}}
-    };
-    bebop_str_json_jsonvalue_map_entry_t c_entries[] = {
-        {.key = STR("c"), .value = d},
-    };
-    json_JsonValue c = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = c_entries, .length = 1}}}
-    };
-    bebop_str_json_jsonvalue_map_entry_t b_entries[] = {
-        {.key = STR("b"), .value = c},
-    };
-    json_JsonValue b = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = b_entries, .length = 1}}}
-    };
-    bebop_str_json_jsonvalue_map_entry_t a_entries[] = {
-        {.key = STR("a"), .value = b},
-    };
-    json_JsonValue val = {
-        .discriminator = JSON_JSONVALUE_OBJECT_DISC,
-        .object = {.entries = {.has_value = true, .value = {.entries = a_entries, .length = 1}}}
-    };
-    json_JsonValue_encode(w, &val);
-    write_corpus("obj_deep_nested", ctx, w);
-    bebop_wire_ctx_free(ctx);
-  }
-
-  printf("Done generating corpus\n");
-  return 0;
+  puts("Done generating corpus");
+  return EXIT_SUCCESS;
 }

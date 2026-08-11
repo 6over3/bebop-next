@@ -8,7 +8,7 @@ void setUp(void) {}
 
 void tearDown(void) {}
 
-static void assert_str(Bebop_Str actual, const char* expected)
+static void assert_str(Bebop_String actual, const char* expected)
 {
   TEST_ASSERT_EQUAL(strlen(expected), actual.length);
   TEST_ASSERT_EQUAL_MEMORY(expected, actual.data, actual.length);
@@ -27,42 +27,43 @@ static void* test_alloc(void* pointer, size_t old_size, size_t new_size, void* c
 
 static void test_composed_aggregate_views(void)
 {
-  Bebop_WireCtxOpts options = Bebop_WireCtx_DefaultOpts();
+  Bebop_ContextOptions options = bebop_context_options();
   options.arena_options.allocator.alloc = test_alloc;
-  Bebop_WireCtx* ctx = Bebop_WireCtx_New(&options);
+  Bebop_Context* ctx = bebop_context_new(&options);
   TEST_ASSERT_NOT_NULL(ctx);
 
-  Point origin = {.label = Bebop_Str_FromCStr("origin"), .x = 42};
+  Point origin = {.label = bebop_string("origin"), .x = 42};
   Payload payload = {.discriminator = PAYLOAD_POINT};
-  payload.point = (Point) {.label = Bebop_Str_FromCStr("union point"), .x = 7};
+  payload.point = (Point) {.label = bebop_string("union point"), .x = 7};
 
   Child child = {0};
-  BEBOP_WIRE_SET_SOME(child.value, Bebop_Str_FromCStr("nested child"));
+  BEBOP_SET(child.value, bebop_string("nested child"));
 
   Child children_data[2] = {0};
-  BEBOP_WIRE_SET_SOME(children_data[0].value, Bebop_Str_FromCStr("first"));
-  BEBOP_WIRE_SET_SOME(children_data[1].value, Bebop_Str_FromCStr("second"));
+  BEBOP_SET(children_data[0].value, bebop_string("first"));
+  BEBOP_SET(children_data[1].value, bebop_string("second"));
   Child_Array children = {.data = children_data, .length = 2, .capacity = 0};
 
-  Bebop_Str lookup_key = Bebop_Str_FromCStr("answer");
+  Bebop_String lookup_key = bebop_string("answer");
   Child lookup_value = {0};
-  BEBOP_WIRE_SET_SOME(lookup_value.value, Bebop_Str_FromCStr("mapped child"));
+  BEBOP_SET(lookup_value.value, bebop_string("mapped child"));
   Bebop_Map lookup = {0};
-  BEBOP_MAP_INIT_STR(&lookup, ctx);
-  TEST_ASSERT_TRUE(Bebop_Map_Put(&lookup, &lookup_key, &lookup_value));
+  BEBOP_MAP_INIT(&lookup, ctx, Bebop_String);
+  TEST_ASSERT_TRUE(bebop_map_set(&lookup, &lookup_key, &lookup_value));
 
   Envelope envelope = {0};
-  BEBOP_WIRE_SET_SOME(envelope.origin, origin);
-  BEBOP_WIRE_SET_SOME(envelope.payload, &payload);
-  BEBOP_WIRE_SET_SOME(envelope.children, children);
-  BEBOP_WIRE_SET_SOME(envelope.child, &child);
-  BEBOP_WIRE_SET_SOME(envelope.lookup, lookup);
+  BEBOP_SET(envelope.origin, origin);
+  BEBOP_SET(envelope.payload, &payload);
+  BEBOP_SET(envelope.children, children);
+  BEBOP_SET(envelope.child, &child);
+  BEBOP_SET(envelope.lookup, lookup);
 
   Bebop_Writer* writer;
-  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Bebop_WireCtx_Writer(ctx, &writer));
-  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Envelope_encode(writer, &envelope));
-  const Bebop_View encoded = Bebop_Writer_View(writer);
-  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Envelope_verify(encoded));
+  writer = bebop_context_writer(ctx, 0);
+  TEST_ASSERT_NOT_NULL(writer);
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, Envelope_encode(writer, &envelope));
+  const Bebop_View encoded = bebop_writer_view(writer);
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, Envelope_verify(encoded));
 
   const Envelope_View view = Envelope_view(encoded);
   TEST_ASSERT_TRUE(Envelope_has_origin(view));
@@ -81,7 +82,23 @@ static void test_composed_aggregate_views(void)
 
   TEST_ASSERT_TRUE(Envelope_has_children(view));
   TEST_ASSERT_EQUAL_UINT32(2, Envelope_children_count(view));
-  assert_str(Child_value(Envelope_children_at(view, 0)), "first");
+  Bebop_ViewIterator child_iterator = Envelope_children_iter(view);
+  Child_View child_view;
+  TEST_ASSERT_TRUE(Envelope_children_next(&child_iterator, &child_view));
+  assert_str(Child_value(child_view), "first");
+  TEST_ASSERT_TRUE(Envelope_children_next(&child_iterator, &child_view));
+  assert_str(Child_value(child_view), "second");
+  TEST_ASSERT_FALSE(Envelope_children_next(&child_iterator, &child_view));
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, child_iterator.result);
+  TEST_ASSERT_EQUAL_UINT32(0, child_iterator.remaining_count);
+
+  Bebop_ViewIterator malformed_children = Envelope_children_iter(view);
+  malformed_children.remaining.length = 1;
+  TEST_ASSERT_FALSE(Envelope_children_next(&malformed_children, &child_view));
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_MALFORMED, malformed_children.result);
+  TEST_ASSERT_EQUAL_UINT32(2, malformed_children.remaining_count);
+
+  // Random access remains available when traversal is not the operation.
   assert_str(Child_value(Envelope_children_at(view, 1)), "second");
 
   TEST_ASSERT_TRUE(Envelope_has_child(view));
@@ -89,26 +106,35 @@ static void test_composed_aggregate_views(void)
 
   TEST_ASSERT_TRUE(Envelope_has_lookup(view));
   TEST_ASSERT_EQUAL_UINT32(1, Envelope_lookup_count(view));
-  const Envelope_lookup_entry entry = Envelope_lookup_at(view, 0);
+  Bebop_ViewIterator entries = Envelope_lookup_iter(view);
+  Envelope_lookup_entry entry;
+  TEST_ASSERT_TRUE(Envelope_lookup_next(&entries, &entry));
   assert_str(entry.key, "answer");
   assert_str(Child_value(entry.value), "mapped child");
+  TEST_ASSERT_FALSE(Envelope_lookup_next(&entries, &entry));
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, entries.result);
+
+  Bebop_ViewIterator invalid_iterator = Envelope_lookup_iter(view);
+  TEST_ASSERT_FALSE(Envelope_lookup_next(NULL, &entry));
+  TEST_ASSERT_FALSE(Envelope_lookup_next(&invalid_iterator, NULL));
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_NULL, invalid_iterator.result);
 
   Envelope decoded = {0};
-  TEST_ASSERT_EQUAL(BEBOP_WIRE_OK, Envelope_decode(ctx, encoded, &decoded));
-  TEST_ASSERT_TRUE(BEBOP_WIRE_IS_SOME(decoded.origin));
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, Envelope_decode(ctx, encoded, &decoded));
+  TEST_ASSERT_TRUE(BEBOP_HAS_VALUE(decoded.origin));
   TEST_ASSERT_EQUAL_INT32(42, decoded.origin.value.x);
-  TEST_ASSERT_TRUE(BEBOP_WIRE_IS_SOME(decoded.payload));
+  TEST_ASSERT_TRUE(BEBOP_HAS_VALUE(decoded.payload));
   TEST_ASSERT_EQUAL(PAYLOAD_POINT, decoded.payload.value->discriminator);
-  TEST_ASSERT_TRUE(BEBOP_WIRE_IS_SOME(decoded.children));
+  TEST_ASSERT_TRUE(BEBOP_HAS_VALUE(decoded.children));
   TEST_ASSERT_EQUAL(2, decoded.children.value.length);
-  TEST_ASSERT_TRUE(BEBOP_WIRE_IS_SOME(decoded.child));
+  TEST_ASSERT_TRUE(BEBOP_HAS_VALUE(decoded.child));
   assert_str(decoded.child.value->value.value, "nested child");
-  TEST_ASSERT_TRUE(BEBOP_WIRE_IS_SOME(decoded.lookup));
-  const Child* decoded_lookup = Bebop_Map_Get(&decoded.lookup.value, &lookup_key);
+  TEST_ASSERT_TRUE(BEBOP_HAS_VALUE(decoded.lookup));
+  const Child* decoded_lookup = bebop_map_get(&decoded.lookup.value, &lookup_key);
   TEST_ASSERT_NOT_NULL(decoded_lookup);
   assert_str(decoded_lookup->value.value, "mapped child");
 
-  Bebop_WireCtx_Free(ctx);
+  bebop_context_free(ctx);
 }
 
 int main(void)

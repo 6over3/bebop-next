@@ -438,11 +438,10 @@ static gen_opts_t opts_parse(const bebop_plugin_request_t* req)
       .no_reflection = false,
   };
 
-  uint32_t n = bebop_plugin_request_host_option_count(req);
-  for (uint32_t i = 0; i < n; i++) {
-    const char* key = bebop_plugin_request_host_option_key(req, i);
-    const char* val = bebop_plugin_request_host_option_value(req, i);
-
+  bebop_plugin_option_iterator_t iterator = bebop_plugin_request_host_options(req);
+  const char* key;
+  const char* val;
+  while (bebop_plugin_option_next(&iterator, &key, &val)) {
     if (strcmp(key, "c_standard") == 0) {
       if (strcmp(val, "c99") == 0) {
         opts.c_standard = GEN_STD_C99;
@@ -502,111 +501,116 @@ typedef struct {
 static const type_info_t TYPE_MAP[] = {
     {BEBOP_TYPE_BOOL,
      "bool",
-     "Bebop_Reader_GetBool",
-     "Bebop_Writer_SetBool",
+     "bebop_reader_read_bool",
+     "bebop_writer_write_bool",
      "BEBOP_WIRE_SIZE_BOOL",
      1},
     {BEBOP_TYPE_BYTE,
      "uint8_t",
-     "Bebop_Reader_GetByte",
-     "Bebop_Writer_SetByte",
+     "bebop_reader_read_byte",
+     "bebop_writer_write_byte",
      "BEBOP_WIRE_SIZE_BYTE",
      1},
     {BEBOP_TYPE_INT8,
      "int8_t",
-     "Bebop_Reader_GetI8",
-     "Bebop_Writer_SetI8",
+     "bebop_reader_read_i8",
+     "bebop_writer_write_i8",
      "BEBOP_WIRE_SIZE_INT8",
      1},
     {BEBOP_TYPE_INT16,
      "int16_t",
-     "Bebop_Reader_GetI16",
-     "Bebop_Writer_SetI16",
+     "bebop_reader_read_i16",
+     "bebop_writer_write_i16",
      "BEBOP_WIRE_SIZE_INT16",
      2},
     {BEBOP_TYPE_UINT16,
      "uint16_t",
-     "Bebop_Reader_GetU16",
-     "Bebop_Writer_SetU16",
+     "bebop_reader_read_u16",
+     "bebop_writer_write_u16",
      "BEBOP_WIRE_SIZE_UINT16",
      2},
     {BEBOP_TYPE_INT32,
      "int32_t",
-     "Bebop_Reader_GetI32",
-     "Bebop_Writer_SetI32",
+     "bebop_reader_read_i32",
+     "bebop_writer_write_i32",
      "BEBOP_WIRE_SIZE_INT32",
      4},
     {BEBOP_TYPE_UINT32,
      "uint32_t",
-     "Bebop_Reader_GetU32",
-     "Bebop_Writer_SetU32",
+     "bebop_reader_read_u32",
+     "bebop_writer_write_u32",
      "BEBOP_WIRE_SIZE_UINT32",
      4},
     {BEBOP_TYPE_INT64,
      "int64_t",
-     "Bebop_Reader_GetI64",
-     "Bebop_Writer_SetI64",
+     "bebop_reader_read_i64",
+     "bebop_writer_write_i64",
      "BEBOP_WIRE_SIZE_INT64",
      8},
     {BEBOP_TYPE_UINT64,
      "uint64_t",
-     "Bebop_Reader_GetU64",
-     "Bebop_Writer_SetU64",
+     "bebop_reader_read_u64",
+     "bebop_writer_write_u64",
      "BEBOP_WIRE_SIZE_UINT64",
      8},
     {BEBOP_TYPE_INT128,
      "Bebop_Int128",
-     "Bebop_Reader_GetI128",
-     "Bebop_Writer_SetI128",
+     "bebop_reader_read_i128",
+     "bebop_writer_write_i128",
      "BEBOP_WIRE_SIZE_INT128",
      16},
     {BEBOP_TYPE_UINT128,
      "Bebop_UInt128",
-     "Bebop_Reader_GetU128",
-     "Bebop_Writer_SetU128",
+     "bebop_reader_read_u128",
+     "bebop_writer_write_u128",
      "BEBOP_WIRE_SIZE_UINT128",
      16},
     {BEBOP_TYPE_FLOAT16,
      "Bebop_Float16",
-     "Bebop_Reader_GetF16",
-     "Bebop_Writer_SetF16",
+     "bebop_reader_read_f16",
+     "bebop_writer_write_f16",
      "BEBOP_WIRE_SIZE_FLOAT16",
      2},
     {BEBOP_TYPE_FLOAT32,
      "float",
-     "Bebop_Reader_GetF32",
-     "Bebop_Writer_SetF32",
+     "bebop_reader_read_f32",
+     "bebop_writer_write_f32",
      "BEBOP_WIRE_SIZE_FLOAT32",
      4},
     {BEBOP_TYPE_FLOAT64,
      "double",
-     "Bebop_Reader_GetF64",
-     "Bebop_Writer_SetF64",
+     "bebop_reader_read_f64",
+     "bebop_writer_write_f64",
      "BEBOP_WIRE_SIZE_FLOAT64",
      8},
     {BEBOP_TYPE_BFLOAT16,
      "Bebop_BFloat16",
-     "Bebop_Reader_GetBF16",
-     "Bebop_Writer_SetBF16",
+     "bebop_reader_read_bf16",
+     "bebop_writer_write_bf16",
      "BEBOP_WIRE_SIZE_BFLOAT16",
      2},
-    {BEBOP_TYPE_STRING, "Bebop_Str", "Bebop_Reader_GetStr", "Bebop_Writer_SetStrView", NULL, 0},
+    {BEBOP_TYPE_STRING,
+     "Bebop_String",
+     "bebop_reader_read_string",
+     "bebop_writer_write_string",
+     NULL,
+     0},
     {BEBOP_TYPE_UUID,
      "Bebop_UUID",
-     "Bebop_Reader_GetUUID",
-     "Bebop_Writer_SetUUID",
+     "bebop_reader_read_uuid",
+     "bebop_writer_write_uuid",
      "BEBOP_WIRE_SIZE_UUID",
      16},
     {BEBOP_TYPE_TIMESTAMP,
      "Bebop_Timestamp",
-     "Bebop_Reader_GetTimestamp",
-     "Bebop_Writer_SetTimestamp",
+     "bebop_reader_read_timestamp",
+     "bebop_writer_write_timestamp",
      "BEBOP_WIRE_SIZE_TIMESTAMP",
      12},
     {BEBOP_TYPE_DURATION,
      "Bebop_Duration",
-     "Bebop_Reader_GetDuration",
-     "Bebop_Writer_SetDuration",
+     "bebop_reader_read_duration",
+     "bebop_writer_write_duration",
      "BEBOP_WIRE_SIZE_DURATION",
      12},
     {0, NULL, NULL, NULL, NULL, 0}
@@ -722,41 +726,41 @@ static const char* bulk_set(bebop_type_kind_t kind)
 {
   switch (kind) {
     case BEBOP_TYPE_BOOL:
-      return "Bebop_Writer_SetBoolArray";
+      return "bebop_writer_write_bool_array";
     case BEBOP_TYPE_INT8:
-      return "Bebop_Writer_SetI8Array";
+      return "bebop_writer_write_i8_array";
     case BEBOP_TYPE_BYTE:
-      return "Bebop_Writer_SetByteArray";
+      return "bebop_writer_write_u8_array";
     case BEBOP_TYPE_INT16:
-      return "Bebop_Writer_SetI16Array";
+      return "bebop_writer_write_i16_array";
     case BEBOP_TYPE_UINT16:
-      return "Bebop_Writer_SetU16Array";
+      return "bebop_writer_write_u16_array";
     case BEBOP_TYPE_INT32:
-      return "Bebop_Writer_SetI32Array";
+      return "bebop_writer_write_i32_array";
     case BEBOP_TYPE_UINT32:
-      return "Bebop_Writer_SetU32Array";
+      return "bebop_writer_write_u32_array";
     case BEBOP_TYPE_INT64:
-      return "Bebop_Writer_SetI64Array";
+      return "bebop_writer_write_i64_array";
     case BEBOP_TYPE_UINT64:
-      return "Bebop_Writer_SetU64Array";
+      return "bebop_writer_write_u64_array";
     case BEBOP_TYPE_INT128:
-      return "Bebop_Writer_SetI128Array";
+      return "bebop_writer_write_i128_array";
     case BEBOP_TYPE_UINT128:
-      return "Bebop_Writer_SetU128Array";
+      return "bebop_writer_write_u128_array";
     case BEBOP_TYPE_FLOAT16:
-      return "Bebop_Writer_SetF16Array";
+      return "bebop_writer_write_f16_array";
     case BEBOP_TYPE_FLOAT32:
-      return "Bebop_Writer_SetF32Array";
+      return "bebop_writer_write_f32_array";
     case BEBOP_TYPE_FLOAT64:
-      return "Bebop_Writer_SetF64Array";
+      return "bebop_writer_write_f64_array";
     case BEBOP_TYPE_BFLOAT16:
-      return "Bebop_Writer_SetBF16Array";
+      return "bebop_writer_write_bf16_array";
     case BEBOP_TYPE_UUID:
-      return "Bebop_Writer_SetUUIDArray";
+      return "bebop_writer_write_uuid_array";
     case BEBOP_TYPE_TIMESTAMP:
-      return "Bebop_Writer_SetTimestampArray";
+      return "bebop_writer_write_timestamp_array";
     case BEBOP_TYPE_DURATION:
-      return "Bebop_Writer_SetDurationArray";
+      return "bebop_writer_write_duration_array";
     default:
       return NULL;
   }
@@ -766,41 +770,41 @@ static const char* bulk_set_fixed(bebop_type_kind_t kind)
 {
   switch (kind) {
     case BEBOP_TYPE_BOOL:
-      return "Bebop_Writer_SetFixedBoolArray";
+      return "bebop_writer_write_fixed_bool_array";
     case BEBOP_TYPE_INT8:
-      return "Bebop_Writer_SetFixedI8Array";
+      return "bebop_writer_write_fixed_i8_array";
     case BEBOP_TYPE_BYTE:
-      return "Bebop_Writer_SetFixedU8Array";
+      return "bebop_writer_write_fixed_u8_array";
     case BEBOP_TYPE_INT16:
-      return "Bebop_Writer_SetFixedI16Array";
+      return "bebop_writer_write_fixed_i16_array";
     case BEBOP_TYPE_UINT16:
-      return "Bebop_Writer_SetFixedU16Array";
+      return "bebop_writer_write_fixed_u16_array";
     case BEBOP_TYPE_INT32:
-      return "Bebop_Writer_SetFixedI32Array";
+      return "bebop_writer_write_fixed_i32_array";
     case BEBOP_TYPE_UINT32:
-      return "Bebop_Writer_SetFixedU32Array";
+      return "bebop_writer_write_fixed_u32_array";
     case BEBOP_TYPE_INT64:
-      return "Bebop_Writer_SetFixedI64Array";
+      return "bebop_writer_write_fixed_i64_array";
     case BEBOP_TYPE_UINT64:
-      return "Bebop_Writer_SetFixedU64Array";
+      return "bebop_writer_write_fixed_u64_array";
     case BEBOP_TYPE_INT128:
-      return "Bebop_Writer_SetFixedI128Array";
+      return "bebop_writer_write_fixed_i128_array";
     case BEBOP_TYPE_UINT128:
-      return "Bebop_Writer_SetFixedU128Array";
+      return "bebop_writer_write_fixed_u128_array";
     case BEBOP_TYPE_FLOAT16:
-      return "Bebop_Writer_SetFixedF16Array";
+      return "bebop_writer_write_fixed_f16_array";
     case BEBOP_TYPE_FLOAT32:
-      return "Bebop_Writer_SetFixedF32Array";
+      return "bebop_writer_write_fixed_f32_array";
     case BEBOP_TYPE_FLOAT64:
-      return "Bebop_Writer_SetFixedF64Array";
+      return "bebop_writer_write_fixed_f64_array";
     case BEBOP_TYPE_BFLOAT16:
-      return "Bebop_Writer_SetFixedBF16Array";
+      return "bebop_writer_write_fixed_bf16_array";
     case BEBOP_TYPE_UUID:
-      return "Bebop_Writer_SetFixedUUIDArray";
+      return "bebop_writer_write_fixed_uuid_array";
     case BEBOP_TYPE_TIMESTAMP:
-      return "Bebop_Writer_SetFixedTimestampArray";
+      return "bebop_writer_write_fixed_timestamp_array";
     case BEBOP_TYPE_DURATION:
-      return "Bebop_Writer_SetFixedDurationArray";
+      return "bebop_writer_write_fixed_duration_array";
     default:
       return NULL;
   }
@@ -810,41 +814,41 @@ static const char* bulk_get_fixed(bebop_type_kind_t kind)
 {
   switch (kind) {
     case BEBOP_TYPE_BOOL:
-      return "Bebop_Reader_GetFixedBoolArray";
+      return "bebop_reader_read_fixed_bool_array";
     case BEBOP_TYPE_INT8:
-      return "Bebop_Reader_GetFixedI8Array";
+      return "bebop_reader_read_fixed_i8_array";
     case BEBOP_TYPE_BYTE:
-      return "Bebop_Reader_GetFixedU8Array";
+      return "bebop_reader_read_fixed_u8_array";
     case BEBOP_TYPE_INT16:
-      return "Bebop_Reader_GetFixedI16Array";
+      return "bebop_reader_read_fixed_i16_array";
     case BEBOP_TYPE_UINT16:
-      return "Bebop_Reader_GetFixedU16Array";
+      return "bebop_reader_read_fixed_u16_array";
     case BEBOP_TYPE_INT32:
-      return "Bebop_Reader_GetFixedI32Array";
+      return "bebop_reader_read_fixed_i32_array";
     case BEBOP_TYPE_UINT32:
-      return "Bebop_Reader_GetFixedU32Array";
+      return "bebop_reader_read_fixed_u32_array";
     case BEBOP_TYPE_INT64:
-      return "Bebop_Reader_GetFixedI64Array";
+      return "bebop_reader_read_fixed_i64_array";
     case BEBOP_TYPE_UINT64:
-      return "Bebop_Reader_GetFixedU64Array";
+      return "bebop_reader_read_fixed_u64_array";
     case BEBOP_TYPE_INT128:
-      return "Bebop_Reader_GetFixedI128Array";
+      return "bebop_reader_read_fixed_i128_array";
     case BEBOP_TYPE_UINT128:
-      return "Bebop_Reader_GetFixedU128Array";
+      return "bebop_reader_read_fixed_u128_array";
     case BEBOP_TYPE_FLOAT16:
-      return "Bebop_Reader_GetFixedF16Array";
+      return "bebop_reader_read_fixed_f16_array";
     case BEBOP_TYPE_FLOAT32:
-      return "Bebop_Reader_GetFixedF32Array";
+      return "bebop_reader_read_fixed_f32_array";
     case BEBOP_TYPE_FLOAT64:
-      return "Bebop_Reader_GetFixedF64Array";
+      return "bebop_reader_read_fixed_f64_array";
     case BEBOP_TYPE_BFLOAT16:
-      return "Bebop_Reader_GetFixedBF16Array";
+      return "bebop_reader_read_fixed_bf16_array";
     case BEBOP_TYPE_UUID:
-      return "Bebop_Reader_GetFixedUUIDArray";
+      return "bebop_reader_read_fixed_uuid_array";
     case BEBOP_TYPE_TIMESTAMP:
-      return "Bebop_Reader_GetFixedTimestampArray";
+      return "bebop_reader_read_fixed_timestamp_array";
     case BEBOP_TYPE_DURATION:
-      return "Bebop_Reader_GetFixedDurationArray";
+      return "bebop_reader_read_fixed_duration_array";
     default:
       return NULL;
   }
@@ -1232,69 +1236,35 @@ static void array_typedef_name(gen_sb_t* out, gen_ctx_t* ctx, const bebop_descri
   }
 }
 
-static const char* map_hash_fn(bebop_type_kind_t k)
+static const char* map_key(bebop_type_kind_t k)
 {
   switch (k) {
     case BEBOP_TYPE_BOOL:
-      return "Bebop_MapHash_Bool";
+      return "BEBOP_MAP_KEY_BOOL";
     case BEBOP_TYPE_BYTE:
-      return "Bebop_MapHash_Byte";
+      return "BEBOP_MAP_KEY_U8";
     case BEBOP_TYPE_INT8:
-      return "Bebop_MapHash_I8";
+      return "BEBOP_MAP_KEY_I8";
     case BEBOP_TYPE_INT16:
-      return "Bebop_MapHash_I16";
+      return "BEBOP_MAP_KEY_I16";
     case BEBOP_TYPE_UINT16:
-      return "Bebop_MapHash_U16";
+      return "BEBOP_MAP_KEY_U16";
     case BEBOP_TYPE_INT32:
-      return "Bebop_MapHash_I32";
+      return "BEBOP_MAP_KEY_I32";
     case BEBOP_TYPE_UINT32:
-      return "Bebop_MapHash_U32";
+      return "BEBOP_MAP_KEY_U32";
     case BEBOP_TYPE_INT64:
-      return "Bebop_MapHash_I64";
+      return "BEBOP_MAP_KEY_I64";
     case BEBOP_TYPE_UINT64:
-      return "Bebop_MapHash_U64";
+      return "BEBOP_MAP_KEY_U64";
     case BEBOP_TYPE_INT128:
-      return "Bebop_MapHash_I128";
+      return "BEBOP_MAP_KEY_I128";
     case BEBOP_TYPE_UINT128:
-      return "Bebop_MapHash_U128";
+      return "BEBOP_MAP_KEY_U128";
     case BEBOP_TYPE_STRING:
-      return "Bebop_MapHash_Str";
+      return "BEBOP_MAP_KEY_STRING";
     case BEBOP_TYPE_UUID:
-      return "Bebop_MapHash_UUID";
-    default:
-      return NULL;
-  }
-}
-
-static const char* map_eq_fn(bebop_type_kind_t k)
-{
-  switch (k) {
-    case BEBOP_TYPE_BOOL:
-      return "Bebop_MapEq_Bool";
-    case BEBOP_TYPE_BYTE:
-      return "Bebop_MapEq_Byte";
-    case BEBOP_TYPE_INT8:
-      return "Bebop_MapEq_I8";
-    case BEBOP_TYPE_INT16:
-      return "Bebop_MapEq_I16";
-    case BEBOP_TYPE_UINT16:
-      return "Bebop_MapEq_U16";
-    case BEBOP_TYPE_INT32:
-      return "Bebop_MapEq_I32";
-    case BEBOP_TYPE_UINT32:
-      return "Bebop_MapEq_U32";
-    case BEBOP_TYPE_INT64:
-      return "Bebop_MapEq_I64";
-    case BEBOP_TYPE_UINT64:
-      return "Bebop_MapEq_U64";
-    case BEBOP_TYPE_INT128:
-      return "Bebop_MapEq_I128";
-    case BEBOP_TYPE_UINT128:
-      return "Bebop_MapEq_U128";
-    case BEBOP_TYPE_STRING:
-      return "Bebop_MapEq_Str";
-    case BEBOP_TYPE_UUID:
-      return "Bebop_MapEq_UUID";
+      return "BEBOP_MAP_KEY_UUID";
     default:
       return NULL;
   }
@@ -1332,7 +1302,7 @@ static void emit_array_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* elem)
     return;
   }
   if (ek == BEBOP_TYPE_STRING) {
-    sb_puts(&ctx->out, "Bebop_Str_Array");
+    sb_puts(&ctx->out, "Bebop_String_Array");
     return;
   }
   if (ek == BEBOP_TYPE_FIXED_ARRAY || ek == BEBOP_TYPE_MAP) {
@@ -1670,6 +1640,24 @@ static bool import_generates_code(gen_ctx_t* ctx, const char* import_path)
   return true;
 }
 
+static const char* import_include_path(const char* package, const char* import_path)
+{
+  if (!package || !*package || !import_path) {
+    return import_path;
+  }
+  const char* p = package;
+  const char* i = import_path;
+  while (*p && *i) {
+    const char expected = *p == '.' ? '/' : *p;
+    if (*i != expected) {
+      return import_path;
+    }
+    p++;
+    i++;
+  }
+  return *p == '\0' && *i == '/' ? i + 1 : import_path;
+}
+
 static void emit_generated_notice(gen_ctx_t* ctx, const bebop_descriptor_schema_t* schema)
 {
   bebop_version_t ver = bebop_plugin_request_compiler_version(ctx->req);
@@ -1740,6 +1728,7 @@ static void emit_file_header(gen_ctx_t* ctx, const bebop_descriptor_schema_t* sc
       continue;
     }
 
+    imp = import_include_path(package, imp);
     sb_puts(&ctx->out, "#include \"");
     for (const char* p = imp; *p; p++) {
       if (*p == '.' && strcmp(p, ".bop") == 0) {
@@ -2028,16 +2017,16 @@ static void emit_field_decl(
       gen_sb_t escaped;
       sb_init(&escaped);
       sb_escape_string(&escaped, msg);
-      sb_printf(&ctx->out, "BEBOP_WIRE_DEPRECATED_MSG(\"%s\") ", escaped.data ? escaped.data : "");
+      sb_printf(&ctx->out, "BEBOP_DEPRECATED_MSG(\"%s\") ", escaped.data ? escaped.data : "");
       sb_free(&escaped);
     } else {
-      sb_puts(&ctx->out, "BEBOP_WIRE_DEPRECATED ");
+      sb_puts(&ctx->out, "BEBOP_DEPRECATED ");
     }
   }
 
   if (is_message) {
     if (fkind == BEBOP_TYPE_FIXED_ARRAY) {
-      sb_puts(&ctx->out, "BEBOP_WIRE_OPT_FA(");
+      sb_puts(&ctx->out, "BEBOP_OPTIONAL_FIXED(");
       emit_ctype(ctx, ftype);
       const bebop_descriptor_type_t* t = ftype;
       while (bebop_descriptor_type_kind(t) == BEBOP_TYPE_FIXED_ARRAY) {
@@ -2046,11 +2035,11 @@ static void emit_field_decl(
       }
       sb_puts(&ctx->out, ") ");
     } else if (type_is_message_or_union(ctx, ftype)) {
-      sb_puts(&ctx->out, "BEBOP_WIRE_OPT(");
+      sb_puts(&ctx->out, "BEBOP_OPTIONAL(");
       emit_ctype(ctx, ftype);
       sb_puts(&ctx->out, " *) ");
     } else {
-      sb_puts(&ctx->out, "BEBOP_WIRE_OPT(");
+      sb_puts(&ctx->out, "BEBOP_OPTIONAL(");
       emit_ctype(ctx, ftype);
       sb_puts(&ctx->out, ") ");
     }
@@ -3215,11 +3204,11 @@ static void gen_size_type_ex(
         emit(ctx, "{");
         ctx->indent++;
         emit(ctx, "Bebop_MapIter _mit%d;", w->loop_var);
-        emit(ctx, "Bebop_MapIter_Init(&_mit%d, &%s);", w->loop_var, w->access);
+        emit(ctx, "bebop_map_iter_init(&_mit%d, &%s);", w->loop_var, w->access);
         emit(ctx, "void *_mk%d, *_mv%d;", w->loop_var, w->loop_var);
         emit(
             ctx,
-            "while (Bebop_MapIter_Next(&_mit%d, &_mk%d, &_mv%d)) {",
+            "while (bebop_map_iter_next(&_mit%d, &_mk%d, &_mv%d)) {",
             w->loop_var,
             w->loop_var,
             w->loop_var
@@ -3365,11 +3354,11 @@ static void gen_size_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     const char* fname = bebop_descriptor_field_name(f);
     const char* safe = safe_field_name(fname);
 
-    emit(ctx, "if (BEBOP_WIRE_IS_SOME(v->%s)) {", safe);
+    emit(ctx, "if (BEBOP_HAS_VALUE(v->%s)) {", safe);
     ctx->indent++;
     emit(ctx, "tags[present++] = %u;", bebop_descriptor_field_index(f));
     char access[GEN_PATH_SIZE];
-    snprintf(access, sizeof(access), "BEBOP_WIRE_UNWRAP(v->%s)", safe);
+    snprintf(access, sizeof(access), "BEBOP_VALUE(v->%s)", safe);
     const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
     bool is_ptr = type_is_message_or_union(ctx, ftype);
     gen_size_type_ex(ctx, ftype, access, is_ptr);
@@ -3377,7 +3366,7 @@ static void gen_size_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     emit(ctx, "}");
   }
 
-  emit(ctx, "return Bebop_IndexedMessage_EncodedSize(size, tags, present);");
+  emit(ctx, "return bebop_indexed_message_size(size, tags, present);");
   free(sorted);
   ctx->indent--;
   emit(ctx, "}");
@@ -3459,7 +3448,7 @@ static void gen_encode_type_ex(
       if ((ti && ti->size > 0) || kind == BEBOP_TYPE_STRING) {
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s)) != BEBOP_WIRE_OK)) %s;",
+            "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s)) != BEBOP_RESULT_OK)) %s;",
             ti->wire_set,
             w->access,
             ret
@@ -3474,7 +3463,7 @@ static void gen_encode_type_ex(
           if (bti) {
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s(w, (%s)%s)) != BEBOP_WIRE_OK)) %s;",
+                "if (BEBOP_WIRE_UNLIKELY((r = %s(w, (%s)%s)) != BEBOP_RESULT_OK)) %s;",
                 bti->wire_set,
                 bti->ctype,
                 w->access,
@@ -3484,7 +3473,7 @@ static void gen_encode_type_ex(
         } else if (w->is_ptr) {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, %s)) != BEBOP_WIRE_OK)) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, %s)) != BEBOP_RESULT_OK)) %s;",
               type_name(ctx, bebop_descriptor_type_fqn(w->type)),
               w->access,
               ret
@@ -3492,7 +3481,7 @@ static void gen_encode_type_ex(
         } else {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, &%s)) != BEBOP_WIRE_OK)) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, &%s)) != BEBOP_RESULT_OK)) %s;",
               type_name(ctx, bebop_descriptor_type_fqn(w->type)),
               w->access,
               ret
@@ -3508,7 +3497,7 @@ static void gen_encode_type_ex(
         if (bulk) {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s.data, %s.length)) != BEBOP_WIRE_OK)) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s.data, %s.length)) != BEBOP_RESULT_OK)) %s;",
               bulk,
               w->access,
               w->access,
@@ -3518,8 +3507,8 @@ static void gen_encode_type_ex(
           continue;
         }
         emit(ctx,
-             "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)%s.length)) != "
-             "BEBOP_WIRE_OK)) %s;",
+             "if (BEBOP_WIRE_UNLIKELY((r = bebop_writer_write_u32(w, (uint32_t)%s.length)) != "
+             "BEBOP_RESULT_OK)) %s;",
              w->access,
              ret);
         emit(
@@ -3548,17 +3537,22 @@ static void gen_encode_type_ex(
           if (w->is_ptr) {
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s, %u)) != BEBOP_WIRE_OK)) %s;",
+                "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s, %u)) != BEBOP_RESULT_OK)) %s;",
                 bulk,
                 w->access,
                 fa_size,
                 ret
             );
           } else {
-            emit(ctx,
-                 "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s, BEBOP_ARRAY_COUNT(%s))) != BEBOP_WIRE_OK)) "
-                 "%s;",
-                 bulk, w->access, w->access, ret);
+            emit(
+                ctx,
+                "if (BEBOP_WIRE_UNLIKELY((r = %s(w, %s, BEBOP_ARRAY_COUNT(%s))) != "
+                "BEBOP_RESULT_OK)) " "%s;",
+                bulk,
+                w->access,
+                w->access,
+                ret
+            );
           }
           top--;
           continue;
@@ -3597,17 +3591,17 @@ static void gen_encode_type_ex(
         get_ctype_str(ctx, bebop_descriptor_type_value(w->type), val_type, sizeof(val_type));
 
         emit(ctx,
-             "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetU32(w, (uint32_t)%s.length)) != "
-             "BEBOP_WIRE_OK)) %s;",
+             "if (BEBOP_WIRE_UNLIKELY((r = bebop_writer_write_u32(w, (uint32_t)%s.length)) != "
+             "BEBOP_RESULT_OK)) %s;",
              w->access, ret);
         emit(ctx, "{");
         ctx->indent++;
         emit(ctx, "Bebop_MapIter _mit%d;", w->loop_var);
-        emit(ctx, "Bebop_MapIter_Init(&_mit%d, &%s);", w->loop_var, w->access);
+        emit(ctx, "bebop_map_iter_init(&_mit%d, &%s);", w->loop_var, w->access);
         emit(ctx, "void *_mk%d, *_mv%d;", w->loop_var, w->loop_var);
         emit(
             ctx,
-            "while (Bebop_MapIter_Next(&_mit%d, &_mk%d, &_mv%d)) {",
+            "while (bebop_map_iter_next(&_mit%d, &_mk%d, &_mv%d)) {",
             w->loop_var,
             w->loop_var,
             w->loop_var
@@ -3660,7 +3654,7 @@ static void gen_encode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_encode", name);
   snprintf(sig, sizeof(sig), "Bebop_Writer *w, const %s *v", name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig)) {
     return;
   }
 
@@ -3668,10 +3662,10 @@ static void gen_encode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 
   if (field_count == 0) {
     emit(ctx, "BEBOP_WIRE_UNUSED(w); BEBOP_WIRE_UNUSED(v);");
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   } else {
     emit(ctx, "// @@bebop_insertion_point(encode_start:%s)", name);
-    emit(ctx, "Bebop_WireResult r;");
+    emit(ctx, "Bebop_Result r;");
     ctx->loop_depth = 0;
     for (uint32_t i = 0; i < field_count; i++) {
       const bebop_descriptor_field_t* f = bebop_descriptor_def_field_at(def, i);
@@ -3681,7 +3675,7 @@ static void gen_encode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       gen_encode_type(ctx, bebop_descriptor_field_type(f), access);
     }
     emit(ctx, "// @@bebop_insertion_point(encode_end:%s)", name);
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   }
 
   ctx->indent--;
@@ -3699,7 +3693,7 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_encode", name);
   snprintf(sig, sizeof(sig), "Bebop_Writer *w, const %s *v", name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig)) {
     return;
   }
 
@@ -3708,13 +3702,14 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
     emit(ctx, "BEBOP_WIRE_UNUSED(v);");
   }
   emit(ctx, "// @@bebop_insertion_point(encode_start:%s)", name);
-  emit(ctx, "Bebop_WireResult r;");
+  emit(ctx, "Bebop_Result r;");
   emit(ctx, "size_t len_pos;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_writer_begin_length(w, &len_pos)) != BEBOP_RESULT_OK)) "
+      "return r;"
   );
-  emit(ctx, "size_t start = Bebop_Writer_Len(w);");
+  emit(ctx, "size_t start = bebop_writer_length(w);");
   emit(ctx, "uint8_t tags[%u];", field_count > 0 ? field_count : 1);
   emit(ctx, "uint32_t offsets[%u];", field_count > 0 ? field_count : 1);
   emit(ctx, "uint8_t present = 0;");
@@ -3731,14 +3726,14 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
     const char* fname = bebop_descriptor_field_name(f);
     const char* safe = safe_field_name(fname);
 
-    emit(ctx, "if (BEBOP_WIRE_IS_SOME(v->%s)) {", safe);
+    emit(ctx, "if (BEBOP_HAS_VALUE(v->%s)) {", safe);
     ctx->indent++;
-    emit(ctx, "size_t offset = Bebop_Writer_Len(w) - start;");
-    emit(ctx, "if (BEBOP_WIRE_UNLIKELY(offset > UINT32_MAX)) return BEBOP_WIRE_ERR_OVERFLOW;");
+    emit(ctx, "size_t offset = bebop_writer_length(w) - start;");
+    emit(ctx, "if (BEBOP_WIRE_UNLIKELY(offset > UINT32_MAX)) return BEBOP_RESULT_OVERFLOW;");
     emit(ctx, "tags[present] = %u;", bebop_descriptor_field_index(f));
     emit(ctx, "offsets[present++] = (uint32_t)offset;");
     char access[GEN_PATH_SIZE];
-    snprintf(access, sizeof(access), "BEBOP_WIRE_UNWRAP(v->%s)", safe);
+    snprintf(access, sizeof(access), "BEBOP_VALUE(v->%s)", safe);
     const bebop_descriptor_type_t* ftype = bebop_descriptor_field_type(f);
     bool is_ptr = type_is_message_or_union(ctx, ftype);
     gen_encode_type_ex(ctx, ftype, access, is_ptr);
@@ -3747,7 +3742,7 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   }
 
   emit(ctx, "// @@bebop_insertion_point(encode_end:%s)", name);
-  emit(ctx, "return Bebop_Writer_EndIndexedMessage(w, len_pos, start, tags, offsets, present);");
+  emit(ctx, "return bebop_writer_end_indexed_message(w, len_pos, start, tags, offsets, present);");
 
   free(sorted);
 
@@ -3766,22 +3761,23 @@ static void gen_encode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_encode", name);
   snprintf(sig, sizeof(sig), "Bebop_Writer *w, const %s *v", name);
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig)) {
     return;
   }
 
   ctx->indent++;
   emit(ctx, "// @@bebop_insertion_point(encode_start:%s)", name);
-  emit(ctx, "Bebop_WireResult r;");
+  emit(ctx, "Bebop_Result r;");
   emit(ctx, "size_t len_pos;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetLen(w, &len_pos)) != BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_writer_begin_length(w, &len_pos)) != BEBOP_RESULT_OK)) "
+      "return r;"
   );
-  emit(ctx, "size_t start = Bebop_Writer_Len(w);");
+  emit(ctx, "size_t start = bebop_writer_length(w);");
   emit_nl(ctx);
-  emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Writer_SetByte(w, (uint8_t)v->discriminator)) != "
-              "BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = bebop_writer_write_byte(w, (uint8_t)v->discriminator)) != "
+              "BEBOP_RESULT_OK)) return r;");
   emit_nl(ctx);
 
   emit(ctx, "switch (v->discriminator) {");
@@ -3802,7 +3798,7 @@ static void gen_encode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     ctx->indent++;
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, &v->%s)) != BEBOP_WIRE_OK)) return r;",
+        "if (BEBOP_WIRE_UNLIKELY((r = %s_encode(w, &v->%s)) != BEBOP_RESULT_OK)) return r;",
         type_name(ctx, type_fqn),
         branch_lower(b)
     );
@@ -3810,11 +3806,14 @@ static void gen_encode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     ctx->indent--;
   }
   emit(ctx, "// @@bebop_insertion_point(encode_switch:%s)", name);
-  emit(ctx, "default: return BEBOP_WIRE_ERR_INVALID;");
+  emit(ctx, "default: return BEBOP_RESULT_INVALID;");
   emit(ctx, "}");
   emit_nl(ctx);
   emit(ctx, "// @@bebop_insertion_point(encode_end:%s)", name);
-  emit(ctx, "return Bebop_Writer_FillLen(w, len_pos, " "(uint32_t)(Bebop_Writer_Len(w) - start));");
+  emit(
+      ctx,
+      "return bebop_writer_end_length(w, len_pos, " "(uint32_t)(bebop_writer_length(w) - start));"
+  );
 
   ctx->indent--;
   emit(ctx, "}");
@@ -3827,7 +3826,7 @@ static void emit_decode_ptr(gen_ctx_t* ctx, const type_info_t* ti, const char* a
   if (ctx->is_mutable) {
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, &%s)) != BEBOP_WIRE_OK)) %s;",
+        "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, &%s)) != BEBOP_RESULT_OK)) %s;",
         ti->wire_get,
         access,
         ret
@@ -3835,7 +3834,7 @@ static void emit_decode_ptr(gen_ctx_t* ctx, const type_info_t* ti, const char* a
   } else {
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, BEBOP_WIRE_MUTPTR(%s, &%s))) != BEBOP_WIRE_OK)) %s;",
+        "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, BEBOP_WIRE_MUTPTR(%s, &%s))) != BEBOP_RESULT_OK)) %s;",
         ti->wire_get,
         ti->ctype,
         access,
@@ -3907,9 +3906,9 @@ static void gen_decode_type_ex(
   int top = 0;
   const char* ret = ctx->in_step_fn ? "return -(int)r" : "return r";
   const char* ret_oom =
-      ctx->in_step_fn ? "return -(int)BEBOP_WIRE_ERR_OOM" : "return BEBOP_WIRE_ERR_OOM";
+      ctx->in_step_fn ? "return -(int)BEBOP_RESULT_OOM" : "return BEBOP_RESULT_OOM";
   const char* ret_malformed =
-      ctx->in_step_fn ? "return -(int)BEBOP_WIRE_ERR_MALFORMED" : "return BEBOP_WIRE_ERR_MALFORMED";
+      ctx->in_step_fn ? "return -(int)BEBOP_RESULT_MALFORMED" : "return BEBOP_RESULT_MALFORMED";
 
   stack[top++] = (size_work_t) {type, "", 0, ctx->loop_depth, is_ptr};
   snprintf(stack[0].access, GEN_PATH_SIZE, "%s", target);
@@ -3936,7 +3935,7 @@ static void gen_decode_type_ex(
             emit(ctx, "%s _tmp;", bti->ctype);
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, &_tmp)) != BEBOP_WIRE_OK)) %s;",
+                "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, &_tmp)) != BEBOP_RESULT_OK)) %s;",
                 bti->wire_get,
                 ret
             );
@@ -3949,7 +3948,7 @@ static void gen_decode_type_ex(
           if (w->is_ptr) {
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, %s)) != BEBOP_WIRE_OK)) "
+                "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, %s)) != BEBOP_RESULT_OK)) "
                 "%s;",
                 def_type,
                 w->access,
@@ -3958,7 +3957,7 @@ static void gen_decode_type_ex(
           } else if (ctx->is_mutable) {
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, &%s)) != BEBOP_WIRE_OK)) "
+                "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, &%s)) != BEBOP_RESULT_OK)) "
                 "%s;",
                 def_type,
                 w->access,
@@ -3967,7 +3966,7 @@ static void gen_decode_type_ex(
           } else {
             emit(ctx,
                  "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, "
-                 "BEBOP_WIRE_MUTPTR(%s, &%s))) != BEBOP_WIRE_OK)) %s;",
+                 "BEBOP_WIRE_MUTPTR(%s, &%s))) != BEBOP_RESULT_OK)) %s;",
                  def_type,
                  def_type,
                  w->access,
@@ -3991,7 +3990,8 @@ static void gen_decode_type_ex(
         emit(ctx, "uint32_t _len;");
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
+            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len)) != BEBOP_RESULT_OK)) "
+            "%s;",
             ret
         );
         // The count comes from the wire; cap it by the bytes actually left so
@@ -3999,14 +3999,14 @@ static void gen_decode_type_ex(
         if (zero_copy) {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd) / %s)) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd) / %s)) %s;",
               guard_eti->size_macro,
               ret_malformed
           );
         } else {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd))) %s;",
               ret_malformed
           );
         }
@@ -4022,7 +4022,7 @@ static void gen_decode_type_ex(
           if (ctx->is_mutable) {
             emit(
                 ctx,
-                "%s.data = BEBOP_WIRE_CASTPTR(%s *, Bebop_Reader_Ptr(rd));",
+                "%s.data = BEBOP_WIRE_CASTPTR(%s *, bebop_reader_data(rd));",
                 w->access,
                 eti->ctype
             );
@@ -4030,11 +4030,11 @@ static void gen_decode_type_ex(
           } else {
             emit(ctx,
                             "BEBOP_WIRE_MUTPTR(%s, &%s)->data = "
-                            "BEBOP_WIRE_CASTPTR(%s *, Bebop_Reader_Ptr(rd));",
+                            "BEBOP_WIRE_CASTPTR(%s *, bebop_reader_data(rd));",
                             arr_type, w->access, eti->ctype);
             emit(ctx, "BEBOP_WIRE_MUTPTR(%s, &%s)->capacity = 0;", arr_type, w->access);
           }
-          emit(ctx, "Bebop_Reader_Skip(rd, (size_t)_len * %s);", eti->size_macro);
+          emit(ctx, "bebop_reader_skip(rd, (size_t)_len * %s);", eti->size_macro);
           ctx->indent--;
           emit(ctx, "}");
           top--;
@@ -4054,7 +4054,7 @@ static void gen_decode_type_ex(
 
           emit(
               ctx,
-              "%s (*_d%d)%s = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
+              "%s (*_d%d)%s = bebop_context_alloc_array(ctx, _len, sizeof(*_d%d));",
               inner_type,
               w->loop_var,
               dims.data ? dims.data : "",
@@ -4095,7 +4095,7 @@ static void gen_decode_type_ex(
 
         emit(
             ctx,
-            "%s *_d%d = Bebop_WireCtx_AllocArray(ctx, _len, sizeof(*_d%d));",
+            "%s *_d%d = bebop_context_alloc_array(ctx, _len, sizeof(*_d%d));",
             elem_type,
             w->loop_var,
             w->loop_var
@@ -4138,7 +4138,7 @@ static void gen_decode_type_ex(
           if (w->is_ptr) {
             emit(
                 ctx,
-                "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, (%s *)%s, %u)) != BEBOP_WIRE_OK)) %s;",
+                "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, (%s *)%s, %u)) != BEBOP_RESULT_OK)) %s;",
                 bulk,
                 eti ? eti->ctype : "void",
                 w->access,
@@ -4148,13 +4148,13 @@ static void gen_decode_type_ex(
           } else if (ctx->is_mutable) {
             emit(ctx,
                  "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, %s, BEBOP_ARRAY_COUNT(%s))) != "
-                 "BEBOP_WIRE_OK)) %s;",
+                 "BEBOP_RESULT_OK)) %s;",
                  bulk, w->access, w->access, ret);
           } else {
             emit(
                 ctx,
                 "if (BEBOP_WIRE_UNLIKELY((r = %s(rd, BEBOP_WIRE_MUTPTR(%s, %s), "
-                "BEBOP_ARRAY_COUNT(%s))) != " "BEBOP_WIRE_OK)) %s;",
+                "BEBOP_ARRAY_COUNT(%s))) != " "BEBOP_RESULT_OK)) %s;",
                 bulk,
                 eti ? eti->ctype : "void",
                 w->access,
@@ -4196,8 +4196,7 @@ static void gen_decode_type_ex(
       if (kind == BEBOP_TYPE_MAP) {
         const bebop_descriptor_type_t* key_type_t = bebop_descriptor_type_key(w->type);
         bebop_type_kind_t key_kind = bebop_descriptor_type_kind(key_type_t);
-        const char* hash_fn = map_hash_fn(key_kind);
-        const char* eq_fn = map_eq_fn(key_kind);
+        const char* map_key_kind = map_key(key_kind);
         char key_type[256], val_type[256];
         get_ctype_str(ctx, key_type_t, key_type, sizeof(key_type));
         get_ctype_str(ctx, bebop_descriptor_type_value(w->type), val_type, sizeof(val_type));
@@ -4207,23 +4206,23 @@ static void gen_decode_type_ex(
         emit(ctx, "uint32_t _len;");
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &_len)) != BEBOP_WIRE_OK)) %s;",
+            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len)) != BEBOP_RESULT_OK)) "
+            "%s;",
             ret
         );
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((size_t)_len > Bebop_Reader_Remaining(rd))) %s;",
+            "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd))) %s;",
             ret_malformed
         );
         if (ctx->is_mutable) {
-          emit(ctx, "Bebop_Map_Init(&%s, ctx, %s, %s);", w->access, hash_fn, eq_fn);
+          emit(ctx, "bebop_map_init(&%s, ctx, %s);", w->access, map_key_kind);
         } else {
           emit(
               ctx,
-              "Bebop_Map_Init(BEBOP_WIRE_MUTPTR(Bebop_Map, &%s), ctx, %s, %s);",
+              "bebop_map_init(BEBOP_WIRE_MUTPTR(Bebop_Map, &%s), ctx, %s);",
               w->access,
-              hash_fn,
-              eq_fn
+              map_key_kind
           );
         }
         emit(
@@ -4235,7 +4234,7 @@ static void gen_decode_type_ex(
         );
         ctx->indent++;
         emit(
-            ctx, "%s* _k%d = Bebop_WireCtx_Alloc(ctx, sizeof(%s));", key_type, w->loop_var, key_type
+            ctx, "%s* _k%d = bebop_context_alloc(ctx, sizeof(%s));", key_type, w->loop_var, key_type
         );
         const bebop_descriptor_type_t* vtype = bebop_descriptor_type_value(w->type);
         bebop_type_kind_t vkind = bebop_descriptor_type_kind(vtype);
@@ -4243,7 +4242,7 @@ static void gen_decode_type_ex(
           uint32_t fa_size = bebop_descriptor_type_fixed_size(vtype);
           emit(
               ctx,
-              "%s* _v%d = Bebop_WireCtx_Alloc(ctx, sizeof(%s) * %u);",
+              "%s* _v%d = bebop_context_alloc(ctx, sizeof(%s) * %u);",
               val_type,
               w->loop_var,
               val_type,
@@ -4252,7 +4251,7 @@ static void gen_decode_type_ex(
         } else {
           emit(
               ctx,
-              "%s* _v%d = Bebop_WireCtx_Alloc(ctx, sizeof(%s));",
+              "%s* _v%d = bebop_context_alloc(ctx, sizeof(%s));",
               val_type,
               w->loop_var,
               val_type
@@ -4284,11 +4283,11 @@ static void gen_decode_type_ex(
       bebop_type_kind_t kind2 = bebop_descriptor_type_kind(w->type);
       if (kind2 == BEBOP_TYPE_MAP) {
         if (ctx->is_mutable) {
-          emit(ctx, "Bebop_Map_Put(&%s, _k%d, _v%d);", w->access, w->loop_var, w->loop_var);
+          emit(ctx, "bebop_map_set(&%s, _k%d, _v%d);", w->access, w->loop_var, w->loop_var);
         } else {
           emit(
               ctx,
-              "Bebop_Map_Put(BEBOP_WIRE_MUTPTR(Bebop_Map, &%s), _k%d, _v%d);",
+              "bebop_map_set(BEBOP_WIRE_MUTPTR(Bebop_Map, &%s), _k%d, _v%d);",
               w->access,
               w->loop_var,
               w->loop_var
@@ -4328,31 +4327,30 @@ static void emit_decode_wrapper(
     gen_ctx_t* ctx, const char* name, const char* fn_name, const char* sig
 )
 {
-  emit(ctx, "BEBOP_WIRE_HOT Bebop_WireResult %s(%s) {", fn_name, sig);
+  emit(ctx, "BEBOP_WIRE_HOT Bebop_Result %s(%s) {", fn_name, sig);
   ctx->indent++;
-  emit(ctx, "Bebop_WireResult r = Bebop_WireCtx_EnterDecode(ctx);");
-  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "Bebop_Result r = bebop_context_enter_decode(ctx);");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_RESULT_OK)) return r;");
   emit(ctx, "r = %s_decode_body(ctx, rd, v);", name);
-  emit(ctx, "Bebop_WireCtx_LeaveDecode(ctx);");
+  emit(ctx, "bebop_context_leave_decode(ctx);");
   emit(ctx, "return r;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
   emit(
       ctx,
-      "BEBOP_WIRE_HOT Bebop_WireResult %s_decode(Bebop_WireCtx *ctx, Bebop_View encoded, %s "
-      "*v) {",
+      "BEBOP_WIRE_HOT Bebop_Result %s_decode(Bebop_Context *ctx, Bebop_View encoded, %s " "*v) {",
       name,
       name
   );
   ctx->indent++;
-  emit(ctx, "if (!ctx || !encoded.data || !v) return BEBOP_WIRE_ERR_NULL;");
+  emit(ctx, "if (!ctx || !encoded.data || !v) return BEBOP_RESULT_NULL;");
   emit(ctx, "Bebop_Reader rd;");
-  emit(ctx, "Bebop_WireResult r = Bebop_Reader_Init(&rd, ctx, encoded.data, encoded.length);");
-  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_WIRE_OK)) return r;");
+  emit(ctx, "Bebop_Result r = bebop_reader_init(&rd, ctx, encoded);");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_RESULT_OK)) return r;");
   emit(ctx, "r = %s(ctx, &rd, v);", fn_name);
-  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_WIRE_OK)) return r;");
-  emit(ctx, "return Bebop_Reader_Remaining(&rd) == 0 ? BEBOP_WIRE_OK : BEBOP_WIRE_ERR_MALFORMED;");
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY(r != BEBOP_RESULT_OK)) return r;");
+  emit(ctx, "return bebop_reader_remaining(&rd) == 0 ? BEBOP_RESULT_OK : BEBOP_RESULT_MALFORMED;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
@@ -4370,34 +4368,34 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_decode_reader", name);
-  snprintf(sig, sizeof(sig), "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v", name);
+  snprintf(sig, sizeof(sig), "Bebop_Context *ctx, Bebop_Reader *rd, %s *v", name);
   if (ctx->emit_mode == GEN_EMIT_DECL) {
     emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
-    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig);
     emit(ctx, "#endif");
     emit(
         ctx,
-        "BEBOP_WIRE_HOT Bebop_WireResult %s_decode(Bebop_WireCtx *ctx, Bebop_View encoded, %s "
-        "*out);",
+        "BEBOP_WIRE_HOT Bebop_Result %s_decode(Bebop_Context *ctx, Bebop_View encoded, %s " "*out)"
+                                                                                            ";",
         name,
         name
     );
     return;
   }
-  emit(ctx, "static Bebop_WireResult %s_decode_body(%s) {", name, sig);
+  emit(ctx, "static Bebop_Result %s_decode_body(%s) {", name, sig);
 
   ctx->indent++;
 
   if (field_count == 0) {
     emit(ctx, "BEBOP_WIRE_UNUSED(ctx); BEBOP_WIRE_UNUSED(rd); BEBOP_WIRE_UNUSED(v);");
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   } else {
     if (!needs_ctx) {
       emit(ctx, "BEBOP_WIRE_UNUSED(ctx);");
     }
     emit(ctx, "// @@bebop_insertion_point(decode_start:%s)", name);
-    emit(ctx, "BEBOP_WIRE_PREFETCH_R(Bebop_Reader_Ptr(rd) + 64);");
-    emit(ctx, "Bebop_WireResult r;");
+    emit(ctx, "BEBOP_WIRE_PREFETCH_R(bebop_reader_data(rd) + 64);");
+    emit(ctx, "Bebop_Result r;");
     ctx->loop_depth = 0;
 
     for (uint32_t i = 0; i < field_count; i++) {
@@ -4409,7 +4407,7 @@ static void gen_decode_struct(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     }
 
     emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   }
 
   ctx->indent--;
@@ -4425,8 +4423,8 @@ static void gen_decode_message_field_value(gen_ctx_t* ctx, const bebop_descripto
   const bebop_descriptor_type_t* field_type = bebop_descriptor_field_type(field);
   if (type_is_message_or_union(ctx, field_type)) {
     const char* field_type_name = type_name(ctx, bebop_descriptor_type_fqn(field_type));
-    emit(ctx, "v->%s.value = Bebop_WireCtx_Alloc(ctx, sizeof(%s));", safe, field_type_name);
-    emit(ctx, "if (BEBOP_WIRE_UNLIKELY(!v->%s.value)) return BEBOP_WIRE_ERR_OOM;", safe);
+    emit(ctx, "v->%s.value = bebop_context_alloc(ctx, sizeof(%s));", safe, field_type_name);
+    emit(ctx, "if (BEBOP_WIRE_UNLIKELY(!v->%s.value)) return BEBOP_RESULT_OOM;", safe);
     char target[GEN_PATH_SIZE];
     snprintf(target, sizeof(target), "v->%s.value", safe);
     gen_decode_type_ex(ctx, field_type, target, true);
@@ -4446,21 +4444,21 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
 
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_decode_reader", name);
-  snprintf(sig, sizeof(sig), "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v", name);
+  snprintf(sig, sizeof(sig), "Bebop_Context *ctx, Bebop_Reader *rd, %s *v", name);
   if (ctx->emit_mode == GEN_EMIT_DECL) {
     emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
-    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig);
     emit(ctx, "#endif");
     emit(
         ctx,
-        "BEBOP_WIRE_HOT Bebop_WireResult %s_decode(Bebop_WireCtx *ctx, Bebop_View encoded, %s "
-        "*out);",
+        "BEBOP_WIRE_HOT Bebop_Result %s_decode(Bebop_Context *ctx, Bebop_View encoded, %s " "*out)"
+                                                                                            ";",
         name,
         name
     );
     return;
   }
-  emit(ctx, "static Bebop_WireResult %s_decode_body(%s) {", name, sig);
+  emit(ctx, "static Bebop_Result %s_decode_body(%s) {", name, sig);
 
   ctx->indent++;
   if (field_count == 0) {
@@ -4468,19 +4466,19 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
     emit(ctx, "BEBOP_WIRE_UNUSED(v);");
   }
   emit(ctx, "// @@bebop_insertion_point(decode_start:%s)", name);
-  emit(ctx, "Bebop_WireResult r;");
+  emit(ctx, "Bebop_Result r;");
   emit(ctx, "Bebop_MessageIndex index;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_BeginMessageIndex(rd, &index)) != BEBOP_WIRE_OK)) "
-      "return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_begin_message_index(rd, &index)) != "
+      "BEBOP_RESULT_OK)) " "return r;"
   );
   emit(ctx, "Bebop_Reader *message_reader = rd;");
   emit_nl(ctx);
 
   for (uint32_t i = 0; i < field_count; i++) {
     const bebop_descriptor_field_t* f = bebop_descriptor_def_field_at(def, i);
-    emit(ctx, "BEBOP_WIRE_SET_NONE(v->%s);", safe_field_name(bebop_descriptor_field_name(f)));
+    emit(ctx, "BEBOP_CLEAR(v->%s);", safe_field_name(bebop_descriptor_field_name(f)));
   }
   emit(ctx, "if (index.directory_kind == BEBOP_MESSAGE_DIRECTORY_EMPTY) goto decoded;");
   emit_nl(ctx);
@@ -4508,7 +4506,7 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "if ((presence & ~UINT32_C(0x%08x)) != 0) {", known_mask);
   ctx->indent++;
   emit(ctx,
-       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_MessageIndex_Validate(&index)) != BEBOP_WIRE_OK)) "
+       "if (BEBOP_WIRE_UNLIKELY((r = bebop_message_index_validate(&index)) != BEBOP_RESULT_OK)) "
        "return r;");
   ctx->indent--;
   emit(ctx, "} else {");
@@ -4531,7 +4529,7 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   }
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) != 0)) return " "BEBOP_WIRE_ERR_"
+      "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) != 0)) return " "BEBOP_RESULT_"
                                                                           "MALFORMED;"
   );
   emit(ctx, "rd = message_reader;");
@@ -4551,8 +4549,8 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "uint32_t masks[8];");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_MessageIndex_BlockMasks(&index, masks)) != "
-      "BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_message_index_block_masks(&index, masks)) != "
+      "BEBOP_RESULT_OK)) return r;"
   );
   emit(ctx, "uint32_t unknown = 0;");
   for (uint32_t block = 0; block < 8; block++) {
@@ -4576,7 +4574,7 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   }
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) != 0)) return " "BEBOP_WIRE_ERR_"
+      "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) != 0)) return " "BEBOP_RESULT_"
                                                                           "MALFORMED;"
   );
   emit(ctx, "rd = message_reader;");
@@ -4591,15 +4589,15 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "Bebop_Reader payload_reader = {payload, payload, index.boundaries, ctx};");
   emit(ctx, "rd = &payload_reader;");
   emit(ctx, "Bebop_MessageFieldIterator fields;");
-  emit(ctx, "Bebop_MessageFieldIterator_Init(&fields, &index);");
+  emit(ctx, "bebop_message_field_iterator_init(&fields, &index);");
   emit(ctx, "for (;;) {");
   ctx->indent++;
   emit(ctx, "uint8_t tag;");
   emit(ctx, "bool present;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_MessageFieldIterator_NextTag(&fields, &tag, "
-      "&present)) != BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_message_field_iterator_next_tag(&fields, &tag, "
+      "&present)) != BEBOP_RESULT_OK)) return r;"
   );
   emit(ctx, "if (!present) break;");
   emit(ctx, "switch (tag) {");
@@ -4618,13 +4616,13 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "Bebop_View unknown;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_MessageIndex_FieldAt(&index, "
-      "(uint8_t)(fields.rank - 1u), &unknown)) != BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_message_index_field_at(&index, "
+      "(uint8_t)(fields.rank - 1u), &unknown)) != BEBOP_RESULT_OK)) return r;"
   );
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY(unknown.data != Bebop_Reader_Ptr(rd))) return "
-      "BEBOP_WIRE_ERR_MALFORMED;"
+      "if (BEBOP_WIRE_UNLIKELY(unknown.data != bebop_reader_data(rd))) return "
+      "BEBOP_RESULT_MALFORMED;"
   );
   emit(ctx, "rd->current = unknown.data + unknown.length;");
   emit(ctx, "break;");
@@ -4636,7 +4634,7 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "}");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) != 0)) return " "BEBOP_WIRE_ERR_"
+      "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) != 0)) return " "BEBOP_RESULT_"
                                                                           "MALFORMED;"
   );
   emit(ctx, "rd = message_reader;");
@@ -4644,7 +4642,7 @@ static void gen_decode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   emit(ctx, "decoded:");
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
   emit(ctx, "BEBOP_WIRE_UNUSED(message_reader);");
-  emit(ctx, "return BEBOP_WIRE_OK;");
+  emit(ctx, "return BEBOP_RESULT_OK;");
 
   ctx->indent--;
   emit(ctx, "}");
@@ -4661,38 +4659,39 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 
   char fn_name[GEN_PATH_SIZE], sig[GEN_PATH_SIZE];
   snprintf(fn_name, sizeof(fn_name), "%s_decode_reader", name);
-  snprintf(sig, sizeof(sig), "Bebop_WireCtx *ctx, Bebop_Reader *rd, %s *v", name);
+  snprintf(sig, sizeof(sig), "Bebop_Context *ctx, Bebop_Reader *rd, %s *v", name);
   if (ctx->emit_mode == GEN_EMIT_DECL) {
     emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
-    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig);
+    emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig);
     emit(ctx, "#endif");
     emit(
         ctx,
-        "BEBOP_WIRE_HOT Bebop_WireResult %s_decode(Bebop_WireCtx *ctx, Bebop_View encoded, %s "
-        "*out);",
+        "BEBOP_WIRE_HOT Bebop_Result %s_decode(Bebop_Context *ctx, Bebop_View encoded, %s " "*out)"
+                                                                                            ";",
         name,
         name
     );
     return;
   }
-  emit(ctx, "static Bebop_WireResult %s_decode_body(%s) {", name, sig);
+  emit(ctx, "static Bebop_Result %s_decode_body(%s) {", name, sig);
 
   ctx->indent++;
   emit(ctx, "// @@bebop_insertion_point(decode_start:%s)", name);
-  emit(ctx, "Bebop_WireResult r;");
+  emit(ctx, "Bebop_Result r;");
   emit(ctx, "uint32_t union_len;");
-  emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetLen(rd, &union_len)) != BEBOP_WIRE_OK)) "
+  emit(ctx, "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_length(rd, &union_len)) != BEBOP_RESULT_OK)) "
               "return r;");
   emit(ctx, "const uint8_t *_outer_end;");
   emit(ctx,
-       "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_PushLimit(rd, union_len, &_outer_end)) != "
-       "BEBOP_WIRE_OK)) return r;");
-  emit(ctx, "const uint8_t *end = Bebop_Reader_Ptr(rd) + union_len;");
+       "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_push_limit(rd, union_len, &_outer_end)) != "
+       "BEBOP_RESULT_OK)) return r;");
+  emit(ctx, "const uint8_t *end = bebop_reader_data(rd) + union_len;");
   emit_nl(ctx);
   emit(ctx, "uint8_t disc;");
   emit(
       ctx,
-      "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetByte(rd, &disc)) != BEBOP_WIRE_OK)) return r;"
+      "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_byte(rd, &disc)) != BEBOP_RESULT_OK)) return "
+      "r;"
   );
   emit(ctx, "v->discriminator = (%s_Disc)disc;", name);
   emit_nl(ctx);
@@ -4715,7 +4714,7 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     ctx->indent++;
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, &v->%s)) != BEBOP_WIRE_OK)) "
+        "if (BEBOP_WIRE_UNLIKELY((r = %s_decode_reader(ctx, rd, &v->%s)) != BEBOP_RESULT_OK)) "
         "return r;",
         type_name(ctx, type_fqn),
         branch_lower(b)
@@ -4729,14 +4728,14 @@ static void gen_decode_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   emit(ctx, "// Unknown discriminator: reset to 0 so callers never switch on");
   emit(ctx, "// a stored discriminator whose payload was left uninitialized.");
   emit(ctx, "v->discriminator = (%s_Disc)0;", name);
-  emit(ctx, "Bebop_Reader_Seek(rd, end);");
+  emit(ctx, "bebop_reader_seek(rd, end);");
   emit(ctx, "break;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
   emit(ctx, "// @@bebop_insertion_point(decode_end:%s)", name);
-  emit(ctx, "Bebop_Reader_PopLimit(rd, _outer_end);");
-  emit(ctx, "return BEBOP_WIRE_OK;");
+  emit(ctx, "bebop_reader_pop_limit(rd, _outer_end);");
+  emit(ctx, "return BEBOP_RESULT_OK;");
 
   ctx->indent--;
   emit(ctx, "}");
@@ -4758,20 +4757,20 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
   if (info && info->size != 0) {
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) < %u)) return "
-        "BEBOP_WIRE_ERR_MALFORMED;",
+        "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < %u)) return "
+        "BEBOP_RESULT_MALFORMED;",
         info->size
     );
-    emit(ctx, "Bebop_Reader_Skip(rd, %u);", info->size);
+    emit(ctx, "bebop_reader_skip(rd, %u);", info->size);
     return;
   }
   if (kind == BEBOP_TYPE_STRING) {
     const int id = (*unique)++;
-    emit(ctx, "Bebop_Str ignored%d;", id);
+    emit(ctx, "Bebop_String ignored%d;", id);
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetStr(rd, &ignored%d)) != BEBOP_WIRE_OK)) "
-        "return r;",
+        "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_string(rd, &ignored%d)) != "
+        "BEBOP_RESULT_OK)) " "return r;",
         id
     );
     return;
@@ -4781,17 +4780,17 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
       const type_info_t* base = type_info(enum_base_type(ctx, type));
       emit(
           ctx,
-          "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) < %u)) return "
-          "BEBOP_WIRE_ERR_MALFORMED;",
+          "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < %u)) return "
+          "BEBOP_RESULT_MALFORMED;",
           base->size
       );
-      emit(ctx, "Bebop_Reader_Skip(rd, %u);", base->size);
+      emit(ctx, "bebop_reader_skip(rd, %u);", base->size);
     } else {
       const int id = (*unique)++;
       emit(ctx, "%s_View ignored%d;", type_name(ctx, bebop_descriptor_type_fqn(type)), id);
       emit(
           ctx,
-          "if (BEBOP_WIRE_UNLIKELY((r = %s_view_read(rd, &ignored%d)) != BEBOP_WIRE_OK)) return "
+          "if (BEBOP_WIRE_UNLIKELY((r = %s_view_read(rd, &ignored%d)) != BEBOP_RESULT_OK)) return "
           "r;",
           type_name(ctx, bebop_descriptor_type_fqn(type)),
           id
@@ -4805,7 +4804,7 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
       emit(ctx, "uint32_t count%d;", id);
       emit(
           ctx,
-          "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &count%d)) != BEBOP_WIRE_OK)) "
+          "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &count%d)) != BEBOP_RESULT_OK)) "
           "return r;",
           id
       );
@@ -4815,11 +4814,11 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
     if (is_byte_sequence(type)) {
       emit(
           ctx,
-          "if (BEBOP_WIRE_UNLIKELY(Bebop_Reader_Remaining(rd) < count%d)) return "
-          "BEBOP_WIRE_ERR_MALFORMED;",
+          "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < count%d)) return "
+          "BEBOP_RESULT_MALFORMED;",
           id
       );
-      emit(ctx, "Bebop_Reader_Skip(rd, count%d);", id);
+      emit(ctx, "bebop_reader_skip(rd, count%d);", id);
       return;
     }
     emit(ctx, "for (uint32_t i%d = 0; i%d < count%d; i%d++) {", id, id, id, id);
@@ -4834,8 +4833,8 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
     emit(ctx, "uint32_t count%d;", id);
     emit(
         ctx,
-        "if (BEBOP_WIRE_UNLIKELY((r = Bebop_Reader_GetU32(rd, &count%d)) != BEBOP_WIRE_OK)) return "
-        "r;",
+        "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &count%d)) != BEBOP_RESULT_OK)) "
+        "return " "r;",
         id
     );
     emit(ctx, "for (uint32_t i%d = 0; i%d < count%d; i%d++) {", id, id, id, id);
@@ -4857,20 +4856,20 @@ static void gen_view_read(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   snprintf(sig, sizeof(sig), "Bebop_Reader *rd, %s_View *out", name);
   if (ctx->emit_mode == GEN_EMIT_DECL) {
     emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
-    emit(ctx, "BEBOP_WIRE_HOT Bebop_WireResult %s(%s);", fn_name, sig);
+    emit(ctx, "BEBOP_WIRE_HOT Bebop_Result %s(%s);", fn_name, sig);
     emit(ctx, "#endif");
     return;
   }
-  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_WireResult", fn_name, sig)) {
+  if (!emit_fn_start_ex(ctx, "BEBOP_WIRE_HOT", "Bebop_Result", fn_name, sig)) {
     return;
   }
   ctx->indent++;
-  emit(ctx, "if (!rd || !out) return BEBOP_WIRE_ERR_NULL;");
+  emit(ctx, "if (!rd || !out) return BEBOP_RESULT_NULL;");
   if (kind == BEBOP_DEF_MESSAGE) {
-    emit(ctx, "const uint8_t *start = Bebop_Reader_Ptr(rd);");
+    emit(ctx, "const uint8_t *start = bebop_reader_data(rd);");
     emit(ctx, "Bebop_MessageIndex index;");
-    emit(ctx, "Bebop_WireResult r = Bebop_Reader_GetMessageIndex(rd, &index);");
-    emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
+    emit(ctx, "Bebop_Result r = bebop_reader_read_message_index(rd, &index);");
+    emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
     emit(ctx, "Bebop_Reader *message_reader = rd;");
     int unique = 0;
     const uint32_t field_count = bebop_descriptor_def_field_count(def);
@@ -4880,8 +4879,8 @@ static void gen_view_read(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       emit(ctx, "bool present%u;", i);
       emit(
           ctx,
-          "if ((r = Bebop_MessageIndex_Field(&index, %u, &field%u, &present%u)) != "
-          "BEBOP_WIRE_OK) return r;",
+          "if ((r = bebop_message_index_field(&index, %u, &field%u, &present%u)) != "
+          "BEBOP_RESULT_OK) return r;",
           bebop_descriptor_field_index(field),
           i,
           i
@@ -4891,33 +4890,32 @@ static void gen_view_read(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       emit(ctx, "Bebop_Reader field_reader%u;", i);
       emit(
           ctx,
-          "if ((r = Bebop_Reader_Init(&field_reader%u, NULL, field%u.data, field%u.length)) != "
-          "BEBOP_WIRE_OK) return r;",
-          i,
+          "if ((r = bebop_reader_init(&field_reader%u, NULL, field%u)) != "
+          "BEBOP_RESULT_OK) return r;",
           i,
           i
       );
       emit(ctx, "rd = &field_reader%u;", i);
       gen_view_skip_type(ctx, bebop_descriptor_field_type(field), &unique);
-      emit(ctx, "if (Bebop_Reader_Remaining(rd) != 0) return BEBOP_WIRE_ERR_MALFORMED;");
+      emit(ctx, "if (bebop_reader_remaining(rd) != 0) return BEBOP_RESULT_MALFORMED;");
       emit(ctx, "rd = message_reader;");
       ctx->indent--;
       emit(ctx, "}");
     }
     emit(ctx, "out->data = start;");
-    emit(ctx, "out->length = (size_t)(Bebop_Reader_Ptr(message_reader) - start);");
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "out->length = (size_t)(bebop_reader_data(message_reader) - start);");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   } else if (kind == BEBOP_DEF_UNION) {
-    emit(ctx, "const uint8_t *start = Bebop_Reader_Ptr(rd);");
+    emit(ctx, "const uint8_t *start = bebop_reader_data(rd);");
     emit(ctx, "uint32_t body_length;");
-    emit(ctx, "Bebop_WireResult r = Bebop_Reader_GetLen(rd, &body_length);");
-    emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
-    emit(ctx, "if (body_length < 1) return BEBOP_WIRE_ERR_MALFORMED;");
+    emit(ctx, "Bebop_Result r = bebop_reader_read_length(rd, &body_length);");
+    emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
+    emit(ctx, "if (body_length < 1) return BEBOP_RESULT_MALFORMED;");
     emit(ctx, "const uint8_t *outer_end;");
-    emit(ctx, "if ((r = Bebop_Reader_PushLimit(rd, body_length, &outer_end)) != BEBOP_WIRE_OK) "
+    emit(ctx, "if ((r = bebop_reader_push_limit(rd, body_length, &outer_end)) != BEBOP_RESULT_OK) "
               "return r;");
     emit(ctx, "uint8_t discriminator;");
-    emit(ctx, "if ((r = Bebop_Reader_GetByte(rd, &discriminator)) != BEBOP_WIRE_OK) return r;");
+    emit(ctx, "if ((r = bebop_reader_read_byte(rd, &discriminator)) != BEBOP_RESULT_OK) return r;");
     emit(ctx, "switch (discriminator) {");
     ctx->indent++;
     const uint32_t branch_count = bebop_descriptor_def_branch_count(def);
@@ -4932,28 +4930,28 @@ static void gen_view_read(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       emit(ctx, "%s_View branch;", type_name(ctx, type_fqn));
       emit(
           ctx,
-          "if ((r = %s_view_read(rd, &branch)) != BEBOP_WIRE_OK) return r;",
+          "if ((r = %s_view_read(rd, &branch)) != BEBOP_RESULT_OK) return r;",
           type_name(ctx, type_fqn)
       );
-      emit(ctx, "if (Bebop_Reader_Remaining(rd) != 0) return BEBOP_WIRE_ERR_MALFORMED;");
+      emit(ctx, "if (bebop_reader_remaining(rd) != 0) return BEBOP_RESULT_MALFORMED;");
       emit(ctx, "break;");
       ctx->indent--;
       emit(ctx, "}");
     }
     emit(ctx, "default:");
     ctx->indent++;
-    emit(ctx, "Bebop_Reader_Skip(rd, Bebop_Reader_Remaining(rd));");
+    emit(ctx, "bebop_reader_skip(rd, bebop_reader_remaining(rd));");
     emit(ctx, "break;");
     ctx->indent--;
     ctx->indent--;
     emit(ctx, "}");
-    emit(ctx, "Bebop_Reader_PopLimit(rd, outer_end);");
+    emit(ctx, "bebop_reader_pop_limit(rd, outer_end);");
     emit(ctx, "out->data = start;");
     emit(ctx, "out->length = (size_t)body_length + BEBOP_WIRE_SIZE_LEN;");
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   } else {
-    emit(ctx, "const uint8_t *start = Bebop_Reader_Ptr(rd);");
-    emit(ctx, "Bebop_WireResult r;");
+    emit(ctx, "const uint8_t *start = bebop_reader_data(rd);");
+    emit(ctx, "Bebop_Result r;");
     emit(ctx, "BEBOP_WIRE_UNUSED(r);");
     int unique = 0;
     const uint32_t field_count = bebop_descriptor_def_field_count(def);
@@ -4963,8 +4961,8 @@ static void gen_view_read(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
       );
     }
     emit(ctx, "out->data = start;");
-    emit(ctx, "out->length = (size_t)(Bebop_Reader_Ptr(rd) - start);");
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "out->length = (size_t)(bebop_reader_data(rd) - start);");
+    emit(ctx, "return BEBOP_RESULT_OK;");
   }
   ctx->indent--;
   emit(ctx, "}");
@@ -4976,19 +4974,19 @@ static void gen_view_init(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   char name[GEN_PATH_SIZE];
   snprintf(name, sizeof(name), "%s", type_name(ctx, bebop_descriptor_def_fqn(def)));
   if (ctx->emit_mode == GEN_EMIT_DECL) {
-    emit(ctx, "Bebop_WireResult %s_verify(Bebop_View encoded);", name);
+    emit(ctx, "Bebop_Result %s_verify(Bebop_View encoded);", name);
     emit(ctx, "%s_View %s_view(Bebop_View encoded);", name, name);
     return;
   }
-  emit(ctx, "Bebop_WireResult %s_verify(Bebop_View encoded) {", name);
+  emit(ctx, "Bebop_Result %s_verify(Bebop_View encoded) {", name);
   ctx->indent++;
-  emit(ctx, "if (!encoded.data) return BEBOP_WIRE_ERR_NULL;");
+  emit(ctx, "if (!encoded.data) return BEBOP_RESULT_NULL;");
   emit(ctx, "Bebop_Reader rd;");
-  emit(ctx, "Bebop_WireResult r = Bebop_Reader_Init(&rd, NULL, encoded.data, encoded.length);");
-  emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
+  emit(ctx, "Bebop_Result r = bebop_reader_init(&rd, NULL, encoded);");
+  emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
   emit(ctx, "%s_View view;", name);
-  emit(ctx, "if ((r = %s_view_read(&rd, &view)) != BEBOP_WIRE_OK) return r;", name);
-  emit(ctx, "return Bebop_Reader_Remaining(&rd) == 0 ? BEBOP_WIRE_OK : BEBOP_WIRE_ERR_MALFORMED;");
+  emit(ctx, "if ((r = %s_view_read(&rd, &view)) != BEBOP_RESULT_OK) return r;", name);
+  emit(ctx, "return bebop_reader_remaining(&rd) == 0 ? BEBOP_RESULT_OK : BEBOP_RESULT_MALFORMED;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
@@ -5030,7 +5028,7 @@ static void gen_message_view_getter(
       && (kind == BEBOP_TYPE_ARRAY || kind == BEBOP_TYPE_FIXED_ARRAY || kind == BEBOP_TYPE_MAP))
   {
     emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
-    emit(ctx, "static BEBOP_WIRE_HOT %s %s(%s);", out_type, fn_name, sig);
+    emit(ctx, "BEBOP_WIRE_HOT %s %s(%s);", out_type, fn_name, sig);
     emit(ctx, "#endif");
     char has_name[GEN_PATH_SIZE];
     snprintf(has_name, sizeof(has_name), "%s_has_%s", owner, member);
@@ -5049,49 +5047,41 @@ static void gen_message_view_getter(
   emit(ctx, "Bebop_MessageIndex index;");
   emit(
       ctx,
-      "if (Bebop_MessageIndex_Begin(&index, (Bebop_View) {view.data, view.length}) != "
-      "BEBOP_WIRE_OK) return out;"
+      "if (bebop_message_index_begin(&index, (Bebop_View) {view.data, view.length}) != "
+      "BEBOP_RESULT_OK) return out;"
   );
   emit(ctx, "Bebop_View field;");
   emit(ctx, "bool present;");
   emit(
       ctx,
-      "Bebop_WireResult r = Bebop_MessageIndex_Field(&index, %u, &field, &present);",
+      "Bebop_Result r = bebop_message_index_field(&index, %u, &field, &present);",
       bebop_descriptor_field_index(field)
   );
-  emit(ctx, "if (r != BEBOP_WIRE_OK || !present) return out;");
+  emit(ctx, "if (r != BEBOP_RESULT_OK || !present) return out;");
 
   if (is_byte_sequence(type)) {
     emit(ctx, "Bebop_Reader rd;");
-    emit(
-        ctx,
-        "if ((r = Bebop_Reader_Init(&rd, NULL, field.data, field.length)) != BEBOP_WIRE_OK) "
-        "return out;"
-    );
+    emit(ctx, "if ((r = bebop_reader_init(&rd, NULL, field)) != BEBOP_RESULT_OK) " "return out;");
     if (kind == BEBOP_TYPE_ARRAY) {
       emit(ctx, "uint32_t count;");
-      emit(ctx, "if ((r = Bebop_Reader_GetU32(&rd, &count)) != BEBOP_WIRE_OK) return out;");
+      emit(ctx, "if ((r = bebop_reader_read_u32(&rd, &count)) != BEBOP_RESULT_OK) return out;");
     } else {
       emit(ctx, "const uint32_t count = %u;", bebop_descriptor_type_fixed_size(type));
     }
-    emit(ctx, "if (Bebop_Reader_Remaining(&rd) != count) return out;");
-    emit(ctx, "out.data = Bebop_Reader_Ptr(&rd);");
+    emit(ctx, "if (bebop_reader_remaining(&rd) != count) return out;");
+    emit(ctx, "out.data = bebop_reader_data(&rd);");
     emit(ctx, "out.length = count;");
     emit(ctx, "return out;");
   } else if (kind == BEBOP_TYPE_DEFINED && !type_is_enum(ctx, type)) {
     emit(ctx, "return %s_view(field);", type_name(ctx, bebop_descriptor_type_fqn(type)));
   } else if (kind == BEBOP_TYPE_ARRAY || kind == BEBOP_TYPE_MAP) {
     emit(ctx, "Bebop_Reader rd;");
-    emit(
-        ctx,
-        "if ((r = Bebop_Reader_Init(&rd, NULL, field.data, field.length)) != BEBOP_WIRE_OK) "
-        "return out;"
-    );
+    emit(ctx, "if ((r = bebop_reader_init(&rd, NULL, field)) != BEBOP_RESULT_OK) " "return out;");
     emit(ctx, "uint32_t count;");
-    emit(ctx, "if ((r = Bebop_Reader_GetU32(&rd, &count)) != BEBOP_WIRE_OK) return out;");
+    emit(ctx, "if ((r = bebop_reader_read_u32(&rd, &count)) != BEBOP_RESULT_OK) return out;");
     emit(
         ctx,
-        "out.%s = (Bebop_View) {Bebop_Reader_Ptr(&rd), Bebop_Reader_Remaining(&rd)};",
+        "out.%s = (Bebop_View) {bebop_reader_data(&rd), bebop_reader_remaining(&rd)};",
         kind == BEBOP_TYPE_MAP ? "entries" : "elements"
     );
     emit(ctx, "out.count = count;");
@@ -5104,21 +5094,20 @@ static void gen_message_view_getter(
     const type_info_t* info =
         kind == BEBOP_TYPE_DEFINED ? type_info(enum_base_type(ctx, type)) : type_info(kind);
     emit(ctx, "Bebop_Reader rd;");
-    emit(
-        ctx,
-        "if ((r = Bebop_Reader_Init(&rd, NULL, field.data, field.length)) != BEBOP_WIRE_OK) "
-        "return out;"
-    );
+    emit(ctx, "if ((r = bebop_reader_init(&rd, NULL, field)) != BEBOP_RESULT_OK) " "return out;");
     if (kind == BEBOP_TYPE_DEFINED) {
       emit(ctx, "%s value;", info->ctype);
-      emit(ctx, "if ((r = %s(&rd, &value)) != BEBOP_WIRE_OK) return out;", info->wire_get);
+      emit(ctx, "if ((r = %s(&rd, &value)) != BEBOP_RESULT_OK) return out;", info->wire_get);
       emit(ctx, "out = (%s)value;", out_type);
     } else {
       emit(
-          ctx, "if ((r = %s(&rd, &out)) != BEBOP_WIRE_OK) return (%s) {0};", info->wire_get, out_type
+          ctx,
+          "if ((r = %s(&rd, &out)) != BEBOP_RESULT_OK) return (%s) {0};",
+          info->wire_get,
+          out_type
       );
     }
-    emit(ctx, "return Bebop_Reader_Remaining(&rd) == 0 ? out : (%s) {0};", out_type);
+    emit(ctx, "return bebop_reader_remaining(&rd) == 0 ? out : (%s) {0};", out_type);
   }
   ctx->indent--;
   emit(ctx, "}");
@@ -5134,14 +5123,14 @@ static void gen_message_view_getter(
   emit(ctx, "Bebop_MessageIndex index;");
   emit(
       ctx,
-      "if (Bebop_MessageIndex_Begin(&index, (Bebop_View) {view.data, view.length}) != "
-      "BEBOP_WIRE_OK) return false;"
+      "if (bebop_message_index_begin(&index, (Bebop_View) {view.data, view.length}) != "
+      "BEBOP_RESULT_OK) return false;"
   );
   emit(ctx, "Bebop_View field;");
   emit(ctx, "bool present;");
   emit(
       ctx,
-      "return Bebop_MessageIndex_Field(&index, %u, &field, &present) == BEBOP_WIRE_OK && "
+      "return bebop_message_index_field(&index, %u, &field, &present) == BEBOP_RESULT_OK && "
       "present;",
       bebop_descriptor_field_index(field)
   );
@@ -5176,7 +5165,7 @@ static void gen_view_read_value(
   if (kind == BEBOP_TYPE_DEFINED && !type_is_enum(ctx, type)) {
     emit(
         ctx,
-        "if ((r = %s_view_read(rd, %s)) != BEBOP_WIRE_OK) return r;",
+        "if ((r = %s_view_read(rd, %s)) != BEBOP_RESULT_OK) return r;",
         type_name(ctx, bebop_descriptor_type_fqn(type)),
         out
     );
@@ -5186,14 +5175,14 @@ static void gen_view_read_value(
     const int id = (*unique)++;
     if (kind == BEBOP_TYPE_ARRAY) {
       emit(ctx, "uint32_t count%d;", id);
-      emit(ctx, "if ((r = Bebop_Reader_GetU32(rd, &count%d)) != BEBOP_WIRE_OK) return r;", id);
+      emit(ctx, "if ((r = bebop_reader_read_u32(rd, &count%d)) != BEBOP_RESULT_OK) return r;", id);
     } else {
       emit(ctx, "const uint32_t count%d = %u;", id, bebop_descriptor_type_fixed_size(type));
     }
-    emit(ctx, "const uint8_t *start%d = Bebop_Reader_Ptr(rd);", id);
+    emit(ctx, "const uint8_t *start%d = bebop_reader_data(rd);", id);
     if (is_byte_sequence(type)) {
-      emit(ctx, "if (Bebop_Reader_Remaining(rd) < count%d) return BEBOP_WIRE_ERR_MALFORMED;", id);
-      emit(ctx, "Bebop_Reader_Skip(rd, count%d);", id);
+      emit(ctx, "if (bebop_reader_remaining(rd) < count%d) return BEBOP_RESULT_MALFORMED;", id);
+      emit(ctx, "bebop_reader_skip(rd, count%d);", id);
       emit(ctx, "%s->data = start%d;", out, id);
       emit(ctx, "%s->length = count%d;", out, id);
       return;
@@ -5205,7 +5194,7 @@ static void gen_view_read_value(
     emit(ctx, "}");
     emit(
         ctx,
-        "%s->elements = (Bebop_View) {start%d, (size_t)(Bebop_Reader_Ptr(rd) - start%d)};",
+        "%s->elements = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
         out,
         id,
         id
@@ -5216,8 +5205,8 @@ static void gen_view_read_value(
   if (kind == BEBOP_TYPE_MAP) {
     const int id = (*unique)++;
     emit(ctx, "uint32_t count%d;", id);
-    emit(ctx, "if ((r = Bebop_Reader_GetU32(rd, &count%d)) != BEBOP_WIRE_OK) return r;", id);
-    emit(ctx, "const uint8_t *start%d = Bebop_Reader_Ptr(rd);", id);
+    emit(ctx, "if ((r = bebop_reader_read_u32(rd, &count%d)) != BEBOP_RESULT_OK) return r;", id);
+    emit(ctx, "const uint8_t *start%d = bebop_reader_data(rd);", id);
     emit(ctx, "for (uint32_t i%d = 0; i%d < count%d; i%d++) {", id, id, id, id);
     ctx->indent++;
     gen_view_skip_type(ctx, bebop_descriptor_type_key(type), unique);
@@ -5226,7 +5215,7 @@ static void gen_view_read_value(
     emit(ctx, "}");
     emit(
         ctx,
-        "%s->entries = (Bebop_View) {start%d, (size_t)(Bebop_Reader_Ptr(rd) - start%d)};",
+        "%s->entries = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
         out,
         id,
         id
@@ -5242,10 +5231,10 @@ static void gen_view_read_value(
     char output_type[GEN_PATH_SIZE];
     get_ctype_str(ctx, type, output_type, sizeof(output_type));
     emit(ctx, "%s value%d;", info->ctype, id);
-    emit(ctx, "if ((r = %s(rd, &value%d)) != BEBOP_WIRE_OK) return r;", info->wire_get, id);
+    emit(ctx, "if ((r = %s(rd, &value%d)) != BEBOP_RESULT_OK) return r;", info->wire_get, id);
     emit(ctx, "*%s = (%s)value%d;", out, output_type, id);
   } else {
-    emit(ctx, "if ((r = %s(rd, %s)) != BEBOP_WIRE_OK) return r;", info->wire_get, out);
+    emit(ctx, "if ((r = %s(rd, %s)) != BEBOP_RESULT_OK) return r;", info->wire_get, out);
   }
 }
 
@@ -5266,15 +5255,7 @@ static void gen_struct_view_getter(
     if (container) {
       emit(ctx, "#ifdef BEBOP_WIRE_GENERATED_IMPLEMENTATION");
     }
-    emit(
-        ctx,
-        "%sBEBOP_WIRE_HOT %s %s_%s(%s_View view);",
-        container ? "static " : "",
-        out_type,
-        owner,
-        member,
-        owner
-    );
+    emit(ctx, "BEBOP_WIRE_HOT %s %s_%s(%s_View view);", out_type, owner, member, owner);
     if (container) {
       emit(ctx, "#endif");
     }
@@ -5282,12 +5263,15 @@ static void gen_struct_view_getter(
   }
   snprintf(fn_name, sizeof(fn_name), "%s_view_%s", owner, member);
   snprintf(sig, sizeof(sig), "const %s_View *view, %s *out", owner, out_type);
-  emit(ctx, "static Bebop_WireResult %s(%s) {", fn_name, sig);
+  emit(ctx, "static Bebop_Result %s(%s) {", fn_name, sig);
   ctx->indent++;
-  emit(ctx, "if (!view || !out) return BEBOP_WIRE_ERR_NULL;");
+  emit(ctx, "if (!view || !out) return BEBOP_RESULT_NULL;");
   emit(ctx, "Bebop_Reader reader;");
-  emit(ctx, "Bebop_WireResult r = Bebop_Reader_Init(&reader, NULL, view->data, view->length);");
-  emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
+  emit(
+      ctx,
+      "Bebop_Result r = bebop_reader_init(&reader, NULL, bebop_view(view->data, view->length));"
+  );
+  emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
   emit(ctx, "Bebop_Reader *rd = &reader;");
   int unique = 0;
   for (uint32_t i = 0; i < field_index; i++) {
@@ -5296,19 +5280,11 @@ static void gen_struct_view_getter(
     );
   }
   gen_view_read_value(ctx, type, "out", &unique);
-  emit(ctx, "return BEBOP_WIRE_OK;");
+  emit(ctx, "return BEBOP_RESULT_OK;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
-  emit(
-      ctx,
-      "%sBEBOP_WIRE_HOT %s %s_%s(%s_View view) {",
-      container ? "static " : "",
-      out_type,
-      owner,
-      member,
-      owner
-  );
+  emit(ctx, "BEBOP_WIRE_HOT %s %s_%s(%s_View view) {", out_type, owner, member, owner);
   ctx->indent++;
   emit(ctx, "%s out = {0};", out_type);
   emit(ctx, "(void)%s(&view, &out);", fn_name);
@@ -5339,6 +5315,16 @@ static void gen_container_view_accessors(
     if (ctx->emit_mode == GEN_EMIT_DECL) {
       emit(ctx, "BEBOP_WIRE_HOT uint32_t %s_%s_count(%s_View view);", owner, member, owner);
       emit(
+          ctx, "BEBOP_WIRE_HOT Bebop_ViewIterator %s_%s_iter(%s_View view);", owner, member, owner
+      );
+      emit(
+          ctx,
+          "BEBOP_WIRE_HOT bool %s_%s_next(Bebop_ViewIterator *iterator, %s *out);",
+          owner,
+          member,
+          element_type
+      );
+      emit(
           ctx,
           "BEBOP_WIRE_HOT %s %s_%s_at(%s_View view, uint32_t index);",
           element_type,
@@ -5348,14 +5334,71 @@ static void gen_container_view_accessors(
       );
       return;
     }
+
+    snprintf(fn_name, sizeof(fn_name), "%s_view_%s_next", owner, member);
+    snprintf(sig, sizeof(sig), "Bebop_ViewIterator *iterator, %s *out", element_type);
+    emit(ctx, "static Bebop_Result %s(%s) {", fn_name, sig);
+    ctx->indent++;
+    emit(ctx, "Bebop_Reader reader;");
+    emit(ctx, "Bebop_Result r = bebop_reader_init(&reader, NULL, iterator->remaining);");
+    emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
+    emit(ctx, "Bebop_Reader *rd = &reader;");
+    int iterator_unique = 0;
+    gen_view_read_value(ctx, element, "out", &iterator_unique);
+    emit(
+        ctx,
+        "iterator->remaining = (Bebop_View) {bebop_reader_data(rd), " "bebop_reader_remaining(rd)};"
+    );
+    emit(ctx, "iterator->remaining_count--;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
+    ctx->indent--;
+    emit(ctx, "}");
+    emit_nl(ctx);
+
+    emit(ctx, "BEBOP_WIRE_HOT Bebop_ViewIterator %s_%s_iter(%s_View view) {", owner, member, owner);
+    ctx->indent++;
+    emit(ctx, "Bebop_SequenceView sequence = %s_%s(view);", owner, member);
+    emit(
+        ctx,
+        "return (Bebop_ViewIterator) {.remaining = sequence.elements, "
+        ".remaining_count = sequence.count, .result = BEBOP_RESULT_OK};"
+    );
+    ctx->indent--;
+    emit(ctx, "}");
+    emit_nl(ctx);
+
+    emit(
+        ctx,
+        "BEBOP_WIRE_HOT bool %s_%s_next(Bebop_ViewIterator *iterator, %s *out) {",
+        owner,
+        member,
+        element_type
+    );
+    ctx->indent++;
+    emit(ctx, "if (!iterator || !out) {");
+    ctx->indent++;
+    emit(ctx, "if (iterator) iterator->result = BEBOP_RESULT_NULL;");
+    emit(ctx, "return false;");
+    ctx->indent--;
+    emit(ctx, "}");
+    emit(
+        ctx,
+        "if (iterator->result != BEBOP_RESULT_OK || iterator->remaining_count == 0) return false;"
+    );
+    emit(ctx, "iterator->result = %s(iterator, out);", fn_name);
+    emit(ctx, "return iterator->result == BEBOP_RESULT_OK;");
+    ctx->indent--;
+    emit(ctx, "}");
+    emit_nl(ctx);
+
     snprintf(fn_name, sizeof(fn_name), "%s_view_%s_at", owner, member);
     snprintf(
         sig, sizeof(sig), "const Bebop_SequenceView *view, uint32_t index, %s *out", element_type
     );
-    emit(ctx, "static Bebop_WireResult %s(%s) {", fn_name, sig);
+    emit(ctx, "static Bebop_Result %s(%s) {", fn_name, sig);
     ctx->indent++;
-    emit(ctx, "if (!view || !out) return BEBOP_WIRE_ERR_NULL;");
-    emit(ctx, "if (index >= view->count) return BEBOP_WIRE_ERR_INVALID;");
+    emit(ctx, "if (!view || !out) return BEBOP_RESULT_NULL;");
+    emit(ctx, "if (index >= view->count) return BEBOP_RESULT_INVALID;");
     emit(ctx, "Bebop_Reader reader;");
     const uint32_t element_size = view_fixed_wire_size(ctx, element);
     if (element_size != 0) {
@@ -5363,22 +5406,15 @@ static void gen_container_view_accessors(
       emit(
           ctx,
           "if (offset > view->elements.length || view->elements.length - offset < %u) return "
-          "BEBOP_WIRE_ERR_MALFORMED;",
+          "BEBOP_RESULT_MALFORMED;",
           element_size
       );
       emit(ctx, "Bebop_View element = {view->elements.data + offset, %u};", element_size);
-      emit(
-          ctx,
-          "Bebop_WireResult r = Bebop_Reader_Init(&reader, NULL, element.data, " "element.length);"
-      );
+      emit(ctx, "Bebop_Result r = bebop_reader_init(&reader, NULL, element);");
     } else {
-      emit(
-          ctx,
-          "Bebop_WireResult r = Bebop_Reader_Init(&reader, NULL, view->elements.data, "
-          "view->elements.length);"
-      );
+      emit(ctx, "Bebop_Result r = bebop_reader_init(&reader, NULL, view->elements);");
     }
-    emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
+    emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
     emit(ctx, "Bebop_Reader *rd = &reader;");
     int unique = 0;
     if (element_size == 0) {
@@ -5389,7 +5425,7 @@ static void gen_container_view_accessors(
       emit(ctx, "}");
     }
     gen_view_read_value(ctx, element, "out", &unique);
-    emit(ctx, "return BEBOP_WIRE_OK;");
+    emit(ctx, "return BEBOP_RESULT_OK;");
     ctx->indent--;
     emit(ctx, "}");
     emit_nl(ctx);
@@ -5433,6 +5469,14 @@ static void gen_container_view_accessors(
     ctx->indent--;
     emit(ctx, "} %s;", entry_type);
     emit(ctx, "BEBOP_WIRE_HOT uint32_t %s_%s_count(%s_View view);", owner, member, owner);
+    emit(ctx, "BEBOP_WIRE_HOT Bebop_ViewIterator %s_%s_iter(%s_View view);", owner, member, owner);
+    emit(
+        ctx,
+        "BEBOP_WIRE_HOT bool %s_%s_next(Bebop_ViewIterator *iterator, %s *out);",
+        owner,
+        member,
+        entry_type
+    );
     emit(
         ctx,
         "BEBOP_WIRE_HOT %s %s_%s_at(%s_View view, uint32_t index);",
@@ -5443,21 +5487,78 @@ static void gen_container_view_accessors(
     );
     return;
   }
-  snprintf(fn_name, sizeof(fn_name), "%s_view_%s_at", owner, member);
-  snprintf(sig, sizeof(sig), "const Bebop_MapView *view, uint32_t index, %s *out", entry_type);
-  emit(ctx, "static Bebop_WireResult %s(%s) {", fn_name, sig);
+
+  snprintf(fn_name, sizeof(fn_name), "%s_view_%s_next", owner, member);
+  snprintf(sig, sizeof(sig), "Bebop_ViewIterator *iterator, %s *out", entry_type);
+  emit(ctx, "static Bebop_Result %s(%s) {", fn_name, sig);
   ctx->indent++;
-  emit(ctx, "if (!view || !out) return BEBOP_WIRE_ERR_NULL;");
-  emit(ctx, "if (index >= view->count) return BEBOP_WIRE_ERR_INVALID;");
   emit(ctx, "%s key = {0};", key_type);
   emit(ctx, "%s value = {0};", value_type);
   emit(ctx, "Bebop_Reader reader;");
+  emit(ctx, "Bebop_Result r = bebop_reader_init(&reader, NULL, iterator->remaining);");
+  emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
+  emit(ctx, "Bebop_Reader *rd = &reader;");
+  int iterator_unique = 0;
+  gen_view_read_value(ctx, key, "&key", &iterator_unique);
+  gen_view_read_value(ctx, value, "&value", &iterator_unique);
+  emit(ctx, "out->key = key;");
+  emit(ctx, "out->value = value;");
+  emit(
+      ctx, "iterator->remaining = (Bebop_View) {bebop_reader_data(rd), bebop_reader_remaining(rd)};"
+  );
+  emit(ctx, "iterator->remaining_count--;");
+  emit(ctx, "return BEBOP_RESULT_OK;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit_nl(ctx);
+
+  emit(ctx, "BEBOP_WIRE_HOT Bebop_ViewIterator %s_%s_iter(%s_View view) {", owner, member, owner);
+  ctx->indent++;
+  emit(ctx, "Bebop_MapView map = %s_%s(view);", owner, member);
   emit(
       ctx,
-      "Bebop_WireResult r = Bebop_Reader_Init(&reader, NULL, view->entries.data, "
-      "view->entries.length);"
+      "return (Bebop_ViewIterator) {.remaining = map.entries, "
+      ".remaining_count = map.count, .result = BEBOP_RESULT_OK};"
   );
-  emit(ctx, "if (r != BEBOP_WIRE_OK) return r;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit_nl(ctx);
+
+  emit(
+      ctx,
+      "BEBOP_WIRE_HOT bool %s_%s_next(Bebop_ViewIterator *iterator, %s *out) {",
+      owner,
+      member,
+      entry_type
+  );
+  ctx->indent++;
+  emit(ctx, "if (!iterator || !out) {");
+  ctx->indent++;
+  emit(ctx, "if (iterator) iterator->result = BEBOP_RESULT_NULL;");
+  emit(ctx, "return false;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit(
+      ctx,
+      "if (iterator->result != BEBOP_RESULT_OK || iterator->remaining_count == 0) return false;"
+  );
+  emit(ctx, "iterator->result = %s(iterator, out);", fn_name);
+  emit(ctx, "return iterator->result == BEBOP_RESULT_OK;");
+  ctx->indent--;
+  emit(ctx, "}");
+  emit_nl(ctx);
+
+  snprintf(fn_name, sizeof(fn_name), "%s_view_%s_at", owner, member);
+  snprintf(sig, sizeof(sig), "const Bebop_MapView *view, uint32_t index, %s *out", entry_type);
+  emit(ctx, "static Bebop_Result %s(%s) {", fn_name, sig);
+  ctx->indent++;
+  emit(ctx, "if (!view || !out) return BEBOP_RESULT_NULL;");
+  emit(ctx, "if (index >= view->count) return BEBOP_RESULT_INVALID;");
+  emit(ctx, "%s key = {0};", key_type);
+  emit(ctx, "%s value = {0};", value_type);
+  emit(ctx, "Bebop_Reader reader;");
+  emit(ctx, "Bebop_Result r = bebop_reader_init(&reader, NULL, view->entries);");
+  emit(ctx, "if (r != BEBOP_RESULT_OK) return r;");
   emit(ctx, "Bebop_Reader *rd = &reader;");
   int unique = 0;
   emit(ctx, "for (uint32_t i = 0; i < index; i++) {");
@@ -5470,7 +5571,7 @@ static void gen_container_view_accessors(
   gen_view_read_value(ctx, value, "&value", &unique);
   emit(ctx, "out->key = key;");
   emit(ctx, "out->value = value;");
-  emit(ctx, "return BEBOP_WIRE_OK;");
+  emit(ctx, "return BEBOP_RESULT_OK;");
   ctx->indent--;
   emit(ctx, "}");
   emit_nl(ctx);
@@ -5530,16 +5631,19 @@ static void gen_union_view_getters(
   emit(ctx, "uint32_t body_length;");
   emit(
       ctx,
-      "if (Bebop_Reader_Init(&rd, NULL, view.data, view.length) != BEBOP_WIRE_OK) return "
+      "if (bebop_reader_init(&rd, NULL, bebop_view(view.data, view.length)) != "
+      "BEBOP_RESULT_OK) return "
       "(%s_Disc)0;",
       owner
   );
   emit(
-      ctx, "if (Bebop_Reader_GetLen(&rd, &body_length) != BEBOP_WIRE_OK) return (%s_Disc)0;", owner
+      ctx,
+      "if (bebop_reader_read_length(&rd, &body_length) != BEBOP_RESULT_OK) return (%s_Disc)0;",
+      owner
   );
   emit(
       ctx,
-      "if (Bebop_Reader_GetByte(&rd, &discriminator) != BEBOP_WIRE_OK) return (%s_Disc)0;",
+      "if (bebop_reader_read_byte(&rd, &discriminator) != BEBOP_RESULT_OK) return (%s_Disc)0;",
       owner
   );
   emit(ctx, "return (%s_Disc)discriminator;", owner);
@@ -5574,17 +5678,23 @@ static void gen_union_view_getters(
     emit(ctx, "BEBOP_WIRE_HOT %s_View %s_%s(%s_View view) {", branch_type, owner, member, owner);
     ctx->indent++;
     emit(ctx, "%s_View out = {0};", branch_type);
-    emit(ctx, "if (!%s_has_%s(view)) return out;", owner, member);
     emit(ctx, "Bebop_Reader rd;");
-    emit(ctx, "Bebop_WireResult r = Bebop_Reader_Init(&rd, NULL, view.data, view.length);");
-    emit(ctx, "if (r != BEBOP_WIRE_OK) return out;");
+    emit(ctx, "Bebop_Result r = bebop_reader_init(&rd, NULL, bebop_view(view.data, view.length));");
+    emit(ctx, "if (r != BEBOP_RESULT_OK) return out;");
     emit(ctx, "uint32_t body_length;");
     emit(ctx, "uint8_t discriminator;");
-    emit(ctx, "if ((r = Bebop_Reader_GetLen(&rd, &body_length)) != BEBOP_WIRE_OK) return out;");
-    emit(ctx, "if ((r = Bebop_Reader_GetByte(&rd, &discriminator)) != BEBOP_WIRE_OK) return out;");
+    emit(
+        ctx, "if ((r = bebop_reader_read_length(&rd, &body_length)) != BEBOP_RESULT_OK) return out;"
+    );
+    emit(
+        ctx, "if ((r = bebop_reader_read_byte(&rd, &discriminator)) != BEBOP_RESULT_OK) return out;"
+    );
+    emit(
+        ctx, "if (discriminator != %u) return out;", bebop_descriptor_branch_discriminator(branch)
+    );
     emit(
         ctx,
-        "if ((r = %s_view_read(&rd, &out)) != BEBOP_WIRE_OK) return (%s_View) {0};",
+        "if ((r = %s_view_read(&rd, &out)) != BEBOP_RESULT_OK) return (%s_View) {0};",
         branch_type,
         branch_type
     );
@@ -5840,6 +5950,14 @@ static void add_file(
     bebop_plugin_response_builder_t* b, bebop_host_allocator_t* alloc, char* name, char* content
 )
 {
+  if (content) {
+    size_t length = strlen(content);
+    while (length > 0 && content[length - 1] == '\n') {
+      length--;
+    }
+    content[length++] = '\n';
+    content[length] = '\0';
+  }
   bebop_plugin_response_builder_add_file(b, name ? name : "output.h", content);
   if (name && alloc->alloc) {
     alloc->alloc(name, strlen(name) + 1, 0, alloc->ctx);

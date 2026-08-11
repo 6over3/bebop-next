@@ -58,18 +58,18 @@ static void* libc_alloc(void* ptr, size_t old_size, size_t new_size, void* ctx)
   return realloc(ptr, new_size);
 }
 
-static Bebop_WireCtx* g_ctx = nullptr;
+static Bebop_Context* g_ctx = nullptr;
 static Bebop_Writer* g_writer = nullptr;
 
 static void ensure_ctx()
 {
   if (!g_ctx) {
-    Bebop_WireCtxOpts opts = Bebop_WireCtx_DefaultOpts();
+    Bebop_ContextOptions opts = bebop_context_options();
     opts.arena_options.allocator.alloc = libc_alloc;
     opts.arena_options.initial_block_size = 1024 * 1024;
     opts.initial_writer_size = 256 * 1024;
-    g_ctx = Bebop_WireCtx_New(&opts);
-    Bebop_WireCtx_WriterHint(g_ctx, 256 * 1024, &g_writer);
+    g_ctx = bebop_context_new(&opts);
+    g_writer = bebop_context_writer(g_ctx, 256 * 1024);
   }
 }
 
@@ -155,9 +155,11 @@ static size_t try_compress(const uint8_t* data, size_t len, const char** best_na
   return best;
 }
 
-static void get_writer_buf(uint8_t** buf, size_t* len)
+static void get_writer_buf(const uint8_t** buf, size_t* len)
 {
-  Bebop_Writer_Buf(g_writer, buf, len);
+  const Bebop_View encoded = bebop_writer_view(g_writer);
+  *buf = encoded.data;
+  *len = encoded.length;
 }
 
 static std::vector<uint8_t> g_proto_buf;
@@ -171,7 +173,7 @@ static void record(
     const uint8_t* msgpack_data
 )
 {
-  uint8_t* buf;
+  const uint8_t* buf;
   size_t bebop;
   get_writer_buf(&buf, &bebop);
 
@@ -216,20 +218,20 @@ static void record(
 static void bebop_person(const TestPerson& p)
 {
   ensure_ctx();
-  Bebop_Writer_Reset(g_writer);
+  bebop_writer_reset(g_writer);
   Person person = {
       .name = {.data = p.name.c_str(), .length = (uint32_t)p.name.size()},
       .email = {.data = p.email.c_str(), .length = (uint32_t)p.email.size()},
       .id = p.id,
       .age = p.age
   };
-  Person_Encode(g_writer, &person);
+  Person_encode(g_writer, &person);
 }
 
 static void bebop_order(const TestOrder& o)
 {
   ensure_ctx();
-  Bebop_Writer_Reset(g_writer);
+  bebop_writer_reset(g_writer);
   Order order = {
       .item_ids = {.data = const_cast<int64_t*>(o.item_ids.data()), .length = o.item_ids.size()},
       .quantities =
@@ -239,13 +241,13 @@ static void bebop_order(const TestOrder& o)
       .total = o.total,
       .timestamp = o.timestamp
   };
-  Order_Encode(g_writer, &order);
+  Order_encode(g_writer, &order);
 }
 
 static void bebop_event(const TestEvent& e)
 {
   ensure_ctx();
-  Bebop_Writer_Reset(g_writer);
+  bebop_writer_reset(g_writer);
   Event event = {
       .payload = {.data = const_cast<uint8_t*>(e.payload.data()), .length = e.payload.size()},
       .type = {.data = e.type.c_str(), .length = (uint32_t)e.type.size()},
@@ -253,26 +255,26 @@ static void bebop_event(const TestEvent& e)
       .id = e.id,
       .timestamp = e.timestamp
   };
-  Event_Encode(g_writer, &event);
+  Event_encode(g_writer, &event);
 }
 
 static void bebop_embedding_bf16(const TestEmbeddingBF16& e)
 {
   ensure_ctx();
-  Bebop_Writer_Reset(g_writer);
+  bebop_writer_reset(g_writer);
   EmbeddingBF16 emb = {
       .vector =
           {.data = (Bebop_BFloat16*)const_cast<uint16_t*>(e.vector.data()),
            .length = e.vector.size()},
       .id = *reinterpret_cast<const Bebop_UUID*>(e.id.bytes)
   };
-  EmbeddingBF16_Encode(g_writer, &emb);
+  EmbeddingBF16_encode(g_writer, &emb);
 }
 
 static void bebop_tensor_shard(const TestTensorShard& t)
 {
   ensure_ctx();
-  Bebop_Writer_Reset(g_writer);
+  bebop_writer_reset(g_writer);
   TensorShard ts = {
       .name = {.data = t.name.c_str(), .length = (uint32_t)t.name.size()},
       .shape = {.data = const_cast<uint32_t*>(t.shape.data()), .length = t.shape.size()},
@@ -282,7 +284,7 @@ static void bebop_tensor_shard(const TestTensorShard& t)
       .offset = t.offset,
       .total_elements = t.total_elements
   };
-  TensorShard_Encode(g_writer, &ts);
+  TensorShard_encode(g_writer, &ts);
 }
 
 #ifdef BENCH_PROTOBUF
@@ -568,12 +570,12 @@ static void test_small_embedding()
       .vector = {.data = (Bebop_BFloat16*)vec, .length = 4}
   };
 
-  Bebop_Writer_Reset(g_writer);
-  EmbeddingBF16_Encode(g_writer, &emb);
+  bebop_writer_reset(g_writer);
+  EmbeddingBF16_encode(g_writer, &emb);
 
-  uint8_t* bebop_buf;
-  size_t bebop_len;
-  Bebop_Writer_Buf(g_writer, &bebop_buf, &bebop_len);
+  const Bebop_View bebop_buf_view = bebop_writer_view(g_writer);
+  const uint8_t* bebop_buf = bebop_buf_view.data;
+  size_t bebop_len = bebop_buf_view.length;
 
   print_hex("Bebop", bebop_buf, bebop_len);
 

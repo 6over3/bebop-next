@@ -1224,8 +1224,9 @@ static bebop_decorator_arg_t* bebop__parse_decorator_args(bebop_parser_t* p, uin
       break;
     }
 
-    bebop_decorator_arg_t* arg =
-        BEBOP_ARRAY_PUSH(BEBOP_ARENA(p->ctx), args, count, capacity, bebop_decorator_arg_t);
+    bebop_decorator_arg_t* arg = BEBOP_INTERNAL_ARRAY_PUSH(
+        BEBOP_ARENA(p->ctx), args, count, capacity, bebop_decorator_arg_t
+    );
     if (!arg) {
       break;
     }
@@ -1281,7 +1282,8 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
       bool name_ok = true;
       while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
         BEBOP_PARSE_ADVANCE(p);
-        if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'")) {
+        if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'"))
+        {
           name_ok = false;
           break;
         }
@@ -1477,7 +1479,8 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
                 p,
                 tok,
                 BEBOP_DIAG_INVALID_LITERAL,
-                "'%s' is a member of enum '%s'; an enum value cannot reference another enum's members",
+                "'%s' is a member of enum '%s'; an enum value cannot reference another enum's "
+                "members",
                 name ? name : "",
                 other_name ? other_name : ""
             );
@@ -1780,7 +1783,7 @@ static bebop_enum_member_t* bebop__parse_enum_member_inline(
     return NULL;
   }
 
-  bebop_enum_member_t* member = BEBOP_ARRAY_PUSH(
+  bebop_enum_member_t* member = BEBOP_INTERNAL_ARRAY_PUSH(
       BEBOP_ARENA(p->ctx), enum_def->enum_def.members, *count, *capacity, bebop_enum_member_t
   );
   if (!member) {
@@ -1891,7 +1894,7 @@ static bebop_field_t* bebop__parse_field_inline(
 
   bebop_field_t** fields_ptr =
       is_message ? &parent->message_def.fields : &parent->struct_def.fields;
-  bebop_field_t* field = BEBOP_ARRAY_PUSH(
+  bebop_field_t* field = BEBOP_INTERNAL_ARRAY_PUSH(
       BEBOP_ARENA(p->ctx), *fields_ptr, *fields->count, *fields->capacity, bebop_field_t
   );
   if (!field) {
@@ -2007,7 +2010,7 @@ static bebop_method_t* bebop__parse_method_inline(
     }
   }
 
-  bebop_method_t* method = BEBOP_ARRAY_PUSH(
+  bebop_method_t* method = BEBOP_INTERNAL_ARRAY_PUSH(
       BEBOP_ARENA(p->ctx), service_def->service_def.methods, *count, *capacity, bebop_method_t
   );
   if (!method) {
@@ -2099,8 +2102,7 @@ static bebop_decorator_target_t bebop__parse_target_expr(bebop_parser_t* p)
   if (!BEBOP_PARSE_CONSUME(
           p,
           BEBOP_TOKEN_IDENTIFIER,
-          "Expected target constant (STRUCT, MESSAGE, ENUM, " "UNION, FIELD, SERVICE, METHOD, "
-                                                              "BRANCH, or ALL)"
+          "Expected target constant (STRUCT, MESSAGE, ENUM, " "UNION, FIELD, SERVICE, METHOD, " "BR" "AN" "CH" ", " "or" " A" "LL" ")"
       ))
   {
     return BEBOP_TARGET_NONE;
@@ -2141,7 +2143,10 @@ static bebop_decorator_target_t bebop__parse_target_expr(bebop_parser_t* p)
 }
 
 static const char* bebop__parse_lua_block(
-    bebop_parser_t* p, size_t* len_out, bebop_span_t* span_out, uint32_t* level_out,
+    bebop_parser_t* p,
+    size_t* len_out,
+    bebop_span_t* span_out,
+    uint32_t* level_out,
     const char* block_name
 )
 {
@@ -2259,7 +2264,7 @@ static bool bebop__parse_macro_param(bebop_parser_t* p, bebop_macro_param_def_t*
       param->allowed_value_count = 0;
 
       while (!BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_RBRACKET) && !BEBOP_PARSE_AT_END(p)) {
-        bebop_literal_t* slot = BEBOP_ARRAY_PUSH(
+        bebop_literal_t* slot = BEBOP_INTERNAL_ARRAY_PUSH(
             BEBOP_ARENA(p->ctx),
             param->allowed_values,
             param->allowed_value_count,
@@ -3459,7 +3464,7 @@ static void bebop__parse_file(bebop_parser_t* p)
           bebop__def_add_nested(frame->def, branch_def);
         }
 
-        bebop_union_branch_t* branch = BEBOP_ARRAY_PUSH(
+        bebop_union_branch_t* branch = BEBOP_INTERNAL_ARRAY_PUSH(
             BEBOP_ARENA(p->ctx),
             frame->def->union_def.branches,
             frame->count,
@@ -3529,7 +3534,7 @@ static void bebop__parse_file(bebop_parser_t* p)
                   p, BEBOP_DIAG_INVALID_SERVICE_TYPE, "Service mixin must be a named service type"
               );
             } else {
-              bebop_type_t** slot = BEBOP_ARRAY_PUSH(
+              bebop_type_t** slot = BEBOP_INTERNAL_ARRAY_PUSH(
                   BEBOP_ARENA(p->ctx),
                   def->service_def.mixins,
                   mixin_count,

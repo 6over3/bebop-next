@@ -7,24 +7,15 @@
 
 #include "bebop.h"
 
-static void* fuzz_alloc_fn(size_t size, void* ctx)
-{
-  (void)ctx;
-  return malloc(size);
-}
-
-static void* fuzz_realloc_fn(void* ptr, size_t old_size, size_t new_size, void* ctx)
+static void* fuzz_alloc_fn(void* ptr, size_t old_size, size_t new_size, void* ctx)
 {
   (void)old_size;
   (void)ctx;
+  if (new_size == 0) {
+    free(ptr);
+    return NULL;
+  }
   return realloc(ptr, new_size);
-}
-
-static void fuzz_free_fn(void* ptr, size_t size, void* ctx)
-{
-  (void)size;
-  (void)ctx;
-  free(ptr);
 }
 
 static bebop_file_result_t fuzz_file_reader_fn(const char* path, void* ctx)
@@ -63,8 +54,6 @@ static inline bebop_host_t fuzz_host(void)
 {
   bebop_host_t host = {0};
   host.allocator.alloc = fuzz_alloc_fn;
-  host.allocator.realloc = fuzz_realloc_fn;
-  host.allocator.free = fuzz_free_fn;
   host.allocator.ctx = NULL;
   host.file_reader.read = fuzz_file_reader_fn;
   host.file_reader.exists = fuzz_file_exists_fn;

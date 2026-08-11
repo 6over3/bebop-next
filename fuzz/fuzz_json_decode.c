@@ -2,80 +2,74 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 // clang-format off
 #include "bebop_wire.c"
-#include "../tests/generated/json.bb.c"
+#include "../tests/generated/bebop/json.bb.c"
 // clang-format on
 
 #ifndef __AFL_FUZZ_TESTCASE_LEN
 #define __AFL_FUZZ_INIT()
 #define __AFL_INIT()
 #define __AFL_LOOP(n) (fuzz_stdin_read())
-#define __AFL_FUZZ_TESTCASE_BUF fuzz_buf
-#define __AFL_FUZZ_TESTCASE_LEN fuzz_len
+#define __AFL_FUZZ_TESTCASE_BUF fuzz_buffer
+#define __AFL_FUZZ_TESTCASE_LEN fuzz_length
 
-static unsigned char fuzz_buf[1024 * 1024];
-static int fuzz_len;
-static int fuzz_done;
+static unsigned char fuzz_buffer[1024 * 1024];
+static int fuzz_length;
+static bool fuzz_done;
 
-static int fuzz_stdin_read(void)
+static bool fuzz_stdin_read(void)
 {
   if (fuzz_done) {
-    return 0;
+    return false;
   }
-  fuzz_len = (int)fread(fuzz_buf, 1, sizeof(fuzz_buf), stdin);
-  fuzz_done = 1;
-  return fuzz_len > 0;
+  fuzz_length = (int)fread(fuzz_buffer, 1, sizeof(fuzz_buffer), stdin);
+  fuzz_done = true;
+  return fuzz_length > 0;
 }
 #endif
 
 __AFL_FUZZ_INIT();
 
-static void* fuzz_alloc(void* ptr, size_t old, size_t new, void* ctx)
+static void* fuzz_alloc(void* pointer, size_t old_size, size_t new_size, void* context)
 {
-  (void)ctx;
-  (void)old;
-  if (new == 0) {
-    free(ptr);
+  (void)context;
+  (void)old_size;
+  if (new_size == 0) {
+    free(pointer);
     return NULL;
   }
-  return realloc(ptr, new);
+  return realloc(pointer, new_size);
 }
 
-static bebop_wire_ctx_t* fuzz_ctx_new(void)
+static Bebop_Context* fuzz_context(void)
 {
-  bebop_wire_ctx_opts_t opts = bebop_wire_ctx_default_opts();
-  opts.arena_options.allocator.alloc = fuzz_alloc;
-  return bebop_wire_ctx_new_with_opts(&opts);
+  Bebop_ContextOptions options = bebop_context_options();
+  options.arena_options.allocator.alloc = fuzz_alloc;
+  return bebop_context_new(&options);
 }
 
 int main(void)
 {
   __AFL_INIT();
 
-  unsigned char* buf = __AFL_FUZZ_TESTCASE_BUF;
-
+  const unsigned char* buffer = __AFL_FUZZ_TESTCASE_BUF;
   while (__AFL_LOOP(10000)) {
-    int len = __AFL_FUZZ_TESTCASE_LEN;
-    if (len <= 0) {
+    const int length = __AFL_FUZZ_TESTCASE_LEN;
+    if (length <= 0) {
       continue;
     }
 
-    bebop_wire_ctx_t* ctx = fuzz_ctx_new();
-    if (!ctx) {
+    Bebop_Context* context = fuzz_context();
+    if (!context) {
       continue;
     }
 
-    bebop_wire_reader_t* rd = NULL;
-    if (bebop_wire_ctx_reader(ctx, (const uint8_t*)buf, (size_t)len, &rd) == BEBOP_WIRE_OK) {
-      json_JsonValue value = {0};
-      json_JsonValue_decode(ctx, rd, &value);
-    }
-
-    bebop_wire_ctx_free(ctx);
+    Bebop_Value value = {0};
+    (void)Bebop_Value_decode(context, bebop_view(buffer, (size_t)length), &value);
+    bebop_context_free(context);
   }
 
   return 0;
