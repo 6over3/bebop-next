@@ -70,6 +70,7 @@ jobs:
               "noEmit": true,
               "paths": {
                 "@bebop/runtime": ["../plugins/typescript/packages/runtime/src/index.ts"],
+                "@bebop/runtime/rpc/protocol": ["../plugins/typescript/packages/runtime/src/rpc.bb.ts"],
                 "@bebop/runtime/*": ["../plugins/typescript/packages/runtime/src/*"]
               }
             },

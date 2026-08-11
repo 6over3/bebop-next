@@ -1674,13 +1674,16 @@ function writeAddSizeStatements(
         imports,
       );
       return;
-    case TypeKind.MAP:
+    case TypeKind.MAP: {
       out.line("size += 4;");
-      out.block(`for (const [_k, _v] of ${value})`, (body) => {
-        writeAddSizeStatements(body, required(type.mapKey, "map missing key"), "_k", imports);
-        writeAddSizeStatements(body, required(type.mapValue, "map missing value"), "_v", imports);
+      const key = temporary(imports, "key");
+      const mapValue = temporary(imports, "value");
+      out.block(`for (const [${key}, ${mapValue}] of ${value})`, (body) => {
+        writeAddSizeStatements(body, required(type.mapKey, "map missing key"), key, imports);
+        writeAddSizeStatements(body, required(type.mapValue, "map missing value"), mapValue, imports);
       });
       return;
+    }
     case TypeKind.DEFINED:
       writeAddDefinedSizeStatement(out, required(type.definedFqn, "defined type missing fqn"), value, imports);
       return;

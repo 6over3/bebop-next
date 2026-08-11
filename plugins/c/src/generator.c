@@ -3339,10 +3339,16 @@ static void gen_size_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 
   if (!has_fields) {
     emit(ctx, "BEBOP_WIRE_UNUSED(v);");
+    emit(ctx, "return bebop_indexed_message_size(0, NULL, 0);");
+    free(sorted);
+    ctx->indent--;
+    emit(ctx, "}");
+    emit_nl(ctx);
+    return;
   }
 
   emit(ctx, "size_t size = 0;");
-  emit(ctx, "uint8_t tags[%u];", field_count > 0 ? field_count : 1);
+  emit(ctx, "uint8_t tags[%u];", field_count);
   emit(ctx, "uint8_t present = 0;");
 
   ctx->loop_depth = 0;
@@ -3698,7 +3704,16 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   }
 
   ctx->indent++;
-  if (field_count == 0) {
+  uint32_t sorted_count;
+  message_field_entry_t* sorted = message_fields_by_tag(def, &sorted_count);
+  bool has_fields = false;
+  for (uint32_t i = 0; i < sorted_count; i++) {
+    if (!field_is_deprecated(sorted[i].field)) {
+      has_fields = true;
+      break;
+    }
+  }
+  if (!has_fields) {
     emit(ctx, "BEBOP_WIRE_UNUSED(v);");
   }
   emit(ctx, "// @@bebop_insertion_point(encode_start:%s)", name);
@@ -3710,13 +3725,12 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
       "return r;"
   );
   emit(ctx, "size_t start = bebop_writer_length(w);");
-  emit(ctx, "uint8_t tags[%u];", field_count > 0 ? field_count : 1);
-  emit(ctx, "uint32_t offsets[%u];", field_count > 0 ? field_count : 1);
-  emit(ctx, "uint8_t present = 0;");
-  emit_nl(ctx);
-
-  uint32_t sorted_count;
-  message_field_entry_t* sorted = message_fields_by_tag(def, &sorted_count);
+  if (has_fields) {
+    emit(ctx, "uint8_t tags[%u];", field_count);
+    emit(ctx, "uint32_t offsets[%u];", field_count);
+    emit(ctx, "uint8_t present = 0;");
+    emit_nl(ctx);
+  }
   ctx->loop_depth = 0;
   for (uint32_t i = 0; i < sorted_count; i++) {
     const bebop_descriptor_field_t* f = sorted[i].field;
@@ -3742,7 +3756,13 @@ static void gen_encode_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def
   }
 
   emit(ctx, "// @@bebop_insertion_point(encode_end:%s)", name);
-  emit(ctx, "return bebop_writer_end_indexed_message(w, len_pos, start, tags, offsets, present);");
+  if (has_fields) {
+    emit(
+        ctx, "return bebop_writer_end_indexed_message(w, len_pos, start, tags, offsets, present);"
+    );
+  } else {
+    emit(ctx, "return bebop_writer_end_indexed_message(w, len_pos, start, NULL, NULL, 0);");
+  }
 
   free(sorted);
 
