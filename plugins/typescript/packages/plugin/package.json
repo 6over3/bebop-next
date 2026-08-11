@@ -1,0 +1,46 @@
+{
+  "name": "@bebop/plugin",
+  "version": "2026.0.0-alpha.4",
+  "description": "TypeScript helpers and schema codecs for Bebop compiler plugins.",
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./descriptor": { "types": "./dist/descriptor.bb.d.ts", "import": "./dist/descriptor.bb.js" },
+    "./node": { "types": "./dist/node.d.ts", "import": "./dist/node.js" },
+    "./protocol": { "types": "./dist/plugin.bb.d.ts", "import": "./dist/plugin.bb.js" },
+    "./sdk": { "types": "./dist/sdk.d.ts", "import": "./dist/sdk.js" },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@bebop/runtime": "^2026.0.0-alpha.4"
+  },
+  "engines": {
+    "node": ">=26"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/6over3/bebop.git",
+    "directory": "plugins/typescript/packages/plugin"
+  },
+  "keywords": ["bebop", "compiler", "plugin", "typescript"],
+  "license": "Apache-2.0"
+}

@@ -10,13 +10,13 @@ struct LoopbackAuthInfo: AuthInfo {
 
 struct WidgetHandler: WidgetServiceHandler {
     func getWidget(
-        _ request: EchoRequest, context _: RpcContext
+        _ request: EchoRequest.View, context _: RpcContext
     ) async throws -> EchoResponse {
-        EchoResponse(value: request.value)
+        EchoResponse(value: request.value.string)
     }
 
     func listWidgets(
-        _ request: CountRequest, context _: RpcContext
+        _ request: CountRequest.View, context _: RpcContext
     ) async throws -> AsyncThrowingStream<CountResponse, Error> {
         AsyncThrowingStream { c in
             for i in 0 ..< request.n {
@@ -27,24 +27,24 @@ struct WidgetHandler: WidgetServiceHandler {
     }
 
     func uploadWidgets(
-        _ requests: AsyncThrowingStream<EchoRequest, Error>,
+        _ requests: AsyncThrowingStream<EchoRequest.View, Error>,
         context _: RpcContext
     ) async throws -> EchoResponse {
         var parts: [String] = []
         for try await req in requests {
-            parts.append(req.value)
+            parts.append(req.value.string)
         }
         return EchoResponse(value: parts.joined(separator: ","))
     }
 
     func syncWidgets(
-        _ requests: AsyncThrowingStream<EchoRequest, Error>,
+        _ requests: AsyncThrowingStream<EchoRequest.View, Error>,
         context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: EchoResponse.self)
         let task = Task {
             for try await req in requests {
-                continuation.yield(EchoResponse(value: req.value))
+                continuation.yield(EchoResponse(value: req.value.string))
             }
             continuation.finish()
         }
@@ -65,7 +65,7 @@ struct LoopbackChannel: BebopChannel {
         let serverCtx = context.binding(to: method)
         if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
         let data = try await router.unary(methodId: method, payload: request, ctx: serverCtx)
-        return Response(value: data, metadata: ())
+        return Response(message: data, metadata: ())
     }
 
     func serverStream(method: UInt32, request: [UInt8], context: RpcContext) async throws
@@ -90,21 +90,21 @@ struct LoopbackChannel: BebopChannel {
         return StreamResponse<[UInt8], Void>(stream: tupleStream, trailing: { () })
     }
 
-    func clientStream(method: UInt32, context: RpcContext) async throws -> (
-        send: @Sendable ([UInt8]) async throws -> Void,
-        finish: @Sendable () async throws -> Response<[UInt8], Void>
-    ) {
+    func clientStream(
+        method: UInt32, context: RpcContext
+    ) async throws -> ClientStream<[UInt8], [UInt8], Void> {
         let serverCtx = context.binding(to: method)
         if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
         let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: serverCtx)
-        return (send: send, finish: { try await Response(value: rawFinish(), metadata: ()) })
+        return ClientStream(
+            send: send,
+            finish: { try await Response(message: rawFinish(), metadata: ()) }
+        )
     }
 
-    func duplexStream(method: UInt32, context: RpcContext) async throws -> (
-        send: @Sendable ([UInt8]) async throws -> Void,
-        finish: @Sendable () async throws -> Void,
-        responses: StreamResponse<[UInt8], Void>
-    ) {
+    func duplexStream(
+        method: UInt32, context: RpcContext
+    ) async throws -> DuplexStream<[UInt8], [UInt8], Void> {
         let serverCtx = context.binding(to: method)
         if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
         let (send, finish, responses) = try await router.duplexStream(methodId: method, ctx: serverCtx)
@@ -121,7 +121,7 @@ struct LoopbackChannel: BebopChannel {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
-        return (
+        return DuplexStream(
             send: send, finish: finish,
             responses: StreamResponse<[UInt8], Void>(stream: tupleStream, trailing: { () })
         )

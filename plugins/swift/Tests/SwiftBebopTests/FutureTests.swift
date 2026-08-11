@@ -9,38 +9,66 @@ private struct SlowHandler: WidgetServiceHandler {
         self.delay = delay
     }
 
-    func getWidget(_ request: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+    func getWidget(_ request: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
         try await Task.sleep(for: delay)
-        return EchoResponse(value: request.value)
+        return EchoResponse(value: request.value.string)
     }
 
-    func listWidgets(_: CountRequest, context _: RpcContext) async throws
+    func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
         -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
     func uploadWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> EchoResponse { fatalError() }
     func syncWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
 }
 
 private struct MetadataHandler: WidgetServiceHandler {
-    func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
+    func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
         context.setResponseMetadata("x-trace", "abc-123")
-        return EchoResponse(value: request.value)
+        return EchoResponse(value: request.value.string)
     }
 
-    func listWidgets(_: CountRequest, context _: RpcContext) async throws
+    func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
         -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
     func uploadWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> EchoResponse { fatalError() }
     func syncWidgets(
-        _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+        _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
     ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
 }
 
 @Suite struct FutureTests {
+    @Test func duplicateFutureResultsDoNotEvictTheCachedValue() async throws {
+        let resolver = FutureResolver(
+            maxCompletedResults: 1,
+            sendCancel: { _ in },
+            consumeResolveStream: { _, _ in
+                Issue.record("cached result unexpectedly opened a resolve stream")
+            }
+        )
+        let id = BebopUUID.random()
+        resolver.resolve(
+            result: FutureResult(
+                id: id,
+                outcome: .success(FutureSuccess(payload: [1]))
+            )
+        )
+        resolver.resolve(
+            result: FutureResult(
+                id: id,
+                outcome: .success(FutureSuccess(payload: [2]))
+            )
+        )
+
+        #expect(
+            try await resolver.await(id: id)
+                == .success(FutureSuccess(payload: [1]))
+        )
+    }
+
     @Test func dispatchUnaryAndAwait() async throws {
         let channel = buildChannel(futuresEnabled: true)
         let dispatcher = channel.makeFutureDispatcher()
@@ -81,7 +109,13 @@ private struct MetadataHandler: WidgetServiceHandler {
             request: EchoRequest(value: "slow")
         )
 
+        let task = Task { try await future.value }
+        try await Task.sleep(for: .milliseconds(50))
         try await future.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
     }
 
     @Test func idempotencyDedup() async throws {
@@ -186,13 +220,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: uploadWidgetsId,
-            payload: EchoRequest(value: "x").serializedData()
+            payload: EchoRequest(value: "x").encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -206,13 +240,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: syncWidgetsId,
-            payload: EchoRequest(value: "x").serializedData()
+            payload: EchoRequest(value: "x").encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -226,13 +260,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: listWidgetsId,
-            payload: CountRequest(n: 1).serializedData()
+            payload: CountRequest(n: 1).encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -252,7 +286,7 @@ private struct MetadataHandler: WidgetServiceHandler {
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -329,7 +363,7 @@ private struct MetadataHandler: WidgetServiceHandler {
         )
 
         let resp: Response<EchoResponse, [String: String]> = try await future.response
-        #expect(resp.value.value == "meta")
+        #expect(resp.value == "meta")
         #expect(resp.metadata["x-trace"] == "abc-123")
     }
 

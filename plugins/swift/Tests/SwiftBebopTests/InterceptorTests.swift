@@ -43,7 +43,7 @@ import Testing
         let router = buildRouter(interceptors: [CountingInterceptor(counter: counter)])
         let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "test")
-        _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
+        _ = try await router.unary(methodId: getWidgetId, payload: req.encode(), ctx: ctx)
         let count = await counter.value
         #expect(count == 1)
     }
@@ -53,7 +53,7 @@ import Testing
         let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "test")
         do {
-            _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
+            _ = try await router.unary(methodId: getWidgetId, payload: req.encode(), ctx: ctx)
             Issue.record("should have thrown")
         } catch let error as BebopRpcError {
             #expect(error.code == .permissionDenied)
@@ -72,7 +72,7 @@ import Testing
         ])
         let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "test")
-        _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
+        _ = try await router.unary(methodId: getWidgetId, payload: req.encode(), ctx: ctx)
         #expect(await c1.value == 1)
         #expect(await c2.value == 1)
     }
@@ -86,7 +86,7 @@ import Testing
         let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "test")
         do {
-            _ = try await router.unary(methodId: getWidgetId, payload: req.serializedData(), ctx: ctx)
+            _ = try await router.unary(methodId: getWidgetId, payload: req.encode(), ctx: ctx)
         } catch {}
         #expect(await counter.value == 0)
     }
@@ -97,7 +97,7 @@ import Testing
         let req = CountRequest(n: 3)
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.serverStream(
-                methodId: listWidgetsId, payload: req.serializedData(), ctx: ctx
+                methodId: listWidgetsId, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -125,7 +125,7 @@ import Testing
         let ctx1 = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "allowed")
         let res = try await router.unary(
-            methodId: getWidgetId, payload: req.serializedData(), ctx: ctx1
+            methodId: getWidgetId, payload: req.encode(), ctx: ctx1
         )
         let echo = try EchoResponse.decode(from: res)
         #expect(echo.value == "allowed")
@@ -133,7 +133,7 @@ import Testing
         let ctx2 = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.serverStream(
-                methodId: listWidgetsId, payload: CountRequest(n: 1).serializedData(), ctx: ctx2
+                methodId: listWidgetsId, payload: CountRequest(n: 1).encode(), ctx: ctx2
             )
         }
     }

@@ -211,6 +211,40 @@ void test_response_roundtrip_with_files(void)
   bebop_plugin_response_free(resp);
 }
 
+void test_response_roundtrip_with_large_file(void);
+
+void test_response_roundtrip_with_large_file(void)
+{
+  const size_t content_length = 1048577;
+  char* content = malloc(content_length + 1);
+  TEST_ASSERT_NOT_NULL(content);
+  memset(content, 'x', content_length);
+  content[content_length] = '\0';
+
+  bebop_host_allocator_t alloc = test_allocator();
+  bebop_plugin_response_builder_t* b = bebop_plugin_response_builder_create(&alloc);
+  bebop_plugin_response_builder_add_file(b, "large.c", content);
+  free(content);
+
+  bebop_plugin_response_t* resp = bebop_plugin_response_builder_finish(b);
+  TEST_ASSERT_NOT_NULL(resp);
+
+  const uint8_t* buf = NULL;
+  size_t len = 0;
+  TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_response_encode(ctx, resp, &buf, &len));
+
+  bebop_plugin_response_t* decoded = NULL;
+  TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_response_decode(ctx, buf, len, &decoded));
+  const char* decoded_content = bebop_plugin_response_file_content(decoded, 0);
+  TEST_ASSERT_NOT_NULL(decoded_content);
+  TEST_ASSERT_EQUAL_UINT64(content_length, strlen(decoded_content));
+  TEST_ASSERT_EQUAL_CHAR('x', decoded_content[0]);
+  TEST_ASSERT_EQUAL_CHAR('x', decoded_content[content_length - 1]);
+
+  bebop_plugin_response_free(decoded);
+  bebop_plugin_response_free(resp);
+}
+
 void test_response_roundtrip_with_error(void);
 
 void test_response_roundtrip_with_error(void)
@@ -382,15 +416,19 @@ void test_request_with_host_options(void)
   TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_request_decode(ctx, buf, len, &decoded));
 
   TEST_ASSERT_EQUAL_UINT32(3, bebop_plugin_request_host_option_count(decoded));
-  TEST_ASSERT_EQUAL_STRING("namespace", bebop_plugin_request_host_option_key(decoded, 0));
-  TEST_ASSERT_EQUAL_STRING("MyApp", bebop_plugin_request_host_option_value(decoded, 0));
-  TEST_ASSERT_EQUAL_STRING("emit_source_info", bebop_plugin_request_host_option_key(decoded, 1));
-  TEST_ASSERT_EQUAL_STRING("true", bebop_plugin_request_host_option_value(decoded, 1));
-  TEST_ASSERT_EQUAL_STRING("optimize", bebop_plugin_request_host_option_key(decoded, 2));
-  TEST_ASSERT_EQUAL_STRING("speed", bebop_plugin_request_host_option_value(decoded, 2));
-
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_key(decoded, 99));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_value(decoded, 99));
+  bebop_plugin_option_iterator_t options = bebop_plugin_request_host_options(decoded);
+  const char* key;
+  const char* value;
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("namespace", key);
+  TEST_ASSERT_EQUAL_STRING("MyApp", value);
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("emit_source_info", key);
+  TEST_ASSERT_EQUAL_STRING("true", value);
+  TEST_ASSERT_TRUE(bebop_plugin_option_next(&options, &key, &value));
+  TEST_ASSERT_EQUAL_STRING("optimize", key);
+  TEST_ASSERT_EQUAL_STRING("speed", value);
+  TEST_ASSERT_FALSE(bebop_plugin_option_next(&options, &key, &value));
 
   bebop_plugin_request_free(decoded);
   bebop_plugin_request_free(req);
@@ -411,8 +449,8 @@ void test_request_accessors_null(void)
   TEST_ASSERT_NULL(bebop_plugin_request_schema_at(NULL, 0));
 
   TEST_ASSERT_EQUAL_UINT32(0, bebop_plugin_request_host_option_count(NULL));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_key(NULL, 0));
-  TEST_ASSERT_NULL(bebop_plugin_request_host_option_value(NULL, 0));
+  bebop_plugin_option_iterator_t options = bebop_plugin_request_host_options(NULL);
+  TEST_ASSERT_FALSE(bebop_plugin_option_next(&options, NULL, NULL));
 }
 
 void test_response_accessors_null(void);
@@ -490,6 +528,7 @@ int main(void)
 
   RUN_TEST(test_response_roundtrip_empty);
   RUN_TEST(test_response_roundtrip_with_files);
+  RUN_TEST(test_response_roundtrip_with_large_file);
   RUN_TEST(test_response_roundtrip_with_error);
   RUN_TEST(test_response_roundtrip_with_diagnostics);
 

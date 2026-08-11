@@ -2,9 +2,15 @@
 public struct BatchResults: Sendable {
     private let outcomes: [Int32: BatchOutcome]
 
-    init(_ response: BatchResponse) {
+    init(_ response: BatchResponse) throws {
         var map = [Int32: BatchOutcome](minimumCapacity: response.results.count)
         for result in response.results {
+            guard map[result.callId] == nil else {
+                throw BebopRpcError(
+                    code: .invalidArgument,
+                    detail: "duplicate batch result for call \(result.callId)"
+                )
+            }
             map[result.callId] = result.outcome
         }
         outcomes = map

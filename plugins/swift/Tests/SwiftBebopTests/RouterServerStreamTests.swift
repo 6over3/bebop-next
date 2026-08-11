@@ -8,7 +8,7 @@ import Testing
         let ctx = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
         let req = CountRequest(n: 3)
         let stream = try await router.serverStream(
-            methodId: listWidgetsId, payload: req.serializedData(), ctx: ctx
+            methodId: listWidgetsId, payload: req.encode(), ctx: ctx
         )
         var results: [UInt32] = []
         for try await element in stream {
@@ -23,7 +23,7 @@ import Testing
         let ctx = RpcContext(methodId: listWidgetsId, metadata: [:], deadline: nil)
         let req = CountRequest(n: 0)
         let stream = try await router.serverStream(
-            methodId: listWidgetsId, payload: req.serializedData(), ctx: ctx
+            methodId: listWidgetsId, payload: req.encode(), ctx: ctx
         )
         var count = 0
         for try await _ in stream {

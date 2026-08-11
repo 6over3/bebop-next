@@ -39,7 +39,7 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
     ) async throws -> BebopFuture<Res> {
         let dispatchReq = FutureDispatchRequest(
             methodId: methodId,
-            payload: request.serializedData(),
+            payload: request.encode(),
             idempotencyKey: options.idempotencyKey,
             metadata: context.metadata,
             deadline: context.deadline,
@@ -51,11 +51,11 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
 
         let response = try await channel.unary(
             method: BebopReservedMethod.dispatch,
-            request: dispatchReq.serializedData(),
+            request: dispatchReq.encode(),
             context: dispatchCtx
         )
 
-        let handle = try FutureHandle.decode(from: response.value)
+        let handle = try FutureHandle.decode(from: response.message)
 
         return BebopFuture(
             id: handle.id,
@@ -87,24 +87,14 @@ public extension BebopChannel {
                     context: RpcContext()
                 )
             },
-            openResolveStream: { [self] payload in
+            consumeResolveStream: { [self] payload, consume in
                 let response = try await serverStream(
                     method: BebopReservedMethod.resolve,
                     request: payload,
                     context: RpcContext()
                 )
-                return AsyncThrowingStream { continuation in
-                    let task = Task {
-                        do {
-                            for try await element in response {
-                                continuation.yield(element)
-                            }
-                            continuation.finish()
-                        } catch {
-                            continuation.finish(throwing: error)
-                        }
-                    }
-                    continuation.onTermination = { _ in task.cancel() }
+                for try await element in response {
+                    try consume(element)
                 }
             }
         )

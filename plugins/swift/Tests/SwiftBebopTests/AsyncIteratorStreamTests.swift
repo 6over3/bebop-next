@@ -57,158 +57,131 @@ import Testing
 
     @Test func clientStreamFeedFromArray() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { send in
-            for value in ["one", "two", "three"] {
-                try await send(EchoRequest(value: value))
-            }
-        }
-        #expect(response.value.value == "one,two,three")
+        let upload = try await client.uploadWidgets()
+        let requests = ["one", "two", "three"].map(EchoRequest.init)
+        let response = try await upload.send(requests)
+        #expect(response.value == "one,two,three")
     }
 
     @Test func clientStreamSendNothing() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { _ in }
-        #expect(response.value.value == "")
+        let upload = try await client.uploadWidgets()
+        let response = try await upload.finish()
+        #expect(response.value == "")
     }
 
     @Test func clientStreamSendSingleItem() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { send in
-            try await send(EchoRequest(value: "solo"))
-        }
-        #expect(response.value.value == "solo")
+        let upload = try await client.uploadWidgets()
+        try await upload.send(EchoRequest(value: "solo"))
+        let response = try await upload.finish()
+        #expect(response.value == "solo")
     }
 
     @Test func duplexInterleavedSendAndReceive() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            var iterator = responses.makeAsyncIterator()
+        let sync = try await client.syncWidgets()
+        var responses = sync.responses.makeAsyncIterator()
 
-            try await send(EchoRequest(value: "a"))
-            let r1 = try await iterator.next()
-            #expect(r1?.value == "a")
+        try await sync.send(EchoRequest(value: "a"))
+        let first = try await responses.next()
+        #expect(first?.value == "a")
 
-            try await send(EchoRequest(value: "b"))
-            let r2 = try await iterator.next()
-            #expect(r2?.value == "b")
+        try await sync.send(EchoRequest(value: "b"))
+        let second = try await responses.next()
+        #expect(second?.value == "b")
 
-            try await finish()
-            let done = try await iterator.next()
-            #expect(done == nil)
-        }
+        try await sync.finish()
+        #expect(try await responses.next() == nil)
     }
 
     @Test func duplexCollectAllAfterFinish() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            try await send(EchoRequest(value: "x"))
-            try await send(EchoRequest(value: "y"))
-            try await send(EchoRequest(value: "z"))
-            try await finish()
+        let sync = try await client.syncWidgets()
+        try await sync.send(["x", "y", "z"].map(EchoRequest.init))
 
-            var results: [String] = []
-            for try await item in responses {
-                results.append(item.value)
-            }
-            #expect(results == ["x", "y", "z"])
+        var results: [String] = []
+        for try await item in sync {
+            results.append(item.value)
         }
+        #expect(results == ["x", "y", "z"])
     }
 
     @Test func duplexEarlyBreakOnResponses() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            for i in 0 ..< 10 {
-                try await send(EchoRequest(value: "msg\(i)"))
-            }
-            try await finish()
+        let sync = try await client.syncWidgets()
+        try await sync.send((0 ..< 10).map { EchoRequest(value: "msg\($0)") })
 
-            var collected: [String] = []
-            for try await item in responses {
-                collected.append(item.value)
-                if collected.count == 3 { break }
-            }
-            #expect(collected == ["msg0", "msg1", "msg2"])
+        var collected: [String] = []
+        for try await item in sync.responses {
+            collected.append(item.value)
+            if collected.count == 3 { break }
         }
+        #expect(collected == ["msg0", "msg1", "msg2"])
     }
 
     @Test func duplexEmptyStream() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { _, finish, responses in
-            try await finish()
-            var count = 0
-            for try await _ in responses {
-                count += 1
-            }
-            #expect(count == 0)
+        let sync = try await client.syncWidgets()
+        try await sync.finish()
+        var count = 0
+        for try await _ in sync.responses {
+            count += 1
         }
+        #expect(count == 0)
     }
 
     @Test func clientStreamFromAsyncGenerator() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { send in
-            let source = AsyncStream<EchoRequest> { c in
-                for word in ["alpha", "bravo", "charlie"] {
-                    c.yield(EchoRequest(value: word))
-                }
-                c.finish()
+        let upload = try await client.uploadWidgets()
+        let source = AsyncStream<EchoRequest> { continuation in
+            for word in ["alpha", "bravo", "charlie"] {
+                continuation.yield(EchoRequest(value: word))
             }
-            for await request in source {
-                try await send(request)
-            }
+            continuation.finish()
         }
-        #expect(response.value.value == "alpha,bravo,charlie")
+        let response = try await upload.send(source)
+        #expect(response.value == "alpha,bravo,charlie")
     }
 
     @Test func duplexSendFromAsyncGeneratorReadInLoop() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            let source = AsyncStream<String> { c in
-                for i in 0 ..< 5 {
-                    c.yield("item-\(i)")
-                }
-                c.finish()
+        let sync = try await client.syncWidgets()
+        let source = AsyncStream<EchoRequest> { continuation in
+            for i in 0 ..< 5 {
+                continuation.yield(EchoRequest(value: "item-\(i)"))
             }
-
-            for await value in source {
-                try await send(EchoRequest(value: value))
-            }
-            try await finish()
-
-            var received: [String] = []
-            for try await response in responses {
-                received.append(response.value)
-            }
-            #expect(received == ["item-0", "item-1", "item-2", "item-3", "item-4"])
+            continuation.finish()
         }
+
+        async let sending: Void = sync.send(source)
+        var received: [String] = []
+        for try await response in sync {
+            received.append(response.value)
+        }
+        try await sending
+        #expect(received == ["item-0", "item-1", "item-2", "item-3", "item-4"])
     }
 
     @Test func duplexConcurrentSendAndReceive() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let received = Counter()
-        try await client.syncWidgets { send, finish, responses in
-            let reader = Task {
-                var values: [String] = []
-                for try await response in responses {
-                    values.append(response.value)
-                    await received.increment()
-                }
-                return values
+        let sync = try await client.syncWidgets()
+        let source = AsyncStream<EchoRequest> { continuation in
+            for i in 0 ..< 4 {
+                continuation.yield(EchoRequest(value: "msg-\(i)"))
             }
-
-            let source = AsyncStream<String> { c in
-                for i in 0 ..< 4 {
-                    c.yield("msg-\(i)")
-                }
-                c.finish()
-            }
-            for await value in source {
-                try await send(EchoRequest(value: value))
-            }
-            try await finish()
-
-            let values = try await reader.value
-            #expect(values == ["msg-0", "msg-1", "msg-2", "msg-3"])
+            continuation.finish()
         }
+
+        async let sending: Void = sync.send(source)
+        var values: [String] = []
+        for try await response in sync {
+            values.append(response.value)
+            await received.increment()
+        }
+        try await sending
+        #expect(values == ["msg-0", "msg-1", "msg-2", "msg-3"])
         #expect(await received.value == 4)
     }
 
@@ -228,17 +201,13 @@ import Testing
 
     @Test func duplexSendFromSequenceReadWithTransform() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            for word in ["hello", "world"] {
-                try await send(EchoRequest(value: word))
-            }
-            try await finish()
+        let sync = try await client.syncWidgets()
+        try await sync.send(["hello", "world"].map(EchoRequest.init))
 
-            var uppercased: [String] = []
-            for try await response in responses {
-                uppercased.append(response.value.uppercased())
-            }
-            #expect(uppercased == ["HELLO", "WORLD"])
+        var uppercased: [String] = []
+        for try await response in sync {
+            uppercased.append(response.value.uppercased())
         }
+        #expect(uppercased == ["HELLO", "WORLD"])
     }
 }

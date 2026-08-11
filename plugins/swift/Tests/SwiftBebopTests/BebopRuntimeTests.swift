@@ -19,6 +19,19 @@ private func roundTrip<T>(
     }
 }
 
+@Test func foundationDataCopiesDirectlyToAndFromRuntimeBuffers() throws {
+    let expected = Data([0, 1, 2, 3, 255])
+    var writer = BebopWriter()
+    writer.writeData(expected)
+
+    let actual = try writer.withUnsafeBytes { bytes in
+        var reader = BebopReader(data: bytes)
+        return try reader.readData(expected.count)
+    }
+
+    #expect(actual == expected)
+}
+
 // MARK: - Bool
 
 @Test func boolTrue() throws {
@@ -321,9 +334,10 @@ private func roundTrip<T>(
 }
 
 @Test func bfloat16NaNComparisons() {
-    #expect(BFloat16.nan != BFloat16.nan)
-    #expect(!(BFloat16.nan > BFloat16.nan))
-    #expect(!(BFloat16.nan < BFloat16.nan))
+    let nan = BFloat16.nan
+    #expect(nan != nan)
+    #expect(!(nan > nan))
+    #expect(!(nan < nan))
 }
 
 @Test func bfloat16Hashing() {
@@ -490,27 +504,108 @@ private func roundTrip<T>(
 
 // MARK: - Message Helpers
 
-@Test func messageLength() throws {
+@Test func lengthPrefixedValue() throws {
     var writer = BebopWriter()
-    let pos = writer.reserveMessageLength()
-    writer.writeTag(1)
+    let pos = writer.beginLengthPrefixedValue()
+    writer.writeByte(1)
     writer.writeBool(true)
-    writer.writeEndMarker()
-    writer.fillMessageLength(at: pos)
+    writer.endLengthPrefixedValue(at: pos)
 
-    let result = try writer.withUnsafeBytes { buf -> (UInt32, UInt8, Bool, UInt8) in
+    let result = try writer.withUnsafeBytes { buf -> (UInt32, UInt8, Bool) in
         var reader = BebopReader(data: buf)
         return try (
-            reader.readMessageLength(),
-            reader.readTag(),
-            reader.readBool(),
-            reader.readTag()
+            reader.beginLengthPrefixedValue(),
+            reader.readByte(),
+            reader.readBool()
         )
     }
-    #expect(result.0 == 3)
+    #expect(result.0 == 2)
     #expect(result.1 == 1)
     #expect(result.2 == true)
-    #expect(result.3 == 0)
+}
+
+private func indexedMessage(tags sourceTags: [UInt8], fieldLengths: [Int]) -> [UInt8] {
+    precondition(sourceTags.count == fieldLengths.count && sourceTags.count <= 4)
+    var writer = BebopWriter()
+    let payloadStart = writer.beginMessage()
+    if sourceTags.isEmpty {
+        writer.endMessage(payloadStart: payloadStart)
+        return writer.toBytes()
+    }
+
+    var tags = InlineArray<4, UInt8> { _ in 0 }
+    var offsets = InlineArray<4, UInt32> { _ in 0 }
+    for index in sourceTags.indices {
+        tags[index] = sourceTags[index]
+        offsets[index] = UInt32(writer.position - payloadStart)
+        for byte in 0..<fieldLengths[index] {
+            writer.writeByte(sourceTags[index] &+ UInt8(truncatingIfNeeded: byte))
+        }
+    }
+    writer.endMessage(
+        payloadStart: payloadStart,
+        tags: tags,
+        offsets: offsets,
+        count: sourceTags.count)
+    return writer.toBytes()
+}
+
+@Test func indexedMessageDirectoryLayoutsAndLookup() throws {
+    let layouts: [([UInt8], UInt8)] = [
+        ([], 0),
+        ([200], 1),
+        ([9, 200], 2),
+        ([9, 17, 200], 3),
+        ([1, 8], 4),
+        ([1, 9], 5),
+        ([1, 9, 17, 32], 6),
+        ([1, 33, 65, 200], 7),
+    ]
+
+    for (tags, kind) in layouts {
+        let encoded = indexedMessage(tags: tags, fieldLengths: Array(repeating: 1, count: tags.count))
+        let view = try BebopMessageView(encoded)
+        #expect(encoded.last! >> 2 == kind)
+        for tag in tags {
+            #expect(view.field(tag)?.first == tag)
+        }
+        #expect(view.field(255) == nil)
+    }
+}
+
+@Test func indexedMessageMatchesReferenceWireBytes() {
+    let encoded = indexedMessage(tags: [1, 8], fieldLengths: [1, 1])
+    #expect(encoded == [5, 0, 0, 0, 1, 8, 1, 0x81, 0x10])
+}
+
+@Test func indexedMessageBoundaryWidthsAndSize() throws {
+    for (payloadSize, widthCode) in [(255, UInt8(0)), (256, 1), (65_535, 1), (65_536, 2)] {
+        let encoded = indexedMessage(tags: [1], fieldLengths: [payloadSize])
+        #expect(encoded.last! & 3 == widthCode)
+        #expect(try BebopMessageView(encoded).field(1)?.count == payloadSize)
+
+        let tags = InlineArray<1, UInt8> { _ in 1 }
+        #expect(
+            encoded.count
+                == BebopMessageLayout.encodedSize(payloadSize: payloadSize, tags: tags, count: 1))
+    }
+}
+
+@Test func indexedMessageFieldsShareBackingStorage() throws {
+    let encoded = indexedMessage(tags: [1, 33], fieldLengths: [4, 2])
+    let message = try BebopMessageView(encoded)
+    let field = try #require(message.field(1))
+    let originalAddress = encoded.withUnsafeBytes { $0.baseAddress! }
+    let fieldAddress = field.withUnsafeBytes { $0.baseAddress! }
+    #expect(fieldAddress == originalAddress + 4)
+}
+
+@Test func indexedMessageRejectsMalformedMetadata() throws {
+    var encoded = indexedMessage(tags: [1, 33], fieldLengths: [4, 2])
+    encoded[encoded.count - 1] |= 0x80
+    #expect(throws: BebopDecodingError.malformedMessage) {
+        try BebopMessageView(encoded)
+    }
 }
 
 // MARK: - Collection Helpers
@@ -531,6 +626,16 @@ private func roundTrip<T>(
         try $0.readMapLength()
     }
     #expect(r == 7)
+}
+
+@Test func fixedArrayElementsMayEncodeToZeroBytes() throws {
+    let bytes: [UInt8] = []
+    let values = try bytes.withUnsafeBytes { buffer in
+        var reader = BebopReader(data: buffer)
+        return try reader.readFixedArray(3) { _ in 42 }
+    }
+
+    #expect(values == [42, 42, 42])
 }
 
 // MARK: - Skip

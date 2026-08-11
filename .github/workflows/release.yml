@@ -81,12 +81,23 @@ jobs:
     needs: [validate]
     uses: ./.github/workflows/swift.yml
 
+  typescript:
+    needs: [validate]
+    uses: ./.github/workflows/typescript.yml
+
   codegen-c:
     needs: [linux-x64]
     uses: ./.github/workflows/codegen.yml
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: c
+
+  codegen-typescript:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: typescript
 
   vscode:
     needs: [validate]
@@ -122,7 +133,7 @@ jobs:
           retention-days: 1
 
   package:
-    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, codegen-c]
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript]
     runs-on: ubuntu-latest
     env:
       V: ${{ needs.validate.outputs.version }}
@@ -142,6 +153,7 @@ jobs:
             ["bebopc-windows-11-arm-arm64"]="windows-arm64"
           )
           mkdir -p dist
+          shopt -s nullglob
           for artifact in "${!ARTIFACT_MAP[@]}"; do
             target="${ARTIFACT_MAP[$artifact]}"
             archive="bebop@${V}+${target}.tar.gz"
@@ -153,21 +165,30 @@ jobs:
             if [[ "$target" == windows-* ]]; then
               cp "${src}/bin/bebopc.exe" "${staging}/bin/"
               cp "${src}/lib/bebop.lib" "${staging}/lib/"
-              for gen in ${src}/bin/bebopc-gen-*.exe; do
-                [ -f "$gen" ] && cp "$gen" "${staging}/bin/"
-              done
+              generators=("${src}"/bin/bebopc-gen-*.exe)
             else
               cp "${src}/bin/bebopc" "${staging}/bin/"
               cp "${src}/lib/libbebop.a" "${staging}/lib/"
-              for gen in ${src}/bin/bebopc-gen-*; do
-                [ -f "$gen" ] && cp "$gen" "${staging}/bin/"
-              done
+              generators=("${src}"/bin/bebopc-gen-*)
             fi
+            if (( ${#generators[@]} == 0 )); then
+              echo "::error::${target} does not contain code generators"
+              exit 1
+            fi
+            cp "${generators[@]}" "${staging}/bin/"
             cp -r "${src}/include/." "${staging}/include/"
             cp -r "${src}/share/bebop/." "${staging}/share/bebop/"
 
             tar -czf "dist/${archive}" -C "${staging}" .
             rm -rf "${staging}"
+          done
+          for package in bebop-runtime bebop-plugin bebop-generator-typescript; do
+            matches=(artifacts/bebop-typescript-packages/${package}-*.tgz)
+            if (( ${#matches[@]} != 1 )); then
+              echo "::error::expected one ${package} tarball, found ${#matches[@]}"
+              exit 1
+            fi
+            cp "${matches[0]}" dist/
           done
 
       - name: Generate manifest

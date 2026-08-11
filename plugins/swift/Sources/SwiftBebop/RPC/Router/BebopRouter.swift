@@ -8,15 +8,37 @@ public enum BebopReservedMethod {
 }
 
 public struct BebopRouterConfig: Sendable {
-    public var discoveryEnabled: Bool = true
-    public var futuresEnabled: Bool = false
-    public var maxBatchSize: UInt = .max
-    public var maxBatchStreamElements: UInt = .max
-    public var maxPendingFutures: UInt = .max
-    public var maxCompletedFutures: UInt = 10000
-    public var allowUnauthenticatedFutureOwners: Bool = false
+    public var discoveryEnabled: Bool
+    public var futuresEnabled: Bool
+    public var maxBatchSize: UInt
+    public var maxBatchStreamElements: UInt
+    public var maxPendingFutures: UInt
+    public var maxCompletedFutures: UInt
+    public var futureSubscriberBufferCapacity: Int
+    public var decodeLimits: BebopDecodeLimits
+    public var allowUnauthenticatedFutureOwners: Bool
 
-    public init() {}
+    public init(
+        discoveryEnabled: Bool = true,
+        futuresEnabled: Bool = false,
+        maxBatchSize: UInt = 1_024,
+        maxBatchStreamElements: UInt = 10_000,
+        maxPendingFutures: UInt = 10_000,
+        maxCompletedFutures: UInt = 10_000,
+        futureSubscriberBufferCapacity: Int = 256,
+        decodeLimits: BebopDecodeLimits = .default,
+        allowUnauthenticatedFutureOwners: Bool = false
+    ) {
+        self.discoveryEnabled = discoveryEnabled
+        self.futuresEnabled = futuresEnabled
+        self.maxBatchSize = maxBatchSize
+        self.maxBatchStreamElements = maxBatchStreamElements
+        self.maxPendingFutures = maxPendingFutures
+        self.maxCompletedFutures = maxCompletedFutures
+        self.futureSubscriberBufferCapacity = futureSubscriberBufferCapacity
+        self.decodeLimits = decodeLimits
+        self.allowUnauthenticatedFutureOwners = allowUnauthenticatedFutureOwners
+    }
 }
 
 public struct BebopRouter<Store: FutureStorage>: Sendable {
@@ -46,6 +68,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
     public func unary(
         methodId: UInt32, payload: [UInt8], ctx: RpcContext
     ) async throws -> [UInt8] {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         switch methodId {
         case BebopReservedMethod.discovery:
             return try handleDiscovery()
@@ -73,6 +99,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
     public func serverStream(
         methodId: UInt32, payload: [UInt8], ctx: RpcContext
     ) async throws -> AsyncThrowingStream<StreamElement, Error> {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         switch methodId {
         case BebopReservedMethod.resolve:
             return try await handleResolve(payload: payload, ctx: ctx)
@@ -97,6 +127,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         send: @Sendable ([UInt8]) async throws -> Void,
         finish: @Sendable () async throws -> [UInt8]
     ) {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         guard let reg = methods[methodId] else {
             throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
         }
@@ -115,6 +149,10 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         finish: @Sendable () async throws -> Void,
         responses: AsyncThrowingStream<StreamElement, Error>
     ) {
+        guard ctx.methodId == methodId else {
+            throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
+        }
+        ctx.setDecodeLimits(config.decodeLimits)
         guard let reg = methods[methodId] else {
             throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
         }
@@ -136,6 +174,6 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         guard config.discoveryEnabled else {
             throw BebopRpcError(code: .unimplemented, detail: "discovery disabled")
         }
-        return DiscoveryResponse(services: serviceInfos).serializedData()
+        return DiscoveryResponse(services: serviceInfos).encode()
     }
 }

@@ -207,13 +207,10 @@ private let bob = "bob"
 
         gate.continuation.finish()
 
-        var received: [FutureResult] = []
-        for await result in stream {
-            received.append(result)
-            break
-        }
-        #expect(received.count == 1)
-        #expect(received[0].id == id)
+        var iterator = stream.makeAsyncIterator()
+        let received = try await iterator.next()
+        #expect(received?.id == id)
+        #expect(try await iterator.next() == nil)
     }
 
     @Test func subscribeFiltersbyOwner() async throws {
@@ -258,6 +255,42 @@ private let bob = "bob"
 
         let (bobResults, _) = await store.subscribe(futureIds: nil, owner: bob)
         #expect(bobResults.count == 1)
+    }
+
+    @Test func wildcardSubscriptionDoesNotRepeatItsImmediateSnapshot() async throws {
+        let gate = AsyncStream.makeStream(of: Void.self)
+        let store = FutureStore()
+        let id = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
+            futureId in
+            for await _ in gate.stream { break }
+            return FutureResult(
+                id: futureId,
+                outcome: .success(FutureSuccess(payload: [1], metadata: [:]))
+            )
+        }
+        let completed = FutureResult(
+            id: id,
+            outcome: .success(FutureSuccess(payload: [1], metadata: [:]))
+        )
+        _ = await store.complete(id: id, result: completed)
+
+        let (immediate, stream) = await store.subscribe(futureIds: nil, owner: alice)
+        #expect(immediate.map(\.id) == [id])
+
+        await store.notify(id: id, result: completed, owner: alice)
+        let nextId = BebopUUID.random()
+        await store.notify(
+            id: nextId,
+            result: FutureResult(
+                id: nextId,
+                outcome: .success(FutureSuccess(payload: [2], metadata: [:]))
+            ),
+            owner: alice
+        )
+
+        var iterator = stream.makeAsyncIterator()
+        #expect(try await iterator.next()?.id == nextId)
+        gate.continuation.finish()
     }
 
     @Test func dispatchLimitRejectsWhenExceeded() async throws {
@@ -352,7 +385,7 @@ private let bob = "bob"
         gate.continuation.finish()
 
         var received: [BebopUUID] = []
-        for await result in stream {
+        for try await result in stream {
             received.append(result.id)
             break
         }
@@ -375,7 +408,7 @@ private let bob = "bob"
         }
 
         var pushed: [FutureResult] = []
-        for await result in subscriberStream {
+        for try await result in subscriberStream {
             pushed.append(result)
             break
         }
@@ -403,7 +436,7 @@ private let bob = "bob"
         }
 
         var pushed: [FutureResult] = []
-        for await result in subscriberStream {
+        for try await result in subscriberStream {
             pushed.append(result)
             break
         }
@@ -413,5 +446,30 @@ private let bob = "bob"
         // Default retention store, but fire-and-forget discards this future
         let retained = await store.contains(id)
         #expect(!retained)
+    }
+
+    @Test func slowFutureSubscribersFailInsteadOfBufferingWithoutBound() async throws {
+        let store = FutureStore(subscriberBufferCapacity: 1)
+        let (_, stream) = await store.subscribe(futureIds: nil, owner: alice)
+        let firstId = BebopUUID.random()
+        let secondId = BebopUUID.random()
+
+        await store.notify(
+            id: firstId,
+            result: FutureResult(id: firstId, outcome: .success(FutureSuccess(payload: []))),
+            owner: alice
+        )
+        await store.notify(
+            id: secondId,
+            result: FutureResult(id: secondId, outcome: .success(FutureSuccess(payload: []))),
+            owner: alice
+        )
+
+        do {
+            for try await _ in stream {}
+            Issue.record("expected subscriber overflow")
+        } catch let error as BebopRpcError {
+            #expect(error.code == .resourceExhausted)
+        }
     }
 }

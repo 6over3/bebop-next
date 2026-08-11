@@ -1367,6 +1367,12 @@ typedef struct bebop_plugin_request bebop_plugin_request_t;
 typedef struct bebop_plugin_response bebop_plugin_response_t;
 typedef struct bebop_plugin_response_builder bebop_plugin_response_builder_t;
 
+//! Allocation-free cursor over a plugin request's host options.
+typedef struct {
+  const bebop_plugin_request_t* request;
+  size_t cursor;
+} bebop_plugin_option_iterator_t;
+
 // Request lifecycle
 
 BEBOP_API bebop_status_t bebop_plugin_request_decode(
@@ -1397,12 +1403,12 @@ BEBOP_API const bebop_descriptor_schema_t* bebop_plugin_request_schema_at(
 
 BEBOP_API uint32_t bebop_plugin_request_host_option_count(const bebop_plugin_request_t* req);
 
-BEBOP_API const char* bebop_plugin_request_host_option_key(
-    const bebop_plugin_request_t* req, uint32_t idx
+BEBOP_API bebop_plugin_option_iterator_t bebop_plugin_request_host_options(
+    const bebop_plugin_request_t* req
 );
 
-BEBOP_API const char* bebop_plugin_request_host_option_value(
-    const bebop_plugin_request_t* req, uint32_t idx
+BEBOP_API bool bebop_plugin_option_next(
+    bebop_plugin_option_iterator_t* iterator, const char** key, const char** value
 );
 
 // Response lifecycle

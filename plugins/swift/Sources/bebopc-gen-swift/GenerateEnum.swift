@@ -67,8 +67,13 @@ enum GenerateEnum {
                 prefix: declPrefix(doc: member.documentation, decorators: member.decorators)
             )
         }
+        try validateUniqueGeneratedNames(
+            memberDecls.map(\.caseName),
+            in: "enum '\(defName)'"
+        )
 
         var body: [String] = []
+        body.append("\(vis)typealias View = \(name)")
         body.append("\(vis)let rawValue: \(baseType)")
         body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
@@ -80,6 +85,13 @@ enum GenerateEnum {
             """
             \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
                 return \(name)(rawValue: try reader.\(readMethod)())
+            }
+            """)
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                \(name)(rawValue: try reader.\(readMethod)())
             }
             """)
 
@@ -152,8 +164,13 @@ enum GenerateEnum {
                 prefix: declPrefix(doc: member.documentation, decorators: member.decorators)
             )
         }
+        try validateUniqueGeneratedNames(
+            memberDecls.filter { $0.value != 0 }.map(\.caseName),
+            in: "flags '\(defName)'"
+        )
 
         var body: [String] = []
+        body.append("\(vis)typealias View = \(name)")
         body.append("\(vis)let rawValue: \(baseType)")
         body.append("\(vis)init(rawValue: \(baseType)) { self.rawValue = rawValue }")
 
@@ -165,6 +182,13 @@ enum GenerateEnum {
             """
             \(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {
                 return \(name)(rawValue: try reader.\(readMethod)())
+            }
+            """)
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                \(name)(rawValue: try reader.\(readMethod)())
             }
             """)
 

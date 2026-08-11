@@ -2,7 +2,7 @@ import BebopPlugin
 
 enum NamingPolicy {
     static func typeName(_ name: String) -> String {
-        escapeKeyword(name)
+        escapeKeyword(toPascalCase(name))
     }
 
     static func fieldName(_ name: String) -> String {
@@ -17,8 +17,12 @@ enum NamingPolicy {
         escapeKeyword(toCamelCase(name))
     }
 
-    static func registerSchemas(_ schemas: [SchemaDescriptor], localFiles: Set<String>) throws {
-        fqnMap.removeAll()
+    @TaskLocal static var fqnMap: [String: String] = [:]
+
+    static func makeFQNMap(
+        schemas: [SchemaDescriptor], localFiles: Set<String>
+    ) throws -> [String: String] {
+        var result: [String: String] = [:]
         for schema in schemas {
             let isLocal = schema.path.map { localFiles.contains($0) } ?? false
             let prefix: String = if let pkg = schema.package {
@@ -28,26 +32,29 @@ enum NamingPolicy {
             }
             if let definitions = schema.definitions {
                 for def in definitions {
-                    try registerDefinition(def, prefix: prefix, isLocal: isLocal)
+                    try registerDefinition(
+                        def, prefix: prefix, isLocal: isLocal, into: &result)
                 }
             }
         }
         // Well-known runtime types override whatever the loop computed
-        fqnMap["bebop.Any"] = "BebopAny"
-        fqnMap["bebop.Empty"] = "BebopEmpty"
-        fqnMap["bebop.Null"] = "Null"
-        fqnMap["bebop.Value"] = "Value"
-        fqnMap["bebop.Value.Bool"] = "Value.Bool"
-        fqnMap["bebop.Value.Number"] = "Value.Number"
-        fqnMap["bebop.Value.String"] = "Value.String"
-        fqnMap["bebop.Value.List"] = "Value.List"
-        fqnMap["bebop.Value.Map"] = "Value.Map"
-        fqnMap["bebop.Object"] = "Object"
-        fqnMap["bebop.List"] = "List"
+        result["bebop.Any"] = "BebopAny"
+        result["bebop.Empty"] = "BebopEmpty"
+        result["bebop.Null"] = "Null"
+        result["bebop.Value"] = "Value"
+        result["bebop.Value.Bool"] = "Value.Bool"
+        result["bebop.Value.Number"] = "Value.Number"
+        result["bebop.Value.String"] = "Value.String"
+        result["bebop.Value.List"] = "Value.List"
+        result["bebop.Value.Map"] = "Value.Map"
+        result["bebop.Object"] = "Object"
+        result["bebop.List"] = "List"
+        return result
     }
 
     private static func registerDefinition(
-        _ def: DefinitionDescriptor, prefix: String, isLocal: Bool
+        _ def: DefinitionDescriptor, prefix: String, isLocal: Bool,
+        into map: inout [String: String]
     ) throws {
         guard let fqn = def.fqn else {
             throw CodegenError.malformedDefinition("definition missing fqn during registration")
@@ -66,16 +73,17 @@ enum NamingPolicy {
             swiftName = fqn.split(separator: ".").map { typeName(String($0)) }.joined(
                 separator: ".")
         }
-        fqnMap[fqn] = swiftName
+        guard map[fqn] == nil else {
+            throw CodegenError.malformedDefinition("duplicate definition fqn '\(fqn)'")
+        }
+        map[fqn] = swiftName
 
         if let nested = def.nested {
             for child in nested {
-                try registerDefinition(child, prefix: prefix, isLocal: isLocal)
+                try registerDefinition(child, prefix: prefix, isLocal: isLocal, into: &map)
             }
         }
     }
-
-    private nonisolated(unsafe) static var fqnMap: [String: String] = [:]
 
     static func fqnToTypeName(_ fqn: String) -> String {
         if let cached = fqnMap[fqn] {
@@ -121,6 +129,20 @@ enum NamingPolicy {
         }
         result.append(contentsOf: name[i...])
         return result
+    }
+
+    private static func toPascalCase(_ name: String) -> String {
+        guard !name.isEmpty else { return name }
+        if name.contains("_") {
+            return name.split(separator: "_", omittingEmptySubsequences: true)
+                .map { part in
+                    let lower = part.lowercased()
+                    return lower.prefix(1).uppercased() + String(lower.dropFirst())
+                }
+                .joined()
+        }
+        guard let first = name.first, first.isLowercase else { return name }
+        return first.uppercased() + String(name.dropFirst())
     }
 
     private static let hardKeywords: Set<String> = [

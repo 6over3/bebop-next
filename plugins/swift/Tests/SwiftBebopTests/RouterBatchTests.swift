@@ -3,6 +3,42 @@ import Testing
 @testable import SwiftBebop
 
 @Suite struct RouterBatchTests {
+    private struct ContextMethodInterceptor: BebopInterceptor {
+        func intercept(
+            methodId: UInt32,
+            ctx: RpcContext,
+            proceed: @Sendable () async throws -> Void
+        ) async throws {
+            guard methodId == ctx.methodId else {
+                throw BebopRpcError(code: .internal, detail: "context method ID mismatch")
+            }
+            try await proceed()
+        }
+    }
+
+    @Test func batchCallsBindTheirOwnMethodId() async throws {
+        let router = buildRouter(interceptors: [ContextMethodInterceptor()])
+        let context = RpcContext(
+            methodId: BebopReservedMethod.batch,
+            metadata: [:],
+            deadline: nil
+        )
+        let request = BatchRequest(calls: [
+            BatchCall(
+                callId: 0,
+                methodId: getWidgetId,
+                payload: EchoRequest(value: "bound").encode(),
+                inputFrom: -1
+            )
+        ])
+
+        _ = try await router.unary(
+            methodId: BebopReservedMethod.batch,
+            payload: request.encode(),
+            ctx: context
+        )
+    }
+
     @Test func singleUnaryCall() async throws {
         let router = buildRouter()
         let ctx = RpcContext(methodId: 1, metadata: [:], deadline: nil)
@@ -11,14 +47,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hi").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hi").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 1)
@@ -40,18 +76,18 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "a").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "a").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 1, methodId: getWidgetId,
-                    payload: EchoRequest(value: "b").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "b").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 2)
@@ -82,7 +118,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hello").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hello").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -90,7 +126,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 2)
@@ -104,14 +140,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: listWidgetsId,
-                    payload: CountRequest(n: 3).serializedData(), inputFrom: -1
+                    payload: CountRequest(n: 3).encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -138,7 +174,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         guard case let .error(e) = response.results[0].outcome else {
@@ -154,7 +190,7 @@ import Testing
 
         let req = BatchRequest(calls: [], metadata: [:])
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.isEmpty)
@@ -168,11 +204,11 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "a").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "a").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "b").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "b").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
@@ -180,7 +216,7 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -198,7 +234,7 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -216,24 +252,24 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
 
     @Test func handlerErrorPreservesCodeAndDetail() async throws {
         struct FailingHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
                 throw BebopRpcError(code: .internal, detail: "boom")
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -244,14 +280,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "fail").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "fail").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         guard case let .error(e) = response.results[0].outcome else {
@@ -264,17 +300,17 @@ import Testing
 
     @Test func handlerErrorCascadesToDependents() async throws {
         struct FailingHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
                 throw BebopRpcError(code: .permissionDenied, detail: "nope")
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -285,7 +321,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "x").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "x").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -293,7 +329,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -328,7 +364,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -351,18 +387,18 @@ import Testing
 
     @Test func singleCallMetadata() async throws {
         struct MetadataHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
                 context.setResponseMetadata("trace-id", "abc-123")
-                return EchoResponse(value: request.value)
+                return EchoResponse(value: request.value.string)
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -373,17 +409,17 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hi").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hi").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
         let ref = CallRef<EchoResponse>(callId: 0)
 
         let meta = try results.metadata(for: ref)
@@ -392,18 +428,18 @@ import Testing
 
     @Test func concurrentCallMetadataIsolation() async throws {
         struct TaggingHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
-                context.setResponseMetadata("source", request.value)
-                return EchoResponse(value: request.value)
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+                context.setResponseMetadata("source", request.value.string)
+                return EchoResponse(value: request.value.string)
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -414,21 +450,21 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "alpha").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "alpha").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 1, methodId: getWidgetId,
-                    payload: EchoRequest(value: "beta").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "beta").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref0 = CallRef<EchoResponse>(callId: 0)
         let ref1 = CallRef<EchoResponse>(callId: 1)
@@ -441,18 +477,18 @@ import Testing
 
     @Test func dependentCallMetadataIsolation() async throws {
         struct TaggingHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
-                context.setResponseMetadata("step", request.value)
-                return EchoResponse(value: request.value)
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+                context.setResponseMetadata("step", request.value.string)
+                return EchoResponse(value: request.value.string)
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -463,7 +499,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "first").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "first").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -471,10 +507,10 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref0 = CallRef<EchoResponse>(callId: 0)
         let ref1 = CallRef<EchoResponse>(callId: 1)
@@ -489,7 +525,7 @@ import Testing
 
     @Test func inputFromPropagatesUpstreamResponseMetadata() async throws {
         struct MetaPropHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
                 if request.value == "upstream" {
                     context.setResponseMetadata("widget-id", "42")
                 }
@@ -497,16 +533,19 @@ import Testing
                 if let widgetId = context.metadata["widget-id"] {
                     context.setResponseMetadata("saw-widget-id", widgetId)
                 }
-                return EchoResponse(value: request.value)
+                if let batch = context.metadata["batch"] {
+                    context.setResponseMetadata("saw-batch", batch)
+                }
+                return EchoResponse(value: request.value.string)
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>, context _: RpcContext
+                _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }
 
@@ -517,21 +556,22 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "upstream").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "upstream").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
-            metadata: [:]
+            metadata: ["widget-id": "batch", "batch": "present"]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref1 = CallRef<EchoResponse>(callId: 1)
         let meta1 = try results.metadata(for: ref1)
         #expect(meta1["saw-widget-id"] == "42")
+        #expect(meta1["saw-batch"] == "present")
     }
 }

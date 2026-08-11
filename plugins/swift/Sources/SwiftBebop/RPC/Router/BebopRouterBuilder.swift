@@ -1,6 +1,6 @@
 /// Mutable builder for `BebopRouter`.
 public final class BebopRouterBuilder {
-    public var config = BebopRouterConfig()
+    public var config: BebopRouterConfig
 
     private static let reservedMethodIds: Set<UInt32> = [
         BebopReservedMethod.discovery,
@@ -14,7 +14,9 @@ public final class BebopRouterBuilder {
     private var serviceInfos: [ServiceInfo] = []
     private var interceptors: [any BebopInterceptor] = []
 
-    public init() {}
+    public init(config: BebopRouterConfig = BebopRouterConfig()) {
+        self.config = config
+    }
 
     public func addInterceptor(_ interceptor: some BebopInterceptor) {
         interceptors.append(interceptor)
@@ -62,7 +64,8 @@ public final class BebopRouterBuilder {
             case .duplexStream:
                 reg = .duplexStream { ctx in try await duplexStream(m, ctx) }
             default:
-                continue
+                preconditionFailure(
+                    "method '\(m.name)' has unsupported type \(m.methodType.rawValue)")
             }
             methods[m.rawValue] = reg
         }
@@ -73,7 +76,8 @@ public final class BebopRouterBuilder {
         if config.futuresEnabled {
             store = FutureStore(
                 maxPendingFutures: config.maxPendingFutures,
-                maxCompletedFutures: config.maxCompletedFutures
+                maxCompletedFutures: config.maxCompletedFutures,
+                subscriberBufferCapacity: config.futureSubscriberBufferCapacity
             )
         }
         return BebopRouter(

@@ -6,7 +6,7 @@ import Testing
     @Test func fullUnaryFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let response = try await client.getWidget(value: "e2e")
-        #expect(response.value.value == "e2e")
+        #expect(response.value == "e2e")
     }
 
     @Test func fullServerStreamFlow() async throws {
@@ -21,25 +21,20 @@ import Testing
 
     @Test func fullClientStreamFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { send in
-            try await send(EchoRequest(value: "hello"))
-            try await send(EchoRequest(value: "world"))
-        }
-        #expect(response.value.value == "hello,world")
+        let upload = try await client.uploadWidgets()
+        let response = try await upload.send(["hello", "world"].map(EchoRequest.init))
+        #expect(response.value == "hello,world")
     }
 
     @Test func fullDuplexStreamFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            try await send(EchoRequest(value: "m1"))
-            try await send(EchoRequest(value: "m2"))
-            try await finish()
-            var results: [String] = []
-            for try await item in responses {
-                results.append(item.value)
-            }
-            #expect(results == ["m1", "m2"])
+        let sync = try await client.syncWidgets()
+        try await sync.send(["m1", "m2"].map(EchoRequest.init))
+        var results: [String] = []
+        for try await item in sync {
+            results.append(item.value)
         }
+        #expect(results == ["m1", "m2"])
     }
 
     @Test func discoveryThroughChannel() async throws {
@@ -77,23 +72,23 @@ import Testing
 
         let client = WidgetServiceClient(channel: buildChannel(interceptors: [TagInterceptor()]))
         let response = try await client.getWidget(value: "intercepted")
-        #expect(response.value.value == "intercepted")
+        #expect(response.value == "intercepted")
     }
 
     @Test func errorFromHandlerPropagates() async {
         struct FailHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
                 throw BebopRpcError(code: .internal, detail: "boom")
             }
 
-            func listWidgets(_: CountRequest, context _: RpcContext) async throws
+            func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
                 -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
             func uploadWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>,
+                _: AsyncThrowingStream<EchoRequest.View, Error>,
                 context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
             func syncWidgets(
-                _: AsyncThrowingStream<EchoRequest, Error>,
+                _: AsyncThrowingStream<EchoRequest.View, Error>,
                 context _: RpcContext
             ) async throws -> AsyncThrowingStream<EchoResponse, Error> { fatalError() }
         }

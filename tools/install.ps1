@@ -183,6 +183,18 @@ try {
     }
     Write-Ok
 
+    $archiveEntries = @(& tar tzf $archivePath 2>$null) | ForEach-Object { $_ -replace '^\./', '' }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail 'Failed to inspect the archive.'
+    }
+    if ($archiveEntries -notcontains "bin/$Exe") {
+        throw "$Exe not found in $archive."
+    }
+    $archiveGenerators = @($archiveEntries | Where-Object { $_ -match '^bin/bebopc-gen-[^/]+(?:\.exe)?$' })
+    if ($archiveGenerators.Count -eq 0) {
+        throw "No code generators found in $archive."
+    }
+
     Write-Step "Extracting to $Prefix"
     New-Item -ItemType Directory -Path $Prefix -Force | Out-Null
     & tar xzf $archivePath -C $Prefix 2>$null
@@ -194,6 +206,10 @@ try {
     $bebopcPath = Join-Path $BinDir $Exe
     if (-not (Test-Path $bebopcPath)) {
         throw 'bebopc binary not found after extraction.'
+    }
+    $installedGenerators = @(Get-ChildItem (Join-Path $BinDir 'bebopc-gen-*') -File)
+    if ($installedGenerators.Count -eq 0) {
+        throw 'No code generators found after extraction.'
     }
 
     if ($os -ne 'windows') {

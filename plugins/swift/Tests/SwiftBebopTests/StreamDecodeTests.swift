@@ -5,8 +5,8 @@ import Testing
 @Suite struct StreamDecodeTests {
     @Test func decodesTypedStream() async throws {
         let rawStream = AsyncThrowingStream<[UInt8], Error> { c in
-            c.yield(EchoResponse(value: "a").serializedData())
-            c.yield(EchoResponse(value: "b").serializedData())
+            c.yield(EchoResponse(value: "a").encode())
+            c.yield(EchoResponse(value: "b").encode())
             c.finish()
         }
 
@@ -32,7 +32,7 @@ import Testing
 
     @Test func errorPropagates() async {
         let rawStream = AsyncThrowingStream<[UInt8], Error> { c in
-            c.yield(EchoResponse(value: "ok").serializedData())
+            c.yield(EchoResponse(value: "ok").encode())
             c.finish(throwing: BebopRpcError(code: .internal))
         }
         let typed = rawStream.decode(EchoResponse.self)

@@ -41,29 +41,83 @@ enum GenerateMessage {
                 index: fIndex,
                 prefix: declPrefix(doc: field.documentation, decorators: field.decorators)
             )
+        }.sorted { $0.index < $1.index }
+        try validateUniqueGeneratedNames(
+            fieldDecls.map(\.swiftName),
+            in: "message '\(defName)'"
+        )
+        var fieldIndexes: Set<UInt32> = []
+        for field in fieldDecls {
+            guard field.index > 0, field.index <= UInt8.max else {
+                throw CodegenError.malformedDefinition(
+                    "message '\(defName)' field '\(field.name)' index must be between 1 and 255"
+                )
+            }
+            guard fieldIndexes.insert(field.index).inserted else {
+                throw CodegenError.malformedDefinition(
+                    "message '\(defName)' has duplicate field index \(field.index)"
+                )
+            }
         }
 
         var body: [String] = []
 
-        // fields
-        for f in fieldDecls {
-            body.append("\(f.prefix)\(vis)var \(f.swiftName): \(f.swiftType)?")
-        }
-
-        // init
         let initParams = fieldDecls.map { "\($0.swiftName): \($0.swiftType)? = nil" }.joined(
             separator: ", ")
-        var initBody: [String] = []
-        for f in fieldDecls {
-            initBody.append("self.\(f.swiftName) = \(f.swiftName)")
+        let copyArguments = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(
+            separator: ", ")
+        if fieldDecls.isEmpty {
+            body.append("\(vis)init() {}")
+        } else {
+            let storageFields = fieldDecls.map { "var \($0.swiftName): \($0.swiftType)?" }
+            let storageAssignments = fieldDecls.map { "self.\($0.swiftName) = \($0.swiftName)" }
+            let storageLines = storageFields
+                + ["init(\(initParams)) {"]
+                + storageAssignments.map { "    " + $0 }
+                + ["}", "func copy() -> Storage { Storage(\(copyArguments)) }"]
+            let storageBody = storageLines.map { indent($0) }.joined(separator: "\n")
+            body.append("private final class Storage: @unchecked Sendable {\n\(storageBody)\n}")
+            body.append("private var storage: Storage")
+
+            for f in fieldDecls {
+                body.append(
+                    """
+                    \(f.prefix)\(vis)var \(f.swiftName): \(f.swiftType)? {
+                        get { storage.\(f.swiftName) }
+                        set {
+                            if !isKnownUniquelyReferenced(&storage) { storage = storage.copy() }
+                            storage.\(f.swiftName) = newValue
+                        }
+                    }
+                    """)
+            }
+
+            body.append("\(vis)init(\(initParams)) { storage = Storage(\(copyArguments)) }")
         }
-        let initBodyStr = initBody.map { indent($0) }.joined(separator: "\n")
-        body.append("\(vis)init(\(initParams)) {\n\(initBodyStr)\n}")
 
         // ==
-        let eqExpr = fieldDecls.map { "lhs.\($0.swiftName) == rhs.\($0.swiftName)" }.joined(
-            separator: " && ")
-        let eqBody = ["return \(eqExpr.isEmpty ? "true" : eqExpr)"]
+        var eqBody: [String] = []
+        for field in fieldDecls {
+            if field.type.kind == .fixedArray {
+                eqBody.append("switch (lhs.\(field.swiftName), rhs.\(field.swiftName)) {")
+                eqBody.append("case (.none, .none): break")
+                eqBody.append("case let (.some(left), .some(right)):")
+                eqBody.append(
+                    contentsOf: try fixedArrayEqualityLines(
+                        type: field.type,
+                        lhs: "left",
+                        rhs: "right"
+                    ).map { "    " + $0 }
+                )
+                eqBody.append("default: return false")
+                eqBody.append("}")
+            } else {
+                eqBody.append(
+                    "if lhs.\(field.swiftName) != rhs.\(field.swiftName) { return false }"
+                )
+            }
+        }
+        eqBody.append("return true")
         let eqBodyStr = eqBody.map { indent($0) }.joined(separator: "\n")
         let boolType = TypeMapper.unshadow("Bool")
         body.append("\(vis)static func == (lhs: \(name), rhs: \(name)) -> \(boolType) {\n\(eqBodyStr)\n}")
@@ -71,7 +125,19 @@ enum GenerateMessage {
         // hash
         var hashBody: [String] = []
         for f in fieldDecls {
-            hashBody.append("hasher.combine(\(f.swiftName))")
+            if f.type.kind == .fixedArray {
+                hashBody.append("if let value = \(f.swiftName) {")
+                hashBody.append("    hasher.combine(true)")
+                hashBody.append(
+                    contentsOf: try fixedArrayHashLines(type: f.type, value: "value")
+                        .map { "    " + $0 }
+                )
+                hashBody.append("} else {")
+                hashBody.append("    hasher.combine(false)")
+                hashBody.append("}")
+            } else {
+                hashBody.append("hasher.combine(\(f.swiftName))")
+            }
         }
         let hashBodyStr = hashBody.map { indent($0) }.joined(separator: "\n")
         body.append("\(vis)func hash(into hasher: inout Hasher) {\n\(hashBodyStr)\n}")
@@ -79,39 +145,23 @@ enum GenerateMessage {
         // decode
         var decodeBody: [String] = [
             "// @@bebop_insertion_point(decode_start:\(defName))",
-            "let length = try reader.readMessageLength()",
-            "let end = reader.position + Int(length)",
         ]
         for f in fieldDecls {
             decodeBody.append("var \(f.swiftName): \(f.swiftType)? = nil")
         }
-        decodeBody.append("var sawEndMarker = false")
-        var switchLines: [String] = [
-            "while reader.position < end {",
-            "    let tag = try reader.readTag()",
-            "    if tag == 0 {",
-            "        sawEndMarker = true",
-            "        break",
-            "    }",
-            "    switch tag {",
-        ]
         for f in fieldDecls {
-            let readExpr = try TypeMapper.readExpression(for: f.type)
-            switchLines.append("    case \(f.index):")
-            switchLines.append("        \(f.swiftName) = \(readExpr)")
+            let readExpr = try TypeMapper.readExpression(for: f.type, reader: "fieldReader")
+            decodeBody.append("try withField(\(f.index)) { fieldReader in")
+            decodeBody.append(indent("\(f.swiftName) = \(readExpr)"))
+            decodeBody.append("}")
         }
-        switchLines.append("    default:")
-        switchLines.append("        try reader.skip(end - reader.position)")
-        switchLines.append("    }")
-        switchLines.append("}")
-        decodeBody.append(switchLines.joined(separator: "\n"))
-        decodeBody.append("guard sawEndMarker && reader.position == end else {")
-        decodeBody.append("    throw BebopDecodingError.trailingData")
-        decodeBody.append("}")
         decodeBody.append("// @@bebop_insertion_point(decode_end:\(defName))")
         let args = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
         decodeBody.append("return \(name)(\(args))")
-        let decodeBodyStr = decodeBody.map { indent($0) }.joined(separator: "\n")
+        let messageDecodeBody = decodeBody.map { indent($0) }.joined(separator: "\n")
+        let decodeBodyStr = indent(
+            "return try reader.readMessage { withField in\n\(messageDecodeBody)\n}"
+        )
         body.append(
             "\(vis)static func decode(from reader: inout BebopReader) throws -> \(name) {\n\(decodeBodyStr)\n}"
         )
@@ -119,16 +169,26 @@ enum GenerateMessage {
         // encode
         var encodeBody: [String] = [
             "// @@bebop_insertion_point(encode_start:\(defName))",
-            "let pos = writer.reserveMessageLength()",
+            "let payloadStart = writer.beginMessage()",
         ]
+        if !fieldDecls.isEmpty {
+            encodeBody.append("var tags = InlineArray<\(fieldDecls.count), UInt8> { _ in 0 }")
+            encodeBody.append("var offsets = InlineArray<\(fieldDecls.count), UInt32> { _ in 0 }")
+            encodeBody.append("var fieldCount = 0")
+        }
         for f in fieldDecls {
             let writeExpr = try TypeMapper.writeExpression(for: f.type, value: "_v")
             encodeBody.append(
-                "if let _v = \(f.swiftName) {\n    writer.writeTag(\(String(f.index)))\n    \(writeExpr)\n}"
+                "if let _v = \(f.swiftName) {\n    tags[fieldCount] = \(String(f.index))\n    offsets[fieldCount] = UInt32(writer.position - payloadStart)\n    fieldCount += 1\n\(indent(writeExpr))\n}"
             )
         }
-        encodeBody.append("writer.writeEndMarker()")
-        encodeBody.append("writer.fillMessageLength(at: pos)")
+        if fieldDecls.isEmpty {
+            encodeBody.append("writer.endMessage(payloadStart: payloadStart)")
+        } else {
+            encodeBody.append(
+                "writer.endMessage(payloadStart: payloadStart, tags: tags, offsets: offsets, count: fieldCount)"
+            )
+        }
         encodeBody.append("// @@bebop_insertion_point(encode_end:\(defName))")
         let encodeBodyStr = encodeBody.map { indent($0) }.joined(separator: "\n")
         body.append("\(vis)func encode(to writer: inout BebopWriter) {\n\(encodeBodyStr)\n}")
@@ -137,17 +197,27 @@ enum GenerateMessage {
         if fieldDecls.isEmpty {
             body.append("\(vis)var encodedSize: Int { 5 }")
         } else {
-            var sizeBody = ["var size = 5"]
+            var sizeBody = [
+                "var tags = InlineArray<\(fieldDecls.count), UInt8> { _ in 0 }",
+                "var fieldCount = 0",
+                "var payloadSize = 0",
+            ]
             for f in fieldDecls {
                 let sizeExpr = try TypeMapper.sizeExpression(for: f.type, value: "_v")
                 let needsValue = sizeExpr.contains("_v")
                 if needsValue {
-                    sizeBody.append("if let _v = \(f.swiftName) { size += 1 + \(sizeExpr) }")
+                    sizeBody.append(
+                        "if let _v = \(f.swiftName) { tags[fieldCount] = \(f.index); fieldCount += 1; payloadSize += \(sizeExpr) }"
+                    )
                 } else {
-                    sizeBody.append("if \(f.swiftName) != nil { size += 1 + \(sizeExpr) }")
+                    sizeBody.append(
+                        "if \(f.swiftName) != nil { tags[fieldCount] = \(f.index); fieldCount += 1; payloadSize += \(sizeExpr) }"
+                    )
                 }
             }
-            sizeBody.append("return size")
+            sizeBody.append(
+                "return BebopMessageLayout.encodedSize(payloadSize: payloadSize, tags: tags, count: fieldCount)"
+            )
             let sizeBodyStr = sizeBody.map { indent($0) }.joined(separator: "\n")
             body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
         }
@@ -158,9 +228,7 @@ enum GenerateMessage {
             body.append(codingKeysDecl(ckFields))
         }
 
-        let hasFixedArray = fieldDecls.contains { $0.type.kind == .fixedArray }
-
-        if hasFixedArray {
+        if !fieldDecls.isEmpty {
             var encCodableBody = ["var container = encoder.container(keyedBy: CodingKeys.self)"]
             for f in fieldDecls {
                 if f.type.kind == .fixedArray {
@@ -184,6 +252,7 @@ enum GenerateMessage {
 
             var decCodableBody = [
                 "let container = try decoder.container(keyedBy: CodingKeys.self)",
+                "self.init()",
             ]
             for f in fieldDecls {
                 if f.type.kind == .fixedArray {
@@ -203,10 +272,53 @@ enum GenerateMessage {
                 }
             }
             let decCodableStr = decCodableBody.map { indent($0) }.joined(separator: "\n")
-            body.append(
-                "\(vis)required init(from decoder: Decoder) throws {\n\(decCodableStr)\n}"
-            )
+            body.append("\(vis)init(from decoder: Decoder) throws {\n\(decCodableStr)\n}")
         }
+
+        var viewBody: [String] = ["private let message: BebopMessageView"]
+        for f in fieldDecls {
+            let viewType = try TypeMapper.viewType(for: f.type)
+            let readExpr = try TypeMapper.viewReadExpression(for: f.type, reader: "fieldReader")
+            viewBody.append(
+                """
+                \(f.prefix)\(vis)var \(f.swiftName): \(viewType)? {
+                    get throws {
+                        try message.decodeField(\(f.index)) { fieldReader in
+                \(indent(readExpr, 3))
+                        }
+                    }
+                }
+                """)
+        }
+        viewBody.append("\(vis)var encoded: BebopView { message.encoded }")
+        viewBody.append("\(vis)func field(_ tag: UInt8) -> BebopView? { message.field(tag) }")
+        viewBody.append(
+            "\(vis)init(_ bytes: [UInt8], limits: BebopDecodeLimits = .default) throws { try self.init(BebopView(bytes), limits: limits) }"
+        )
+        viewBody.append(
+            "\(vis)init(_ encoded: BebopView, limits: BebopDecodeLimits = .default) throws { try self.init(indexed: BebopMessageView(encoded, limits: limits)) }"
+        )
+        let indexedInitBody = ["self.message = message"]
+        let indexedInitBodyString = indexedInitBody.map { indent($0) }.joined(separator: "\n")
+        viewBody.append(
+            "fileprivate init(indexed message: BebopMessageView) {\n\(indexedInitBodyString)\n}"
+        )
+        let decodedBody = [
+            "try message.encoded.withUnsafeBytes { bytes in",
+            "    var reader = BebopReader(data: bytes, limits: message.limits)",
+            "    return try \(name).decode(from: &reader)",
+            "}",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append("\(vis)func decoded() throws -> \(name) {\n\(decodedBody)\n}")
+        let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
+        body.append("\(vis)struct View: BebopRecordView {\n\(viewBodyString)\n}")
+
+        body.append(
+            """
+            \(vis)static func readView(from reader: inout BebopViewReader) throws -> View {
+                try View(indexed: reader.readMessageView())
+            }
+            """)
 
         body.append(
             """
@@ -231,7 +343,7 @@ enum GenerateMessage {
 
         let bodyStr = body.map { indent($0) }.joined(separator: "\n\n")
         return [
-            "\(prefix)\(vis)final class \(name): BebopRecord, BebopReflectable, @unchecked Sendable {\n\(bodyStr)\n}",
+            "\(prefix)\(vis)struct \(name): BebopRecord, BebopReflectable {\n\(bodyStr)\n}",
         ]
     }
 

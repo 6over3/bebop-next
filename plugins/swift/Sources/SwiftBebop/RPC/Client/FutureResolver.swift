@@ -16,8 +16,10 @@ public final class FutureResolver: Sendable {
     }
 
     private let _sendCancel: @Sendable ([UInt8]) async throws -> Void
-    private let _openResolveStream:
-        @Sendable ([UInt8]) async throws -> AsyncThrowingStream<[UInt8], Error>
+    private let _consumeResolveStream: @Sendable (
+        [UInt8],
+        @escaping @Sendable ([UInt8]) throws -> Void
+    ) async throws -> Void
     private let maxCompletedResults: Int
 
     private let _state: Mutex<ResolverState> = .init(.init())
@@ -25,14 +27,15 @@ public final class FutureResolver: Sendable {
     init(
         maxCompletedResults: Int = 10000,
         sendCancel: @escaping @Sendable ([UInt8]) async throws -> Void,
-        openResolveStream:
-        @escaping @Sendable ([UInt8]) async throws -> AsyncThrowingStream<
-            [UInt8], Error
-        >
+        consumeResolveStream: @escaping @Sendable (
+            [UInt8],
+            @escaping @Sendable ([UInt8]) throws -> Void
+        ) async throws -> Void
     ) {
+        precondition(maxCompletedResults >= 0, "maxCompletedResults must be nonnegative")
         self.maxCompletedResults = maxCompletedResults
         _sendCancel = sendCancel
-        _openResolveStream = openResolveStream
+        _consumeResolveStream = consumeResolveStream
     }
 
     deinit {
@@ -54,8 +57,6 @@ public final class FutureResolver: Sendable {
             return cached
         }
 
-        ensureResolveStream()
-
         let entryId = _state.withLock { state -> UInt64 in
             let eid = state.nextEntryId
             state.nextEntryId += 1
@@ -64,6 +65,7 @@ public final class FutureResolver: Sendable {
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
+                var registered = false
                 _state.withLock { state in
                     if let cached = state.completed[id] {
                         continuation.resume(returning: cached)
@@ -75,7 +77,9 @@ public final class FutureResolver: Sendable {
                     }
                     state.pending[id, default: []].append(
                         PendingEntry(entryId: entryId, continuation: continuation))
+                    registered = true
                 }
+                if registered { ensureResolveStream() }
             }
         } onCancel: {
             let entry = _state.withLock { state -> PendingEntry? in
@@ -95,6 +99,7 @@ public final class FutureResolver: Sendable {
 
     func resolve(result: FutureResult) {
         let entries = _state.withLock { state -> [PendingEntry] in
+            guard state.completed[result.id] == nil else { return [] }
             state.completed[result.id] = result.outcome
             state.completedOrder.append(result.id)
             evict(&state)
@@ -107,28 +112,34 @@ public final class FutureResolver: Sendable {
 
     func cancel(id: BebopUUID) async throws {
         let req = FutureCancelRequest(id: id)
-        try await _sendCancel(req.serializedData())
+        try await _sendCancel(req.encode())
+        let entries = _state.withLock { state in
+            state.pending.removeValue(forKey: id) ?? []
+        }
+        for entry in entries {
+            entry.continuation.resume(throwing: CancellationError())
+        }
     }
 
     private func ensureResolveStream() {
         _state.withLock { state in
             guard state.streamTask == nil else { return }
             state.streamTask = Task { [weak self] in
-                guard let self else { return }
+                guard let consumeResolveStream = self?._consumeResolveStream else { return }
                 var streamError: (any Error)?
                 do {
                     let req = FutureResolveRequest()
-                    let stream = try await _openResolveStream(req.serializedData())
-                    for try await bytes in stream {
+                    try await consumeResolveStream(req.encode()) { [weak self] bytes in
                         let result = try FutureResult.decode(from: bytes)
-                        resolve(result: result)
+                        self?.resolve(result: result)
                     }
                 } catch is CancellationError {
                     streamError = CancellationError()
                 } catch {
                     streamError = error
                 }
-                let orphaned = _state.withLock { state -> [PendingEntry] in
+                guard let self else { return }
+                let orphaned = self._state.withLock { state -> [PendingEntry] in
                     state.streamTask = nil
                     let all = state.pending.values.flatMap(\.self)
                     state.pending.removeAll()

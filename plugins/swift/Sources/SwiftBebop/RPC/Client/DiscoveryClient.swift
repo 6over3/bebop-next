@@ -12,6 +12,6 @@ public struct DiscoveryClient<C: BebopChannel>: Sendable {
         let result = try await channel.unary(
             method: BebopReservedMethod.discovery, request: [], context: context
         )
-        return try DiscoveryResponse.decode(from: result.value)
+        return try DiscoveryResponse.decode(from: result.message)
     }
 }

@@ -48,9 +48,14 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @usableFromInline
     mutating func grow(to minCapacity: Int) {
+        precondition(minCapacity >= 0, "BebopWriter capacity overflow")
         var newCapacity = capacity
         while newCapacity < minCapacity {
-            newCapacity &*= 2
+            if newCapacity > Int.max / 2 {
+                newCapacity = minCapacity
+                break
+            }
+            newCapacity *= 2
         }
         guard let newStorage = realloc(storage, newCapacity) else {
             preconditionFailure("BebopWriter: failed to reallocate \(newCapacity) bytes")
@@ -61,8 +66,10 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @inlinable @inline(__always)
     mutating func ensureCapacity(for additional: Int) {
-        if _slowPath(_count &+ additional > capacity) {
-            grow(to: _count &+ additional)
+        precondition(additional >= 0 && _count <= Int.max - additional, "BebopWriter size overflow")
+        let required = _count + additional
+        if _slowPath(required > capacity) {
+            grow(to: required)
         }
     }
 
@@ -271,7 +278,8 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     public mutating func writeInlineArray< let N: Int, T: BebopScalar > (
         _ array: InlineArray<N, T>
     ) {
-        let byteCount = N &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = N.multipliedReportingOverflow(by: MemoryLayout<T>.stride)
+        precondition(!overflow, "fixed array byte count overflow")
         guard byteCount > 0 else { return }
         ensureCapacity(for: byteCount)
         withUnsafePointer(to: array) { ptr in
@@ -297,15 +305,18 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @inlinable
     public mutating func writeBytes(_ bytes: [UInt8]) {
-        let count = bytes.count
-        guard count > 0 else { return }
-        ensureCapacity(for: count)
         bytes.withUnsafeBufferPointer { buf in
-            (storage + _count).copyMemory(
-                from: UnsafeRawPointer(buf.baseAddress!), byteCount: count
-            )
+            writeBytes(UnsafeRawBufferPointer(buf))
         }
-        _count &+= count
+    }
+
+    /// Copies a contiguous raw buffer directly into the writer.
+    @inlinable
+    public mutating func writeBytes(_ bytes: UnsafeRawBufferPointer) {
+        guard !bytes.isEmpty else { return }
+        ensureCapacity(for: bytes.count)
+        (storage + _count).copyMemory(from: bytes.baseAddress!, byteCount: bytes.count)
+        _count &+= bytes.count
     }
 
     /// Bulk-write contiguous scalars via memcpy.
@@ -314,7 +325,10 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
     /// little-endian wire format (fixed-width integers and IEEE floats).
     @inlinable
     public mutating func writeArray<T: BebopScalar>(_ values: [T]) {
-        let byteCount = values.count &* MemoryLayout<T>.stride
+        let (byteCount, overflow) = values.count.multipliedReportingOverflow(
+            by: MemoryLayout<T>.stride
+        )
+        precondition(!overflow, "array byte count overflow")
         guard byteCount > 0 else { return }
         ensureCapacity(for: byteCount)
         values.withUnsafeBufferPointer { buf in
@@ -382,19 +396,112 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     // MARK: - Message helpers
 
-    /// Reserve 4 bytes for a message length prefix. Return the offset to
-    /// pass to `fillMessageLength(at:)` after the message body is written.
+    /// The current number of encoded bytes.
+    @inlinable @inline(__always)
+    public var position: Int { _count }
+
+    /// Begins an indexed message and returns its payload start.
     @inlinable
-    public mutating func reserveMessageLength() -> Int {
+    public mutating func beginMessage() -> Int {
+        writeUInt32(0)
+        return _count
+    }
+
+    /// Finishes an empty indexed message.
+    @inlinable
+    public mutating func endMessage(payloadStart: Int) {
+        precondition(_count == payloadStart, "empty message contains payload bytes")
+        writeByte(0)
+        endLengthPrefixedValue(at: payloadStart - 4)
+    }
+
+    /// Appends the indexed-message boundaries and directory, then fills its length prefix.
+    public mutating func endMessage<let N: Int>(
+        payloadStart: Int,
+        tags: borrowing InlineArray<N, UInt8>,
+        offsets: borrowing InlineArray<N, UInt32>,
+        count: Int
+    ) {
+        precondition(count >= 0 && count <= N)
+        precondition(payloadStart >= 4 && payloadStart <= _count)
+        let payloadSize = _count - payloadStart
+        precondition(payloadSize <= Int(UInt32.max))
+        let tagValues = tags.span
+        let offsetValues = offsets.span
+        if count == 0 {
+            precondition(payloadSize == 0, "empty message contains payload bytes")
+        } else {
+            precondition(offsetValues[0] == 0)
+        }
+        for index in 0..<count {
+            precondition(Int(offsetValues[index]) <= payloadSize)
+            if index > 0 {
+                precondition(tagValues[index] > tagValues[index - 1])
+                precondition(offsetValues[index] >= offsetValues[index - 1])
+            }
+        }
+
+        let width = payloadSize <= 255 ? 1 : payloadSize <= 65_535 ? 2 : 4
+        let directory = BebopMessageLayout.directoryLayout(tags: tagValues, count: count)
+        ensureCapacity(for: max(0, count - 1) * width + directory.size + 1)
+        if count > 1 {
+            for index in 1..<count { writeOffset(offsetValues[index], width: width) }
+        }
+
+        switch directory.kind {
+        case 0:
+            break
+        case 1...3:
+            for index in 0..<count { writeByte(tagValues[index]) }
+        case 4...6:
+            var mask: UInt32 = 0
+            for index in 0..<count { mask |= 1 << UInt32(tagValues[index] - 1) }
+            writeOffset(mask, width: directory.size)
+        case 7:
+            var next = 0
+            var rank: UInt8 = 0
+            for block in UInt8(0)..<8 where directory.blockMask & (1 << block) != 0 {
+                var mask: UInt32 = 0
+                let firstTag = block * 32 + 1
+                let limit = UInt16(firstTag) + 32
+                while next < count, UInt16(tagValues[next]) < limit {
+                    mask |= 1 << UInt32(tagValues[next] - firstTag)
+                    next += 1
+                }
+                writeByte(rank)
+                writeUInt32(mask)
+                rank += UInt8(mask.nonzeroBitCount)
+            }
+            writeByte(directory.blockMask)
+        default:
+            preconditionFailure("invalid indexed-message directory")
+        }
+        let widthCode: UInt8 = width == 1 ? 0 : width == 2 ? 1 : 2
+        writeByte(directory.kind << 2 | widthCode)
+        endLengthPrefixedValue(at: payloadStart - 4)
+    }
+
+    @inline(__always)
+    private mutating func writeOffset(_ value: UInt32, width: Int) {
+        switch width {
+        case 1: writeByte(UInt8(truncatingIfNeeded: value))
+        case 2: writeUInt16(UInt16(truncatingIfNeeded: value))
+        default: writeUInt32(value)
+        }
+    }
+
+    /// Begins a non-indexed, length-prefixed value and returns its reservation.
+    @inlinable
+    public mutating func beginLengthPrefixedValue() -> Int {
         ensureCapacity(for: 4)
         let pos = _count
         _count &+= 4
         return pos
     }
 
-    /// Backfill the message length at the offset returned by `reserveMessageLength()`.
+    /// Finishes the value begun at `position` and writes its body length.
     @inlinable
-    public mutating func fillMessageLength(at position: Int) {
+    public mutating func endLengthPrefixedValue(at position: Int) {
         precondition(_count - position - 4 <= Int(UInt32.max), "message exceeds uint32 length")
         let length = UInt32(_count - position - 4)
         storage.storeBytes(
@@ -402,13 +509,4 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
         )
     }
 
-    @inlinable @inline(__always)
-    public mutating func writeTag(_ tag: UInt8) {
-        writeByte(tag)
-    }
-
-    @inlinable @inline(__always)
-    public mutating func writeEndMarker() {
-        writeByte(0)
-    }
 }

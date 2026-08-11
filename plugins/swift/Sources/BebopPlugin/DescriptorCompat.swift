@@ -1,3 +1,4 @@
+import Synchronization
 import SwiftBebop
 
 @_exported import enum SwiftBebop.BebopDecodingError
@@ -8,42 +9,43 @@ public typealias PluginRequest = CodeGeneratorRequest
 /// Semantic version of the `bebopc` compiler that issued the request.
 public typealias CompilerVersion = Version
 
-/// Errors raised during plugin request/response serialization.
-public enum PluginError: Error, Sendable {
-    /// The incoming request bytes could not be decoded.
-    case decodeFailed(String)
-    /// The outgoing response could not be encoded.
-    case encodeFailed(String)
-}
-
 /// Accumulate generated files (or an error) and encode the plugin response.
 ///
 /// Create a builder, call ``addFile(name:content:)`` for each output file,
 /// then call ``encode()`` to produce the wire-format bytes that `bebopc` expects.
-public final class ResponseBuilder: @unchecked Sendable {
-    private var response: CodeGeneratorResponse
+public final class ResponseBuilder: Sendable {
+    private struct State: Sendable {
+        var files: [GeneratedFile] = []
+        var diagnostics: [Diagnostic] = []
+        var error: String?
+    }
 
-    public init() { response = CodeGeneratorResponse() }
+    private let state = Mutex(State())
+
+    public init() {}
 
     /// Record a fatal error message. `bebopc` will report it and discard any files.
     public func setError(_ message: String) {
-        response.error = message
+        state.withLock { $0.error = message }
     }
 
     /// Append a generated file to the response.
     public func addFile(name: String, content: String) {
-        let file = GeneratedFile(name: name, content: content)
-        if var files = response.files {
-            files.append(file)
-            response.files = files
-        } else {
-            response.files = [file]
-        }
+        state.withLock { $0.files.append(GeneratedFile(name: name, content: content)) }
+    }
+
+    public func addDiagnostic(_ diagnostic: Diagnostic) {
+        state.withLock { $0.diagnostics.append(diagnostic) }
     }
 
     /// Serialize the accumulated response to Bebop wire format.
-    public func encode() throws -> [UInt8] {
-        response.serializedData()
+    public func encode() -> [UInt8] {
+        let snapshot = state.withLock { $0 }
+        return CodeGeneratorResponse(
+            error: snapshot.error,
+            files: snapshot.error == nil && !snapshot.files.isEmpty ? snapshot.files : nil,
+            diagnostics: snapshot.diagnostics.isEmpty ? nil : snapshot.diagnostics
+        ).encode()
     }
 }
 

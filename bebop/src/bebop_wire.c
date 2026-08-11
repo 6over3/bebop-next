@@ -1,6 +1,11 @@
 #include <ctype.h>
+#include <stdlib.h>
 
-#include "bebop_wire.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+#include "bebop_wire_codegen.h"
 
 typedef struct bebop_wire_arena_block_impl {
   struct bebop_wire_arena_block_impl* next;
@@ -22,30 +27,140 @@ typedef struct {
   _Atomic size_t total_allocated;
   _Atomic size_t total_used;
 #endif
-  Bebop_ArenaOpts options;
-  Bebop_WireAllocFn alloc;
+  Bebop_ArenaOptions options;
+  Bebop_AllocFn alloc;
   void* alloc_ctx;
 } bebop_wire_arena_impl_t;
 
-struct Bebop_WireCtx {
+struct Bebop_Context {
   bebop_wire_arena_impl_t* arena;
-  Bebop_WireCtxOpts options;
+  Bebop_ContextOptions options;
   uint32_t decode_depth;
-};
-
-struct Bebop_Reader {
-  const uint8_t* start;
-  const uint8_t* current;
-  const uint8_t* end;
-  Bebop_WireCtx* context;
 };
 
 struct Bebop_Writer {
   uint8_t* buffer;
   uint8_t* current;
   uint8_t* end;
-  Bebop_WireCtx* context;
+  Bebop_Context* context;
 };
+
+static uint32_t bebop_wire_popcount32(uint32_t value)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  return (uint32_t)__builtin_popcount(value);
+#elif defined(_MSC_VER)
+  return (uint32_t)__popcnt(value);
+#else
+  value -= (value >> 1) & UINT32_C(0x55555555);
+  value = (value & UINT32_C(0x33333333)) + ((value >> 2) & UINT32_C(0x33333333));
+  value = (value + (value >> 4)) & UINT32_C(0x0f0f0f0f);
+  return (value * UINT32_C(0x01010101)) >> 24;
+#endif
+}
+
+static uint32_t bebop_wire_ctz32(uint32_t value)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  return (uint32_t)__builtin_ctz(value);
+#elif defined(_MSC_VER)
+  unsigned long index;
+  _BitScanForward(&index, value);
+  return (uint32_t)index;
+#else
+  uint32_t count = 0;
+  while ((value & 1u) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+#endif
+}
+
+static uint32_t bebop_wire_load_le(const uint8_t* data, uint8_t width)
+{
+  uint32_t value = data[0];
+  if (width > 1) {
+    value |= (uint32_t)data[1] << 8;
+    if (width > 2) {
+      value |= (uint32_t)data[2] << 16;
+      value |= (uint32_t)data[3] << 24;
+    }
+  }
+  return value;
+}
+
+static void bebop_wire_store_le(uint8_t** destination, uint32_t value, uint8_t width)
+{
+  uint8_t* out = *destination;
+  *out++ = (uint8_t)value;
+  if (width > 1) {
+    *out++ = (uint8_t)(value >> 8);
+    if (width > 2) {
+      *out++ = (uint8_t)(value >> 16);
+      *out++ = (uint8_t)(value >> 24);
+    }
+  }
+  *destination = out;
+}
+
+typedef struct {
+  uint8_t kind;
+  uint8_t size;
+  uint8_t block_mask;
+} bebop_message_directory_layout_t;
+
+static bool bebop_message_tags_valid(const uint8_t* tags, uint8_t count)
+{
+  if (count == 0) {
+    return true;
+  }
+  if (!tags || tags[0] == 0) {
+    return false;
+  }
+  for (uint16_t i = 1; i < count; i++) {
+    if (tags[i] <= tags[i - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bebop_message_directory_layout_t bebop_message_directory_layout(
+    const uint8_t* tags, uint8_t count
+)
+{
+  bebop_message_directory_layout_t layout = {BEBOP_MESSAGE_DIRECTORY_EMPTY, 0, 0};
+  if (count == 0) {
+    return layout;
+  }
+
+  uint8_t block_mask = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    block_mask |= (uint8_t)(1u << ((tags[i] - 1u) >> 5));
+  }
+  const uint8_t block_size = (uint8_t)(1u + 5u * bebop_wire_popcount32(block_mask));
+  layout =
+      (bebop_message_directory_layout_t) {BEBOP_MESSAGE_DIRECTORY_BLOCKS, block_size, block_mask};
+
+  const uint8_t max_tag = tags[count - 1];
+  if (max_tag <= 8 && 1 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK8;
+    layout.size = 1;
+  } else if (max_tag <= 16 && 2 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK16;
+    layout.size = 2;
+  } else if (max_tag <= 32 && 4 <= layout.size) {
+    layout.kind = BEBOP_MESSAGE_DIRECTORY_MASK32;
+    layout.size = 4;
+  }
+
+  if (count <= 3 && count < layout.size) {
+    layout.kind = count;
+    layout.size = count;
+  }
+  return layout;
+}
 
 #define BEBOP_ARENA_OVERHEAD (sizeof(bebop_wire_arena_block_impl_t))
 #if defined(_MSC_VER)
@@ -90,7 +205,7 @@ static bebop_wire_arena_block_impl_t* bebop_wire_arena_allocate_block(
   return block;
 }
 
-static bebop_wire_arena_impl_t* bebop_wire_arena_create(const Bebop_ArenaOpts* options)
+static bebop_wire_arena_impl_t* bebop_wire_arena_create(const Bebop_ArenaOptions* options)
 {
   if (!options) {
     return NULL;
@@ -121,7 +236,7 @@ static void bebop_wire_arena_destroy(bebop_wire_arena_impl_t* arena)
     return;
   }
 
-  const Bebop_WireAllocFn alloc = arena->alloc;
+  const Bebop_AllocFn alloc = arena->alloc;
   void* ctx = arena->alloc_ctx;
 
   bebop_wire_arena_block_impl_t* block = BEBOP_WIRE_ATOMIC_LOAD(&arena->current_block);
@@ -245,46 +360,56 @@ static void* bebop_wire_arena_realloc(
   return new_ptr;
 }
 
-Bebop_WireCtx* Bebop_WireCtx_New(const Bebop_WireCtxOpts* options)
+static void* bebop_default_alloc(void* ptr, size_t old_size, size_t new_size, void* context)
 {
-  if (!options) {
+  (void)old_size;
+  (void)context;
+  if (new_size == 0) {
+    free(ptr);
     return NULL;
   }
+  return realloc(ptr, new_size);
+}
 
-  assert(options->arena_options.allocator.alloc);
+Bebop_Context* bebop_context_new(const Bebop_ContextOptions* options)
+{
+  Bebop_ContextOptions resolved = options ? *options : bebop_context_options();
+  if (!resolved.arena_options.allocator.alloc) {
+    resolved.arena_options.allocator.alloc = bebop_default_alloc;
+  }
 
-  const Bebop_WireAllocFn alloc_fn = options->arena_options.allocator.alloc;
-  void* alloc_ctx = options->arena_options.allocator.ctx;
+  const Bebop_AllocFn alloc_fn = resolved.arena_options.allocator.alloc;
+  void* alloc_ctx = resolved.arena_options.allocator.ctx;
 
-  Bebop_WireCtx* context = (Bebop_WireCtx*)alloc_fn(NULL, 0, sizeof(Bebop_WireCtx), alloc_ctx);
+  Bebop_Context* context = (Bebop_Context*)alloc_fn(NULL, 0, sizeof(Bebop_Context), alloc_ctx);
   if (!context) {
     return NULL;
   }
 
-  context->arena = bebop_wire_arena_create(&options->arena_options);
+  context->arena = bebop_wire_arena_create(&resolved.arena_options);
   if (!context->arena) {
-    alloc_fn(context, sizeof(Bebop_WireCtx), 0, alloc_ctx);
+    alloc_fn(context, sizeof(Bebop_Context), 0, alloc_ctx);
     return NULL;
   }
 
-  context->options = *options;
+  context->options = resolved;
   context->decode_depth = 0;
   return context;
 }
 
-void Bebop_WireCtx_Free(Bebop_WireCtx* context)
+void bebop_context_free(Bebop_Context* context)
 {
   if (!context) {
     return;
   }
 
-  const Bebop_WireAllocFn alloc_fn = context->arena->alloc;
+  const Bebop_AllocFn alloc_fn = context->arena->alloc;
   void* alloc_ctx = context->arena->alloc_ctx;
   bebop_wire_arena_destroy(context->arena);
-  alloc_fn(context, sizeof(Bebop_WireCtx), 0, alloc_ctx);
+  alloc_fn(context, sizeof(Bebop_Context), 0, alloc_ctx);
 }
 
-void Bebop_WireCtx_Reset(Bebop_WireCtx* context)
+void bebop_context_reset(Bebop_Context* context)
 {
   if (!context) {
     return;
@@ -293,72 +418,80 @@ void Bebop_WireCtx_Reset(Bebop_WireCtx* context)
   context->decode_depth = 0;
 }
 
-Bebop_WireResult Bebop_WireCtx_EnterDecode(Bebop_WireCtx* context)
+Bebop_Result bebop_context_enter_decode(Bebop_Context* context)
 {
   if (BEBOP_WIRE_UNLIKELY(!context)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   uint32_t max_depth = context->options.max_decode_depth;
   if (max_depth == 0) {
     max_depth = BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH;
   }
   if (BEBOP_WIRE_UNLIKELY(context->decode_depth >= max_depth)) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   context->decode_depth++;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-void Bebop_WireCtx_LeaveDecode(Bebop_WireCtx* context)
+void bebop_context_leave_decode(Bebop_Context* context)
 {
   if (context && context->decode_depth > 0) {
     context->decode_depth--;
   }
 }
 
-size_t Bebop_WireCtx_Allocated(const Bebop_WireCtx* context)
+size_t bebop_context_allocated(const Bebop_Context* context)
 {
   return context ? BEBOP_WIRE_ATOMIC_LOAD(&context->arena->total_allocated) : 0;
 }
 
-size_t Bebop_WireCtx_Used(const Bebop_WireCtx* context)
+size_t bebop_context_used(const Bebop_Context* context)
 {
   return context ? BEBOP_WIRE_ATOMIC_LOAD(&context->arena->total_used) : 0;
 }
 
-Bebop_WireResult Bebop_WireCtx_Reader(
-    Bebop_WireCtx* context, const uint8_t* buffer, size_t buffer_length, Bebop_Reader** out
-)
+Bebop_Reader* bebop_context_reader(Bebop_Context* context, Bebop_View source)
 {
-  if (!context || !buffer || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!context || !source.data) {
+    return NULL;
   }
 
   Bebop_Reader* reader =
       (Bebop_Reader*)bebop_wire_arena_alloc(context->arena, sizeof(Bebop_Reader));
   if (!reader) {
-    return BEBOP_WIRE_ERR_OOM;
+    return NULL;
   }
 
-  reader->start = buffer;
-  reader->current = buffer;
-  reader->end = buffer + buffer_length;
-  reader->context = context;
-  *out = reader;
-  return BEBOP_WIRE_OK;
+  if (bebop_reader_init(reader, context, source) != BEBOP_RESULT_OK) {
+    return NULL;
+  }
+  return reader;
 }
 
-void Bebop_Reader_Reset(Bebop_Reader* reader, const uint8_t* buffer, size_t buffer_length)
+Bebop_Result bebop_reader_init(Bebop_Reader* reader, Bebop_Context* context, Bebop_View source)
 {
-  if (!reader || !buffer) {
+  if (!reader || !source.data) {
+    return BEBOP_RESULT_NULL;
+  }
+  reader->start = source.data;
+  reader->current = source.data;
+  reader->end = source.data + source.length;
+  reader->context = context;
+  return BEBOP_RESULT_OK;
+}
+
+void bebop_reader_reset(Bebop_Reader* reader, Bebop_View source)
+{
+  if (!reader || !source.data) {
     return;
   }
-  reader->start = buffer;
-  reader->current = buffer;
-  reader->end = buffer + buffer_length;
+  reader->start = source.data;
+  reader->current = source.data;
+  reader->end = source.data + source.length;
 }
 
-void Bebop_Reader_Seek(Bebop_Reader* reader, const uint8_t* position)
+void bebop_reader_seek(Bebop_Reader* reader, const uint8_t* position)
 {
   if (!reader) {
     return;
@@ -368,7 +501,7 @@ void Bebop_Reader_Seek(Bebop_Reader* reader, const uint8_t* position)
   }
 }
 
-void Bebop_Reader_Skip(Bebop_Reader* reader, size_t amount)
+void bebop_reader_skip(Bebop_Reader* reader, size_t amount)
 {
   if (!reader) {
     return;
@@ -378,26 +511,26 @@ void Bebop_Reader_Skip(Bebop_Reader* reader, size_t amount)
   }
 }
 
-Bebop_WireResult Bebop_Reader_GetByte(Bebop_Reader* reader, uint8_t* out)
+Bebop_Result bebop_reader_read_byte(Bebop_Reader* reader, uint8_t* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint8_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
   *out = *reader->current++;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetU16(Bebop_Reader* reader, uint16_t* out)
+Bebop_Result bebop_reader_read_u16(Bebop_Reader* reader, uint16_t* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -408,16 +541,16 @@ Bebop_WireResult Bebop_Reader_GetU16(Bebop_Reader* reader, uint16_t* out)
   const uint16_t b1 = *reader->current++;
   *out = (b1 << 8) | b0;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetU32(Bebop_Reader* reader, uint32_t* out)
+Bebop_Result bebop_reader_read_u32(Bebop_Reader* reader, uint32_t* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint32_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -430,16 +563,16 @@ Bebop_WireResult Bebop_Reader_GetU32(Bebop_Reader* reader, uint32_t* out)
   const uint32_t b3 = *reader->current++;
   *out = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetU64(Bebop_Reader* reader, uint64_t* out)
+Bebop_Result bebop_reader_read_u64(Bebop_Reader* reader, uint64_t* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint64_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -457,50 +590,50 @@ Bebop_WireResult Bebop_Reader_GetU64(Bebop_Reader* reader, uint64_t* out)
   *out = (b7 << 0x38) | (b6 << 0x30) | (b5 << 0x28) | (b4 << 0x20) | (b3 << 0x18) | (b2 << 0x10)
       | (b1 << 0x08) | b0;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetI8(Bebop_Reader* reader, int8_t* out)
+Bebop_Result bebop_reader_read_i8(Bebop_Reader* reader, int8_t* out)
 {
-  return Bebop_Reader_GetByte(reader, (uint8_t*)out);
+  return bebop_reader_read_byte(reader, (uint8_t*)out);
 }
 
-Bebop_WireResult Bebop_Reader_GetI16(Bebop_Reader* reader, int16_t* out)
+Bebop_Result bebop_reader_read_i16(Bebop_Reader* reader, int16_t* out)
 {
-  return Bebop_Reader_GetU16(reader, (uint16_t*)out);
+  return bebop_reader_read_u16(reader, (uint16_t*)out);
 }
 
-Bebop_WireResult Bebop_Reader_GetI32(Bebop_Reader* reader, int32_t* out)
+Bebop_Result bebop_reader_read_i32(Bebop_Reader* reader, int32_t* out)
 {
-  return Bebop_Reader_GetU32(reader, (uint32_t*)out);
+  return bebop_reader_read_u32(reader, (uint32_t*)out);
 }
 
-Bebop_WireResult Bebop_Reader_GetI64(Bebop_Reader* reader, int64_t* out)
+Bebop_Result bebop_reader_read_i64(Bebop_Reader* reader, int64_t* out)
 {
-  return Bebop_Reader_GetU64(reader, (uint64_t*)out);
+  return bebop_reader_read_u64(reader, (uint64_t*)out);
 }
 
-Bebop_WireResult Bebop_Reader_GetBool(Bebop_Reader* reader, bool* out)
+Bebop_Result bebop_reader_read_bool(Bebop_Reader* reader, bool* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   uint8_t byte;
-  const Bebop_WireResult result = Bebop_Reader_GetByte(reader, &byte);
-  if (BEBOP_WIRE_LIKELY(result == BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_byte(reader, &byte);
+  if (BEBOP_WIRE_LIKELY(result == BEBOP_RESULT_OK)) {
     *out = byte != 0;
   }
   return result;
 }
 
-Bebop_WireResult Bebop_Reader_GetF16(Bebop_Reader* reader, Bebop_Float16* out)
+Bebop_Result bebop_reader_read_f16(Bebop_Reader* reader, Bebop_Float16* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -513,16 +646,16 @@ Bebop_WireResult Bebop_Reader_GetF16(Bebop_Reader* reader, Bebop_Float16* out)
   bits = (b1 << 8) | b0;
   memcpy(out, &bits, sizeof(uint16_t));
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetBF16(Bebop_Reader* reader, Bebop_BFloat16* out)
+Bebop_Result bebop_reader_read_bf16(Bebop_Reader* reader, Bebop_BFloat16* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -535,44 +668,44 @@ Bebop_WireResult Bebop_Reader_GetBF16(Bebop_Reader* reader, Bebop_BFloat16* out)
   bits = (b1 << 8) | b0;
   memcpy(out, &bits, sizeof(uint16_t));
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetF32(Bebop_Reader* reader, float* out)
+Bebop_Result bebop_reader_read_f32(Bebop_Reader* reader, float* out)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   uint32_t bits;
-  const Bebop_WireResult result = Bebop_Reader_GetU32(reader, &bits);
-  if (BEBOP_WIRE_LIKELY(result == BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_u32(reader, &bits);
+  if (BEBOP_WIRE_LIKELY(result == BEBOP_RESULT_OK)) {
     memcpy(out, &bits, sizeof(float));
   }
   return result;
 }
 
-Bebop_WireResult Bebop_Reader_GetF64(Bebop_Reader* reader, double* out)
+Bebop_Result bebop_reader_read_f64(Bebop_Reader* reader, double* out)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   uint64_t bits;
-  const Bebop_WireResult result = Bebop_Reader_GetU64(reader, &bits);
-  if (BEBOP_WIRE_LIKELY(result == BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_u64(reader, &bits);
+  if (BEBOP_WIRE_LIKELY(result == BEBOP_RESULT_OK)) {
     memcpy(out, &bits, sizeof(double));
   }
   return result;
 }
 
-Bebop_WireResult Bebop_Reader_GetI128(Bebop_Reader* reader, Bebop_Int128* out)
+Bebop_Result bebop_reader_read_i128(Bebop_Reader* reader, Bebop_Int128* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_HAS_I128
@@ -585,16 +718,16 @@ Bebop_WireResult Bebop_Reader_GetI128(Bebop_Reader* reader, Bebop_Int128* out)
   memcpy(out, reader->current, 16);
   reader->current += 16;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetU128(Bebop_Reader* reader, Bebop_UInt128* out)
+Bebop_Result bebop_reader_read_u128(Bebop_Reader* reader, Bebop_UInt128* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_HAS_I128
@@ -607,178 +740,677 @@ Bebop_WireResult Bebop_Reader_GetU128(Bebop_Reader* reader, Bebop_UInt128* out)
   memcpy(out, reader->current, 16);
   reader->current += 16;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetUUID(Bebop_Reader* reader, Bebop_UUID* out)
+Bebop_Result bebop_reader_read_uuid(Bebop_Reader* reader, Bebop_UUID* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   memcpy(out->bytes, reader->current, 16);
   reader->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetTimestamp(Bebop_Reader* reader, Bebop_Timestamp* out)
+Bebop_Result bebop_reader_read_timestamp(Bebop_Reader* reader, Bebop_Timestamp* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
   memcpy(out, reader->current, 16);
   reader->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetDuration(Bebop_Reader* reader, Bebop_Duration* out)
+Bebop_Result bebop_reader_read_duration(Bebop_Reader* reader, Bebop_Duration* out)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !out)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(12 > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
   memcpy(out, reader->current, 12);
   reader->current += 12;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetLen(Bebop_Reader* reader, uint32_t* out)
+Bebop_Result bebop_reader_read_length(Bebop_Reader* reader, uint32_t* out)
 {
-  const Bebop_WireResult result = Bebop_Reader_GetU32(reader, out);
-  if (BEBOP_WIRE_LIKELY(result == BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_u32(reader, out);
+  if (BEBOP_WIRE_LIKELY(result == BEBOP_RESULT_OK)) {
     if (BEBOP_WIRE_UNLIKELY(*out > (size_t)(reader->end - reader->current))) {
-      return BEBOP_WIRE_ERR_MALFORMED;
+      return BEBOP_RESULT_MALFORMED;
     }
   }
   return result;
 }
 
-Bebop_WireResult Bebop_Reader_GetStr(Bebop_Reader* reader, Bebop_Str* out)
+Bebop_Result bebop_reader_read_string(Bebop_Reader* reader, Bebop_String* out)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   uint32_t length;
-  const Bebop_WireResult result = Bebop_Reader_GetU32(reader, &length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_u32(reader, &length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   // length + 1 wraps to 0 on 32-bit size_t when length == UINT32_MAX
   const size_t remaining = (size_t)(reader->end - reader->current);
   if (BEBOP_WIRE_UNLIKELY((size_t)length >= remaining)) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
+  }
+  if (BEBOP_WIRE_UNLIKELY(reader->current[length] != 0)) {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total = (size_t)length + 1;
 
   out->data = (const char*)reader->current;
   out->length = length;
   reader->current += total;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetByteArray(Bebop_Reader* reader, Bebop_Bytes* out)
+Bebop_Result bebop_reader_read_bytes(Bebop_Reader* reader, Bebop_Bytes* out)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   uint32_t length;
-  const Bebop_WireResult result = Bebop_Reader_GetLen(reader, &length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  const Bebop_Result result = bebop_reader_read_length(reader, &length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   out->data = reader->current;
   out->length = length;
   reader->current += length;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedBytes(
+Bebop_Result bebop_reader_read_fixed_bytes(
     Bebop_Reader* reader, size_t byte_count, Bebop_Bytes* out
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(byte_count > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   out->data = reader->current;
   out->length = byte_count;
   reader->current += byte_count;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_WireCtx_Writer(Bebop_WireCtx* context, Bebop_Writer** out)
+static Bebop_Result bebop_message_index_parse(Bebop_MessageIndex* out, Bebop_View encoded)
 {
-  if (!context || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!out || !encoded.data) {
+    return BEBOP_RESULT_NULL;
+  }
+  if (encoded.length < BEBOP_WIRE_SIZE_LEN + 1) {
+    return BEBOP_RESULT_MALFORMED;
   }
 
-  Bebop_Writer* writer =
-      (Bebop_Writer*)bebop_wire_arena_alloc(context->arena, sizeof(Bebop_Writer));
-  if (!writer) {
-    return BEBOP_WIRE_ERR_OOM;
+  const uint32_t body_length = bebop_wire_load_le(encoded.data, 4);
+  if ((size_t)body_length != encoded.length - BEBOP_WIRE_SIZE_LEN || body_length == 0) {
+    return BEBOP_RESULT_MALFORMED;
   }
 
-  uint8_t* buffer =
-      (uint8_t*)bebop_wire_arena_alloc(context->arena, context->options.initial_writer_size);
-  if (!buffer) {
-    return BEBOP_WIRE_ERR_OOM;
+  const uint8_t* body = encoded.data + BEBOP_WIRE_SIZE_LEN;
+  const uint8_t* end = encoded.data + encoded.length;
+  const uint8_t control = end[-1];
+  const uint8_t width_code = control & 3u;
+  const uint8_t kind = (control >> 2) & 7u;
+  if ((control & 0xe0u) != 0 || width_code == 3) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const uint8_t width = (uint8_t)(1u << width_code);
+
+  size_t directory_size;
+  uint16_t field_count = 0;
+  switch (kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      directory_size = 0;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      directory_size = kind;
+      field_count = kind;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+      directory_size = 1;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+      directory_size = 2;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK32:
+      directory_size = 4;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS:
+      if (body_length < 2) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      directory_size = 1u + 5u * bebop_wire_popcount32(end[-2]);
+      break;
+    default:
+      return BEBOP_RESULT_MALFORMED;
+  }
+  if (directory_size + 1 > body_length) {
+    return BEBOP_RESULT_MALFORMED;
   }
 
-  writer->buffer = buffer;
-  writer->current = buffer;
-  writer->end = buffer + context->options.initial_writer_size;
-  writer->context = context;
-  *out = writer;
-  return BEBOP_WIRE_OK;
+  const uint8_t* directory = end - 1 - directory_size;
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_MASK8 && kind <= BEBOP_MESSAGE_DIRECTORY_MASK32) {
+    field_count =
+        (uint16_t)bebop_wire_popcount32(bebop_wire_load_le(directory, (uint8_t)directory_size));
+  } else if (kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    const uint8_t block_mask = directory[directory_size - 1];
+    if (block_mask == 0) {
+      return BEBOP_RESULT_MALFORMED;
+    }
+    const uint8_t* entry = directory;
+    uint16_t rank = 0;
+    for (uint8_t block = 0; block < 8; block++) {
+      if ((block_mask & (uint8_t)(1u << block)) == 0) {
+        continue;
+      }
+      if (entry[0] != rank) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      if (mask == 0 || (block == 7 && (mask & UINT32_C(0x80000000)) != 0)) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      rank += (uint16_t)bebop_wire_popcount32(mask);
+      entry += 5;
+    }
+    field_count = rank;
+  }
+
+  if (field_count == 0 && kind != BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  if (field_count != 0 && kind == BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_TINY1 && kind <= BEBOP_MESSAGE_DIRECTORY_TINY3) {
+    if (directory[0] == 0) {
+      return BEBOP_RESULT_MALFORMED;
+    }
+    for (uint16_t i = 1; i < field_count; i++) {
+      if (directory[i] <= directory[i - 1]) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+    }
+  }
+
+  const size_t boundary_count = field_count == 0 ? 0 : field_count - 1;
+  if (boundary_count > (SIZE_MAX - directory_size - 1) / width) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const size_t boundary_size = boundary_count * width;
+  if (boundary_size + directory_size + 1 > body_length) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  const uint8_t* boundaries = directory - boundary_size;
+  const size_t payload_size = (size_t)(boundaries - body);
+  uint32_t previous = 0;
+  for (size_t i = 0; i < boundary_count; i++) {
+    const uint32_t boundary = bebop_wire_load_le(boundaries + i * width, width);
+    if (boundary < previous || boundary > payload_size) {
+      return BEBOP_RESULT_MALFORMED;
+    }
+    previous = boundary;
+  }
+  if (field_count == 0 && payload_size != 0) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  *out = (Bebop_MessageIndex) {.encoded = encoded,
+                               .boundaries = boundaries,
+                               .directory = directory,
+                               .field_count = (uint8_t)field_count,
+                               .offset_width = width,
+                               .directory_kind = kind};
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_WireCtx_WriterHint(
-    Bebop_WireCtx* context, size_t size_hint, Bebop_Writer** out
+Bebop_Result bebop_message_index_init(Bebop_MessageIndex* out, Bebop_View encoded)
+{
+  return bebop_message_index_parse(out, encoded);
+}
+
+Bebop_Result bebop_message_index_validate(const Bebop_MessageIndex* index)
+{
+  if (!index) {
+    return BEBOP_RESULT_NULL;
+  }
+  Bebop_MessageIndex validated;
+  return bebop_message_index_parse(&validated, index->encoded);
+}
+
+Bebop_Result bebop_message_index_begin(Bebop_MessageIndex* out, Bebop_View encoded)
+{
+  if (!out || !encoded.data) {
+    return BEBOP_RESULT_NULL;
+  }
+  if (encoded.length < BEBOP_WIRE_SIZE_LEN + 1) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const uint32_t body_length = bebop_wire_load_le(encoded.data, 4);
+  if ((size_t)body_length != encoded.length - BEBOP_WIRE_SIZE_LEN || body_length == 0) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  const uint8_t* end = encoded.data + encoded.length;
+  const uint8_t control = end[-1];
+  const uint8_t width_code = control & 3u;
+  const uint8_t kind = (control >> 2) & 7u;
+  if ((control & 0xe0u) != 0 || width_code == 3) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  const uint8_t width = (uint8_t)(1u << width_code);
+  size_t directory_size;
+  uint16_t field_count = 0;
+  switch (kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      directory_size = 0;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      directory_size = kind;
+      field_count = kind;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+      directory_size = 1;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+      directory_size = 2;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK32:
+      directory_size = 4;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS:
+      if (body_length < 2 || end[-2] == 0) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      directory_size = 1u + 5u * bebop_wire_popcount32(end[-2]);
+      break;
+    default:
+      return BEBOP_RESULT_MALFORMED;
+  }
+  if ((size_t)directory_size + 1u > body_length) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const uint8_t* directory = end - 1 - directory_size;
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_MASK8 && kind <= BEBOP_MESSAGE_DIRECTORY_MASK32) {
+    field_count =
+        (uint16_t)bebop_wire_popcount32(bebop_wire_load_le(directory, (uint8_t)directory_size));
+  } else if (kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    const uint8_t block_mask = directory[directory_size - 1u];
+    const uint8_t* entry = directory;
+    uint16_t rank = 0;
+    for (uint8_t block = 0; block < 8; block++) {
+      if ((block_mask & (uint8_t)(1u << block)) == 0) {
+        continue;
+      }
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      if (entry[0] != rank || mask == 0 || (block == 7 && (mask & UINT32_C(0x80000000)) != 0)) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      rank += (uint16_t)bebop_wire_popcount32(mask);
+      entry += 5;
+    }
+    field_count = rank;
+  }
+  if (field_count == 0 && kind != BEBOP_MESSAGE_DIRECTORY_EMPTY) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  if (kind >= BEBOP_MESSAGE_DIRECTORY_TINY1 && kind <= BEBOP_MESSAGE_DIRECTORY_TINY3) {
+    if (directory[0] == 0) {
+      return BEBOP_RESULT_MALFORMED;
+    }
+    for (uint16_t i = 1; i < field_count; i++) {
+      if (directory[i] <= directory[i - 1]) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+    }
+  }
+  const size_t boundary_size = field_count == 0 ? 0 : ((size_t)field_count - 1u) * width;
+  if (field_count == 0) {
+    if (body_length != 1) {
+      return BEBOP_RESULT_MALFORMED;
+    }
+  } else if (boundary_size + directory_size + 1u > body_length) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  *out = (Bebop_MessageIndex) {.encoded = encoded,
+                               .boundaries = directory - boundary_size,
+                               .directory = directory,
+                               .field_count = (uint8_t)field_count,
+                               .offset_width = width,
+                               .directory_kind = kind};
+  return BEBOP_RESULT_OK;
+}
+
+Bebop_Result bebop_reader_read_message_index(Bebop_Reader* reader, Bebop_MessageIndex* out)
+{
+  if (!reader || !out) {
+    return BEBOP_RESULT_NULL;
+  }
+  const uint8_t* start = reader->current;
+  uint32_t body_length;
+  Bebop_Result result = bebop_reader_read_length(reader, &body_length);
+  if (result != BEBOP_RESULT_OK) {
+    reader->current = start;
+    return result;
+  }
+  if ((size_t)body_length > bebop_reader_remaining(reader)) {
+    reader->current = start;
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const Bebop_View encoded = {start, (size_t)body_length + BEBOP_WIRE_SIZE_LEN};
+  result = bebop_message_index_parse(out, encoded);
+  if (result == BEBOP_RESULT_OK) {
+    reader->current = start + encoded.length;
+  }
+  return result;
+}
+
+Bebop_Result bebop_reader_begin_message_index(Bebop_Reader* reader, Bebop_MessageIndex* out)
+{
+  if (!reader || !out) {
+    return BEBOP_RESULT_NULL;
+  }
+  const uint8_t* start = reader->current;
+  uint32_t body_length;
+  Bebop_Result result = bebop_reader_read_length(reader, &body_length);
+  if (result != BEBOP_RESULT_OK) {
+    reader->current = start;
+    return result;
+  }
+  if ((size_t)body_length > bebop_reader_remaining(reader)) {
+    reader->current = start;
+    return BEBOP_RESULT_MALFORMED;
+  }
+  const Bebop_View encoded = {start, (size_t)body_length + BEBOP_WIRE_SIZE_LEN};
+  result = bebop_message_index_begin(out, encoded);
+  if (result == BEBOP_RESULT_OK) {
+    reader->current = start + encoded.length;
+  }
+  return result;
+}
+
+static Bebop_Result bebop_message_field_at_rank(
+    const Bebop_MessageIndex* index, uint8_t rank, Bebop_View* field
 )
 {
-  if (!context || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (rank >= index->field_count) {
+    return BEBOP_RESULT_INVALID;
+  }
+  const uint8_t* body = index->encoded.data + BEBOP_WIRE_SIZE_LEN;
+  const uint32_t start = rank == 0
+      ? 0
+      : bebop_wire_load_le(
+            index->boundaries + ((size_t)rank - 1u) * index->offset_width, index->offset_width
+        );
+  const uint32_t end = (uint16_t)rank + 1u == index->field_count
+      ? (uint32_t)(index->boundaries - body)
+      : bebop_wire_load_le(
+            index->boundaries + (size_t)rank * index->offset_width, index->offset_width
+        );
+  if (end < start || end > (size_t)(index->boundaries - body)) {
+    return BEBOP_RESULT_MALFORMED;
+  }
+  *field = (Bebop_View) {body + start, end - start};
+  return BEBOP_RESULT_OK;
+}
+
+Bebop_Result bebop_message_index_field_at(
+    const Bebop_MessageIndex* index, uint8_t rank, Bebop_View* field
+)
+{
+  if (!index || !field) {
+    return BEBOP_RESULT_NULL;
+  }
+  return bebop_message_field_at_rank(index, rank, field);
+}
+
+Bebop_Result bebop_message_index_field(
+    const Bebop_MessageIndex* index, uint8_t tag, Bebop_View* field, bool* present
+)
+{
+  if (!index || !field || !present) {
+    return BEBOP_RESULT_NULL;
+  }
+  *field = (Bebop_View) {NULL, 0};
+  *present = false;
+  if (tag == 0 || index->field_count == 0) {
+    return BEBOP_RESULT_OK;
+  }
+
+  uint32_t rank;
+  switch (index->directory_kind) {
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      for (rank = 0; rank < index->field_count; rank++) {
+        if (index->directory[rank] == tag) {
+          break;
+        }
+        if (index->directory[rank] > tag) {
+          return BEBOP_RESULT_OK;
+        }
+      }
+      if (rank == index->field_count) {
+        return BEBOP_RESULT_OK;
+      }
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+    case BEBOP_MESSAGE_DIRECTORY_MASK32: {
+      const uint8_t mask_width =
+          (uint8_t)(1u << (index->directory_kind - BEBOP_MESSAGE_DIRECTORY_MASK8));
+      if (tag > mask_width * 8u) {
+        return BEBOP_RESULT_OK;
+      }
+      const uint32_t mask = bebop_wire_load_le(index->directory, mask_width);
+      const uint32_t bit = UINT32_C(1) << (tag - 1u);
+      if ((mask & bit) == 0) {
+        return BEBOP_RESULT_OK;
+      }
+      rank = bebop_wire_popcount32(mask & (bit - 1u));
+      break;
+    }
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS: {
+      const uint8_t block = (uint8_t)((tag - 1u) >> 5);
+      const uint8_t block_bit = (uint8_t)(1u << block);
+      const uint8_t top_mask = index->encoded.data[index->encoded.length - 2];
+      if ((top_mask & block_bit) == 0) {
+        return BEBOP_RESULT_OK;
+      }
+      const uint8_t* entry =
+          index->directory + 5u * bebop_wire_popcount32(top_mask & (block_bit - 1u));
+      const uint32_t mask = bebop_wire_load_le(entry + 1, 4);
+      const uint32_t bit = UINT32_C(1) << ((tag - 1u) & 31u);
+      if ((mask & bit) == 0) {
+        return BEBOP_RESULT_OK;
+      }
+      rank = entry[0] + bebop_wire_popcount32(mask & (bit - 1u));
+      break;
+    }
+    default:
+      return BEBOP_RESULT_MALFORMED;
+  }
+
+  Bebop_Result result = bebop_message_field_at_rank(index, (uint8_t)rank, field);
+  if (result != BEBOP_RESULT_OK) {
+    return result;
+  }
+  *present = true;
+  return BEBOP_RESULT_OK;
+}
+
+Bebop_Result bebop_message_index_block_masks(const Bebop_MessageIndex* index, uint32_t masks[8])
+{
+  if (!index || !masks) {
+    return BEBOP_RESULT_NULL;
+  }
+  if (index->directory_kind != BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    return BEBOP_RESULT_INVALID;
+  }
+  memset(masks, 0, 8u * sizeof(*masks));
+  const uint8_t top_mask = index->encoded.data[index->encoded.length - 2u];
+  const uint8_t* entry = index->directory;
+  for (uint8_t block = 0; block < 8; block++) {
+    if ((top_mask & (uint8_t)(1u << block)) != 0) {
+      masks[block] = bebop_wire_load_le(entry + 1, 4);
+      entry += 5;
+    }
+  }
+  return BEBOP_RESULT_OK;
+}
+
+void bebop_message_field_iterator_init(
+    Bebop_MessageFieldIterator* iterator, const Bebop_MessageIndex* index
+)
+{
+  if (!iterator) {
+    return;
+  }
+  *iterator = (Bebop_MessageFieldIterator) {.index = index,
+                                            .block_entry = index ? index->directory : NULL,
+                                            .pending_tags = 0,
+                                            .rank = 0,
+                                            .block = 0,
+                                            .tag_base = 0};
+  if (!index) {
+    return;
+  }
+  if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_MASK8
+      && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_MASK32)
+  {
+    const uint8_t width = (uint8_t)(1u << (index->directory_kind - BEBOP_MESSAGE_DIRECTORY_MASK8));
+    iterator->pending_tags = bebop_wire_load_le(index->directory, width);
+  }
+}
+
+Bebop_Result bebop_message_field_iterator_next_tag(
+    Bebop_MessageFieldIterator* iterator, uint8_t* tag, bool* present
+)
+{
+  if (!iterator || !iterator->index || !tag || !present) {
+    return BEBOP_RESULT_NULL;
+  }
+  const Bebop_MessageIndex* index = iterator->index;
+  *present = false;
+  if (iterator->rank == index->field_count) {
+    return BEBOP_RESULT_OK;
+  }
+
+  if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_TINY1
+      && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_TINY3)
+  {
+    *tag = index->directory[iterator->rank];
+  } else if (index->directory_kind >= BEBOP_MESSAGE_DIRECTORY_MASK8
+             && index->directory_kind <= BEBOP_MESSAGE_DIRECTORY_MASK32)
+  {
+    const uint32_t bit = bebop_wire_ctz32(iterator->pending_tags);
+    *tag = (uint8_t)(bit + 1u);
+    iterator->pending_tags &= iterator->pending_tags - 1u;
+  } else if (index->directory_kind == BEBOP_MESSAGE_DIRECTORY_BLOCKS) {
+    while (iterator->pending_tags == 0) {
+      const uint8_t top_mask = index->encoded.data[index->encoded.length - 2];
+      while (iterator->block < 8 && (top_mask & (uint8_t)(1u << iterator->block)) == 0) {
+        iterator->block++;
+      }
+      if (iterator->block == 8) {
+        return BEBOP_RESULT_MALFORMED;
+      }
+      iterator->tag_base = (uint8_t)(iterator->block * 32u);
+      iterator->pending_tags = bebop_wire_load_le(iterator->block_entry + 1, 4);
+      iterator->block_entry += 5;
+      iterator->block++;
+    }
+    const uint32_t bit = bebop_wire_ctz32(iterator->pending_tags);
+    *tag = (uint8_t)(iterator->tag_base + bit + 1u);
+    iterator->pending_tags &= iterator->pending_tags - 1u;
+  } else {
+    return BEBOP_RESULT_MALFORMED;
+  }
+
+  iterator->rank++;
+  *present = true;
+  return BEBOP_RESULT_OK;
+}
+
+Bebop_Result bebop_message_field_iterator_next(
+    Bebop_MessageFieldIterator* iterator, uint8_t* tag, Bebop_View* field, bool* present
+)
+{
+  if (!iterator || !tag || !field || !present) {
+    return BEBOP_RESULT_NULL;
+  }
+  *field = (Bebop_View) {NULL, 0};
+  Bebop_Result result = bebop_message_field_iterator_next_tag(iterator, tag, present);
+  if (result != BEBOP_RESULT_OK || !*present) {
+    return result;
+  }
+  return bebop_message_field_at_rank(iterator->index, (uint8_t)(iterator->rank - 1u), field);
+}
+
+Bebop_Writer* bebop_context_writer(Bebop_Context* context, size_t capacity)
+{
+  if (!context) {
+    return NULL;
   }
 
   Bebop_Writer* writer =
       (Bebop_Writer*)bebop_wire_arena_alloc(context->arena, sizeof(Bebop_Writer));
   if (!writer) {
-    return BEBOP_WIRE_ERR_OOM;
+    return NULL;
   }
 
-  const size_t buffer_size = size_hint > context->options.initial_writer_size
-      ? size_hint
+  size_t buffer_size = capacity > context->options.initial_writer_size
+      ? capacity
       : context->options.initial_writer_size;
-
+  if (buffer_size == 0) {
+    buffer_size = 1;
+  }
   uint8_t* buffer = (uint8_t*)bebop_wire_arena_alloc(context->arena, buffer_size);
   if (!buffer) {
-    return BEBOP_WIRE_ERR_OOM;
+    return NULL;
   }
 
   writer->buffer = buffer;
   writer->current = buffer;
   writer->end = buffer + buffer_size;
   writer->context = context;
-  *out = writer;
-  return BEBOP_WIRE_OK;
+  return writer;
 }
 
-void Bebop_Writer_Reset(Bebop_Writer* writer)
+void bebop_writer_reset(Bebop_Writer* writer)
 {
   if (!writer) {
     return;
@@ -786,20 +1418,20 @@ void Bebop_Writer_Reset(Bebop_Writer* writer)
   writer->current = writer->buffer;
 }
 
-Bebop_WireResult Bebop_Writer_Ensure(Bebop_Writer* writer, size_t additional_bytes)
+Bebop_Result bebop_writer_reserve(Bebop_Writer* writer, size_t additional_bytes)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_LIKELY(additional_bytes <= (size_t)(writer->end - writer->current))) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   const size_t current_size = (size_t)(writer->end - writer->buffer);
   const size_t used_size = (size_t)(writer->current - writer->buffer);
   if (BEBOP_WIRE_UNLIKELY(additional_bytes > SIZE_MAX - used_size)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t target_size = used_size + additional_bytes;
   size_t new_size = current_size > 0 ? current_size : 16;
@@ -814,40 +1446,40 @@ Bebop_WireResult Bebop_Writer_Ensure(Bebop_Writer* writer, size_t additional_byt
 
   uint8_t* new_buffer = (uint8_t*)bebop_wire_arena_alloc(writer->context->arena, new_size);
   if (!new_buffer) {
-    return BEBOP_WIRE_ERR_OOM;
+    return BEBOP_RESULT_OOM;
   }
 
   memcpy(new_buffer, writer->buffer, used_size);
   writer->buffer = new_buffer;
   writer->current = new_buffer + used_size;
   writer->end = new_buffer + new_size;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetByte(Bebop_Writer* writer, uint8_t value)
+Bebop_Result bebop_writer_write_byte(Bebop_Writer* writer, uint8_t value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(1 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 1);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 1);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   *writer->current++ = value;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU16(Bebop_Writer* writer, uint16_t value)
+Bebop_Result bebop_writer_write_u16(Bebop_Writer* writer, uint16_t value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, sizeof(uint16_t));
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, sizeof(uint16_t));
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -859,17 +1491,17 @@ Bebop_WireResult Bebop_Writer_SetU16(Bebop_Writer* writer, uint16_t value)
   *writer->current++ = value;
   *writer->current++ = value >> 8;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU32(Bebop_Writer* writer, uint32_t value)
+Bebop_Result bebop_writer_write_u32(Bebop_Writer* writer, uint32_t value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint32_t) > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, sizeof(uint32_t));
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, sizeof(uint32_t));
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -883,17 +1515,17 @@ Bebop_WireResult Bebop_Writer_SetU32(Bebop_Writer* writer, uint32_t value)
   *writer->current++ = value >> 16;
   *writer->current++ = value >> 24;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU64(Bebop_Writer* writer, uint64_t value)
+Bebop_Result bebop_writer_write_u64(Bebop_Writer* writer, uint64_t value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint64_t) > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, sizeof(uint64_t));
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, sizeof(uint64_t));
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -911,42 +1543,42 @@ Bebop_WireResult Bebop_Writer_SetU64(Bebop_Writer* writer, uint64_t value)
   *writer->current++ = value >> 0x30;
   *writer->current++ = value >> 0x38;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetI8(Bebop_Writer* writer, int8_t value)
+Bebop_Result bebop_writer_write_i8(Bebop_Writer* writer, int8_t value)
 {
-  return Bebop_Writer_SetByte(writer, (uint8_t)value);
+  return bebop_writer_write_byte(writer, (uint8_t)value);
 }
 
-Bebop_WireResult Bebop_Writer_SetI16(Bebop_Writer* writer, int16_t value)
+Bebop_Result bebop_writer_write_i16(Bebop_Writer* writer, int16_t value)
 {
-  return Bebop_Writer_SetU16(writer, (uint16_t)value);
+  return bebop_writer_write_u16(writer, (uint16_t)value);
 }
 
-Bebop_WireResult Bebop_Writer_SetI32(Bebop_Writer* writer, int32_t value)
+Bebop_Result bebop_writer_write_i32(Bebop_Writer* writer, int32_t value)
 {
-  return Bebop_Writer_SetU32(writer, (uint32_t)value);
+  return bebop_writer_write_u32(writer, (uint32_t)value);
 }
 
-Bebop_WireResult Bebop_Writer_SetI64(Bebop_Writer* writer, int64_t value)
+Bebop_Result bebop_writer_write_i64(Bebop_Writer* writer, int64_t value)
 {
-  return Bebop_Writer_SetU64(writer, (uint64_t)value);
+  return bebop_writer_write_u64(writer, (uint64_t)value);
 }
 
-Bebop_WireResult Bebop_Writer_SetBool(Bebop_Writer* writer, bool value)
+Bebop_Result bebop_writer_write_bool(Bebop_Writer* writer, bool value)
 {
-  return Bebop_Writer_SetByte(writer, value ? 1 : 0);
+  return bebop_writer_write_byte(writer, value ? 1 : 0);
 }
 
-Bebop_WireResult Bebop_Writer_SetF16(Bebop_Writer* writer, Bebop_Float16 value)
+Bebop_Result bebop_writer_write_f16(Bebop_Writer* writer, Bebop_Float16 value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, sizeof(uint16_t));
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, sizeof(uint16_t));
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -960,17 +1592,17 @@ Bebop_WireResult Bebop_Writer_SetF16(Bebop_Writer* writer, Bebop_Float16 value)
   *writer->current++ = (uint8_t)bits;
   *writer->current++ = (uint8_t)(bits >> 8);
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetBF16(Bebop_Writer* writer, Bebop_BFloat16 value)
+Bebop_Result bebop_writer_write_bf16(Bebop_Writer* writer, Bebop_BFloat16 value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(sizeof(uint16_t) > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, sizeof(uint16_t));
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, sizeof(uint16_t));
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -984,31 +1616,31 @@ Bebop_WireResult Bebop_Writer_SetBF16(Bebop_Writer* writer, Bebop_BFloat16 value
   *writer->current++ = (uint8_t)bits;
   *writer->current++ = (uint8_t)(bits >> 8);
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetF32(Bebop_Writer* writer, float value)
+Bebop_Result bebop_writer_write_f32(Bebop_Writer* writer, float value)
 {
   uint32_t bits;
   memcpy(&bits, &value, sizeof(float));
-  return Bebop_Writer_SetU32(writer, bits);
+  return bebop_writer_write_u32(writer, bits);
 }
 
-Bebop_WireResult Bebop_Writer_SetF64(Bebop_Writer* writer, double value)
+Bebop_Result bebop_writer_write_f64(Bebop_Writer* writer, double value)
 {
   uint64_t bits;
   memcpy(&bits, &value, sizeof(double));
-  return Bebop_Writer_SetU64(writer, bits);
+  return bebop_writer_write_u64(writer, bits);
 }
 
-Bebop_WireResult Bebop_Writer_SetI128(Bebop_Writer* writer, Bebop_Int128 value)
+Bebop_Result bebop_writer_write_i128(Bebop_Writer* writer, Bebop_Int128 value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 16);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 16);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1023,17 +1655,17 @@ Bebop_WireResult Bebop_Writer_SetI128(Bebop_Writer* writer, Bebop_Int128 value)
   memcpy(writer->current, &value, 16);
 #endif
   writer->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU128(Bebop_Writer* writer, Bebop_UInt128 value)
+Bebop_Result bebop_writer_write_u128(Bebop_Writer* writer, Bebop_UInt128 value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 16);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 16);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1047,180 +1679,168 @@ Bebop_WireResult Bebop_Writer_SetU128(Bebop_Writer* writer, Bebop_UInt128 value)
   memcpy(writer->current, &value, 16);
 #endif
   writer->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetUUID(Bebop_Writer* writer, Bebop_UUID value)
+Bebop_Result bebop_writer_write_uuid(Bebop_Writer* writer, Bebop_UUID value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 16);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 16);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
   memcpy(writer->current, value.bytes, 16);
   writer->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetTimestamp(Bebop_Writer* writer, Bebop_Timestamp value)
+Bebop_Result bebop_writer_write_timestamp(Bebop_Writer* writer, Bebop_Timestamp value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(16 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 16);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 16);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, &value, 16);
   writer->current += 16;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetDuration(Bebop_Writer* writer, Bebop_Duration value)
+Bebop_Result bebop_writer_write_duration(Bebop_Writer* writer, Bebop_Duration value)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY(12 > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, 12);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, 12);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, &value, 12);
   writer->current += 12;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetStr(Bebop_Writer* writer, const char* data, size_t length)
+Bebop_Result bebop_writer_write_string(Bebop_Writer* writer, Bebop_String value)
 {
-  if (!writer || !data) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!writer || !value.data) {
+    return BEBOP_RESULT_NULL;
   }
 
   // >= so the NUL terminator below never wraps length + 1 on 32-bit size_t
-  if (BEBOP_WIRE_UNLIKELY(length >= UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+  if (BEBOP_WIRE_UNLIKELY(value.length >= UINT32_MAX)) {
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)value.length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
-  const size_t total = length + 1;
+  const size_t total = value.length + 1;
   if (BEBOP_WIRE_UNLIKELY(total > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
-  memcpy(writer->current, data, length);
-  writer->current[length] = '\0';
+  memcpy(writer->current, value.data, value.length);
+  writer->current[value.length] = '\0';
   writer->current += total;
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetStrView(Bebop_Writer* writer, Bebop_Str view)
+Bebop_Result bebop_writer_write_bytes(Bebop_Writer* writer, Bebop_Bytes value)
 {
-  return Bebop_Writer_SetStr(writer, view.data, view.length);
-}
-
-Bebop_WireResult Bebop_Writer_SetByteArray(Bebop_Writer* writer, const uint8_t* data, size_t length)
-{
-  if (!writer || !data) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!writer || !value.data) {
+    return BEBOP_RESULT_NULL;
   }
 
-  if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+  if (BEBOP_WIRE_UNLIKELY(value.length > UINT32_MAX)) {
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)value.length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
-  if (length > 0) {
-    if (BEBOP_WIRE_UNLIKELY(length > (size_t)(writer->end - writer->current))) {
-      result = Bebop_Writer_Ensure(writer, length);
-      if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  if (value.length > 0) {
+    if (BEBOP_WIRE_UNLIKELY(value.length > (size_t)(writer->end - writer->current))) {
+      result = bebop_writer_reserve(writer, value.length);
+      if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
         return result;
       }
     }
 
-    memcpy(writer->current, data, length);
-    writer->current += length;
+    memcpy(writer->current, value.data, value.length);
+    writer->current += value.length;
   }
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetByteArrayView(Bebop_Writer* writer, Bebop_Bytes view)
+Bebop_Result bebop_writer_write_fixed_bytes(Bebop_Writer* writer, Bebop_Bytes value)
 {
-  return Bebop_Writer_SetByteArray(writer, view.data, view.length);
-}
-
-Bebop_WireResult Bebop_Writer_SetFixedBytes(
-    Bebop_Writer* writer, const uint8_t* data, size_t byte_count
-)
-{
-  if (!writer || !data) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!writer || !value.data) {
+    return BEBOP_RESULT_NULL;
   }
-  if (byte_count == 0) {
-    return BEBOP_WIRE_OK;
+  if (value.length == 0) {
+    return BEBOP_RESULT_OK;
   }
 
-  if (BEBOP_WIRE_UNLIKELY(byte_count > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, byte_count);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  if (BEBOP_WIRE_UNLIKELY(value.length > (size_t)(writer->end - writer->current))) {
+    const Bebop_Result result = bebop_writer_reserve(writer, value.length);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
-  memcpy(writer->current, data, byte_count);
-  writer->current += byte_count;
-  return BEBOP_WIRE_OK;
+  memcpy(writer->current, value.data, value.length);
+  writer->current += value.length;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetF32Array(Bebop_Writer* writer, const float* data, size_t length)
+Bebop_Result bebop_writer_write_f32_array(Bebop_Writer* writer, const float* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(float))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(float);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1230,43 +1850,43 @@ Bebop_WireResult Bebop_Writer_SetF32Array(Bebop_Writer* writer, const float* dat
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetF32(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_f32(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetF64Array(Bebop_Writer* writer, const double* data, size_t length)
+Bebop_Result bebop_writer_write_f64_array(Bebop_Writer* writer, const double* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(double))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(double);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1276,43 +1896,43 @@ Bebop_WireResult Bebop_Writer_SetF64Array(Bebop_Writer* writer, const double* da
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetF64(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_f64(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU16Array(Bebop_Writer* writer, const uint16_t* data, size_t length)
+Bebop_Result bebop_writer_write_u16_array(Bebop_Writer* writer, const uint16_t* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(uint16_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(uint16_t);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1322,48 +1942,48 @@ Bebop_WireResult Bebop_Writer_SetU16Array(Bebop_Writer* writer, const uint16_t* 
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetU16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_u16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetI16Array(Bebop_Writer* writer, const int16_t* data, size_t length)
+Bebop_Result bebop_writer_write_i16_array(Bebop_Writer* writer, const int16_t* data, size_t length)
 {
-  return Bebop_Writer_SetU16Array(writer, (const uint16_t*)data, length);
+  return bebop_writer_write_u16_array(writer, (const uint16_t*)data, length);
 }
 
-Bebop_WireResult Bebop_Writer_SetU32Array(Bebop_Writer* writer, const uint32_t* data, size_t length)
+Bebop_Result bebop_writer_write_u32_array(Bebop_Writer* writer, const uint32_t* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(uint32_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(uint32_t);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1373,48 +1993,48 @@ Bebop_WireResult Bebop_Writer_SetU32Array(Bebop_Writer* writer, const uint32_t* 
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetU32(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_u32(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetI32Array(Bebop_Writer* writer, const int32_t* data, size_t length)
+Bebop_Result bebop_writer_write_i32_array(Bebop_Writer* writer, const int32_t* data, size_t length)
 {
-  return Bebop_Writer_SetU32Array(writer, (const uint32_t*)data, length);
+  return bebop_writer_write_u32_array(writer, (const uint32_t*)data, length);
 }
 
-Bebop_WireResult Bebop_Writer_SetU64Array(Bebop_Writer* writer, const uint64_t* data, size_t length)
+Bebop_Result bebop_writer_write_u64_array(Bebop_Writer* writer, const uint64_t* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(uint64_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(uint64_t);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1424,60 +2044,60 @@ Bebop_WireResult Bebop_Writer_SetU64Array(Bebop_Writer* writer, const uint64_t* 
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetU64(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_u64(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetI64Array(Bebop_Writer* writer, const int64_t* data, size_t length)
+Bebop_Result bebop_writer_write_i64_array(Bebop_Writer* writer, const int64_t* data, size_t length)
 {
-  return Bebop_Writer_SetU64Array(writer, (const uint64_t*)data, length);
+  return bebop_writer_write_u64_array(writer, (const uint64_t*)data, length);
 }
 
-Bebop_WireResult Bebop_Writer_SetI8Array(Bebop_Writer* writer, const int8_t* data, size_t length)
+Bebop_Result bebop_writer_write_i8_array(Bebop_Writer* writer, const int8_t* data, size_t length)
 {
-  return Bebop_Writer_SetByteArray(writer, (const uint8_t*)data, length);
+  return bebop_writer_write_bytes(writer, bebop_bytes(data, length));
 }
 
-Bebop_WireResult Bebop_Writer_SetU8Array(Bebop_Writer* writer, const uint8_t* data, size_t length)
+Bebop_Result bebop_writer_write_u8_array(Bebop_Writer* writer, const uint8_t* data, size_t length)
 {
-  return Bebop_Writer_SetByteArray(writer, data, length);
+  return bebop_writer_write_bytes(writer, bebop_bytes(data, length));
 }
 
-Bebop_WireResult Bebop_Writer_SetF16Array(
+Bebop_Result bebop_writer_write_f16_array(
     Bebop_Writer* writer, const Bebop_Float16* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(Bebop_Float16))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(Bebop_Float16);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1487,45 +2107,45 @@ Bebop_WireResult Bebop_Writer_SetF16Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetF16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_f16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetBF16Array(
+Bebop_Result bebop_writer_write_bf16_array(
     Bebop_Writer* writer, const Bebop_BFloat16* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(Bebop_BFloat16))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(Bebop_BFloat16);
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1535,42 +2155,42 @@ Bebop_WireResult Bebop_Writer_SetBF16Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetBF16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_bf16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetI128Array(
+Bebop_Result bebop_writer_write_i128_array(
     Bebop_Writer* writer, const Bebop_Int128* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   const size_t total_bytes = length * 16;
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1580,42 +2200,42 @@ Bebop_WireResult Bebop_Writer_SetI128Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetI128(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_i128(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetU128Array(
+Bebop_Result bebop_writer_write_u128_array(
     Bebop_Writer* writer, const Bebop_UInt128* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   const size_t total_bytes = length * 16;
 
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1625,38 +2245,38 @@ Bebop_WireResult Bebop_Writer_SetU128Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < length; i++) {
-    result = Bebop_Writer_SetU128(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_write_u128(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetBoolArray(Bebop_Writer* writer, const bool* data, size_t length)
+Bebop_Result bebop_writer_write_bool_array(Bebop_Writer* writer, const bool* data, size_t length)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, length);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, length);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1665,175 +2285,175 @@ Bebop_WireResult Bebop_Writer_SetBoolArray(Bebop_Writer* writer, const bool* dat
     *writer->current++ = data[i] ? 1 : 0;
   }
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetUUIDArray(
+Bebop_Result bebop_writer_write_uuid_array(
     Bebop_Writer* writer, const Bebop_UUID* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(Bebop_UUID))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(Bebop_UUID);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetTimestampArray(
+Bebop_Result bebop_writer_write_timestamp_array(
     Bebop_Writer* writer, const Bebop_Timestamp* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(Bebop_Timestamp))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(Bebop_Timestamp);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetDurationArray(
+Bebop_Result bebop_writer_write_duration_array(
     Bebop_Writer* writer, const Bebop_Duration* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > UINT32_MAX)) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
 
-  Bebop_WireResult result = Bebop_Writer_SetU32(writer, (uint32_t)length);
-  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+  Bebop_Result result = bebop_writer_write_u32(writer, (uint32_t)length);
+  if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
     return result;
   }
 
   if (length == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(length > SIZE_MAX / sizeof(Bebop_Duration))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = length * sizeof(Bebop_Duration);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedU8Array(
+Bebop_Result bebop_writer_write_fixed_u8_array(
     Bebop_Writer* writer, const uint8_t* data, size_t count
 )
 {
-  return Bebop_Writer_SetFixedBytes(writer, data, count);
+  return bebop_writer_write_fixed_bytes(writer, bebop_bytes(data, count));
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedI8Array(
+Bebop_Result bebop_writer_write_fixed_i8_array(
     Bebop_Writer* writer, const int8_t* data, size_t count
 )
 {
-  return Bebop_Writer_SetFixedBytes(writer, (const uint8_t*)data, count);
+  return bebop_writer_write_fixed_bytes(writer, bebop_bytes(data, count));
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedBoolArray(
+Bebop_Result bebop_writer_write_fixed_bool_array(
     Bebop_Writer* writer, const bool* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, count);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, count);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, count);
   writer->current += count;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedU16Array(
+Bebop_Result bebop_writer_write_fixed_u16_array(
     Bebop_Writer* writer, const uint16_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(uint16_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(uint16_t);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1843,40 +2463,40 @@ Bebop_WireResult Bebop_Writer_SetFixedU16Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetU16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_u16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedI16Array(
+Bebop_Result bebop_writer_write_fixed_i16_array(
     Bebop_Writer* writer, const int16_t* data, size_t count
 )
 {
-  return Bebop_Writer_SetFixedU16Array(writer, (const uint16_t*)data, count);
+  return bebop_writer_write_fixed_u16_array(writer, (const uint16_t*)data, count);
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedU32Array(
+Bebop_Result bebop_writer_write_fixed_u32_array(
     Bebop_Writer* writer, const uint32_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(uint32_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(uint32_t);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1886,40 +2506,40 @@ Bebop_WireResult Bebop_Writer_SetFixedU32Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetU32(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_u32(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedI32Array(
+Bebop_Result bebop_writer_write_fixed_i32_array(
     Bebop_Writer* writer, const int32_t* data, size_t count
 )
 {
-  return Bebop_Writer_SetFixedU32Array(writer, (const uint32_t*)data, count);
+  return bebop_writer_write_fixed_u32_array(writer, (const uint32_t*)data, count);
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedU64Array(
+Bebop_Result bebop_writer_write_fixed_u64_array(
     Bebop_Writer* writer, const uint64_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(uint64_t))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(uint64_t);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1929,40 +2549,40 @@ Bebop_WireResult Bebop_Writer_SetFixedU64Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetU64(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_u64(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedI64Array(
+Bebop_Result bebop_writer_write_fixed_i64_array(
     Bebop_Writer* writer, const int64_t* data, size_t count
 )
 {
-  return Bebop_Writer_SetFixedU64Array(writer, (const uint64_t*)data, count);
+  return bebop_writer_write_fixed_u64_array(writer, (const uint64_t*)data, count);
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedF16Array(
+Bebop_Result bebop_writer_write_fixed_f16_array(
     Bebop_Writer* writer, const Bebop_Float16* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_Float16))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_Float16);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -1972,33 +2592,33 @@ Bebop_WireResult Bebop_Writer_SetFixedF16Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetF16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_f16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedBF16Array(
+Bebop_Result bebop_writer_write_fixed_bf16_array(
     Bebop_Writer* writer, const Bebop_BFloat16* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_BFloat16))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_BFloat16);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -2008,33 +2628,33 @@ Bebop_WireResult Bebop_Writer_SetFixedBF16Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetBF16(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_bf16(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedF32Array(
+Bebop_Result bebop_writer_write_fixed_f32_array(
     Bebop_Writer* writer, const float* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(float))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(float);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -2044,33 +2664,33 @@ Bebop_WireResult Bebop_Writer_SetFixedF32Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetF32(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_f32(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedF64Array(
+Bebop_Result bebop_writer_write_fixed_f64_array(
     Bebop_Writer* writer, const double* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(double))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(double);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -2080,33 +2700,33 @@ Bebop_WireResult Bebop_Writer_SetFixedF64Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetF64(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_f64(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedI128Array(
+Bebop_Result bebop_writer_write_fixed_i128_array(
     Bebop_Writer* writer, const Bebop_Int128* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_Int128))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_Int128);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -2116,33 +2736,33 @@ Bebop_WireResult Bebop_Writer_SetFixedI128Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetI128(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_i128(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedU128Array(
+Bebop_Result bebop_writer_write_fixed_u128_array(
     Bebop_Writer* writer, const Bebop_UInt128* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_UInt128))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_UInt128);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
@@ -2152,143 +2772,143 @@ Bebop_WireResult Bebop_Writer_SetFixedU128Array(
   writer->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Writer_SetU128(writer, data[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_writer_write_u128(writer, data[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedUUIDArray(
+Bebop_Result bebop_writer_write_fixed_uuid_array(
     Bebop_Writer* writer, const Bebop_UUID* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_UUID))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_UUID);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedTimestampArray(
+Bebop_Result bebop_writer_write_fixed_timestamp_array(
     Bebop_Writer* writer, const Bebop_Timestamp* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_Timestamp))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_Timestamp);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetFixedDurationArray(
+Bebop_Result bebop_writer_write_fixed_duration_array(
     Bebop_Writer* writer, const Bebop_Duration* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
 
   if (BEBOP_WIRE_UNLIKELY(count > SIZE_MAX / sizeof(Bebop_Duration))) {
-    return BEBOP_WIRE_ERR_OVERFLOW;
+    return BEBOP_RESULT_OVERFLOW;
   }
   const size_t total_bytes = count * sizeof(Bebop_Duration);
   if (BEBOP_WIRE_UNLIKELY(total_bytes > (size_t)(writer->end - writer->current))) {
-    const Bebop_WireResult result = Bebop_Writer_Ensure(writer, total_bytes);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    const Bebop_Result result = bebop_writer_reserve(writer, total_bytes);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 
   memcpy(writer->current, data, total_bytes);
   writer->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedU8Array(Bebop_Reader* reader, uint8_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_u8_array(Bebop_Reader* reader, uint8_t* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   memcpy(out, reader->current, count);
   reader->current += count;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedI8Array(Bebop_Reader* reader, int8_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_i8_array(Bebop_Reader* reader, int8_t* out, size_t count)
 {
-  return Bebop_Reader_GetFixedU8Array(reader, (uint8_t*)out, count);
+  return bebop_reader_read_fixed_u8_array(reader, (uint8_t*)out, count);
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedBoolArray(Bebop_Reader* reader, bool* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_bool_array(Bebop_Reader* reader, bool* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   memcpy(out, reader->current, count);
   reader->current += count;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedU16Array(Bebop_Reader* reader, uint16_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_u16_array(Bebop_Reader* reader, uint16_t* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(uint16_t))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(uint16_t);
 
@@ -2297,30 +2917,30 @@ Bebop_WireResult Bebop_Reader_GetFixedU16Array(Bebop_Reader* reader, uint16_t* o
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetU16(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_u16(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedI16Array(Bebop_Reader* reader, int16_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_i16_array(Bebop_Reader* reader, int16_t* out, size_t count)
 {
-  return Bebop_Reader_GetFixedU16Array(reader, (uint16_t*)out, count);
+  return bebop_reader_read_fixed_u16_array(reader, (uint16_t*)out, count);
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedU32Array(Bebop_Reader* reader, uint32_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_u32_array(Bebop_Reader* reader, uint32_t* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(uint32_t))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(uint32_t);
 
@@ -2329,30 +2949,30 @@ Bebop_WireResult Bebop_Reader_GetFixedU32Array(Bebop_Reader* reader, uint32_t* o
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetU32(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_u32(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedI32Array(Bebop_Reader* reader, int32_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_i32_array(Bebop_Reader* reader, int32_t* out, size_t count)
 {
-  return Bebop_Reader_GetFixedU32Array(reader, (uint32_t*)out, count);
+  return bebop_reader_read_fixed_u32_array(reader, (uint32_t*)out, count);
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedU64Array(Bebop_Reader* reader, uint64_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_u64_array(Bebop_Reader* reader, uint64_t* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(uint64_t))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(uint64_t);
 
@@ -2361,32 +2981,33 @@ Bebop_WireResult Bebop_Reader_GetFixedU64Array(Bebop_Reader* reader, uint64_t* o
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetU64(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_u64(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedI64Array(Bebop_Reader* reader, int64_t* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_i64_array(Bebop_Reader* reader, int64_t* out, size_t count)
 {
-  return Bebop_Reader_GetFixedU64Array(reader, (uint64_t*)out, count);
+  return bebop_reader_read_fixed_u64_array(reader, (uint64_t*)out, count);
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedF16Array(
+Bebop_Result bebop_reader_read_fixed_f16_array(
     Bebop_Reader* reader, Bebop_Float16* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Float16))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Float16)))
+  {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Float16);
 
@@ -2395,27 +3016,28 @@ Bebop_WireResult Bebop_Reader_GetFixedF16Array(
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetF16(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_f16(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedBF16Array(
+Bebop_Result bebop_reader_read_fixed_bf16_array(
     Bebop_Reader* reader, Bebop_BFloat16* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_BFloat16))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_BFloat16)))
+  {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_BFloat16);
 
@@ -2424,25 +3046,25 @@ Bebop_WireResult Bebop_Reader_GetFixedBF16Array(
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetBF16(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_bf16(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedF32Array(Bebop_Reader* reader, float* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_f32_array(Bebop_Reader* reader, float* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(float))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(float);
 
@@ -2451,25 +3073,25 @@ Bebop_WireResult Bebop_Reader_GetFixedF32Array(Bebop_Reader* reader, float* out,
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetF32(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_f32(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedF64Array(Bebop_Reader* reader, double* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_f64_array(Bebop_Reader* reader, double* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(double))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(double);
 
@@ -2478,27 +3100,27 @@ Bebop_WireResult Bebop_Reader_GetFixedF64Array(Bebop_Reader* reader, double* out
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetF64(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_f64(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedI128Array(
+Bebop_Result bebop_reader_read_fixed_i128_array(
     Bebop_Reader* reader, Bebop_Int128* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Int128))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Int128);
 
@@ -2507,27 +3129,28 @@ Bebop_WireResult Bebop_Reader_GetFixedI128Array(
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetI128(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_i128(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedU128Array(
+Bebop_Result bebop_reader_read_fixed_u128_array(
     Bebop_Reader* reader, Bebop_UInt128* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_UInt128))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_UInt128)))
+  {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_UInt128);
 
@@ -2536,88 +3159,90 @@ Bebop_WireResult Bebop_Reader_GetFixedU128Array(
   reader->current += total_bytes;
 #else
   for (size_t i = 0; i < count; i++) {
-    Bebop_WireResult result = Bebop_Reader_GetU128(reader, &out[i]);
-    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_WIRE_OK)) {
+    Bebop_Result result = bebop_reader_read_u128(reader, &out[i]);
+    if (BEBOP_WIRE_UNLIKELY(result != BEBOP_RESULT_OK)) {
       return result;
     }
   }
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedUUIDArray(Bebop_Reader* reader, Bebop_UUID* out, size_t count)
+Bebop_Result bebop_reader_read_fixed_uuid_array(Bebop_Reader* reader, Bebop_UUID* out, size_t count)
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
   if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_UUID))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_UUID);
   memcpy(out, reader->current, total_bytes);
   reader->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedTimestampArray(
+Bebop_Result bebop_reader_read_fixed_timestamp_array(
     Bebop_Reader* reader, Bebop_Timestamp* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Timestamp))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Timestamp)))
+  {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Timestamp);
   memcpy(out, reader->current, total_bytes);
   reader->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Reader_GetFixedDurationArray(
+Bebop_Result bebop_reader_read_fixed_duration_array(
     Bebop_Reader* reader, Bebop_Duration* out, size_t count
 )
 {
   if (!reader || !out) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (count == 0) {
-    return BEBOP_WIRE_OK;
+    return BEBOP_RESULT_OK;
   }
-  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Duration))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+  if (BEBOP_WIRE_UNLIKELY(count > (size_t)(reader->end - reader->current) / sizeof(Bebop_Duration)))
+  {
+    return BEBOP_RESULT_MALFORMED;
   }
   const size_t total_bytes = count * sizeof(Bebop_Duration);
   memcpy(out, reader->current, total_bytes);
   reader->current += total_bytes;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_SetLen(Bebop_Writer* writer, size_t* position)
+Bebop_Result bebop_writer_begin_length(Bebop_Writer* writer, size_t* position)
 {
   if (!writer || !position) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
-  *position = Bebop_Writer_Len(writer);
-  return Bebop_Writer_SetU32(writer, 0);
+  *position = bebop_writer_length(writer);
+  return bebop_writer_write_u32(writer, 0);
 }
 
-Bebop_WireResult Bebop_Writer_FillLen(Bebop_Writer* writer, size_t position, uint32_t length)
+Bebop_Result bebop_writer_end_length(Bebop_Writer* writer, size_t position, uint32_t length)
 {
   if (!writer) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
-  const size_t written = Bebop_Writer_Len(writer);
+  const size_t written = bebop_writer_length(writer);
   if (BEBOP_WIRE_UNLIKELY(written < sizeof(uint32_t) || position > written - sizeof(uint32_t))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
 
 #if BEBOP_WIRE_ASSUME_LE
@@ -2628,18 +3253,134 @@ Bebop_WireResult Bebop_Writer_FillLen(Bebop_Writer* writer, size_t position, uin
   writer->buffer[position++] = length >> 16;
   writer->buffer[position++] = length >> 24;
 #endif
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-Bebop_WireResult Bebop_Writer_Buf(Bebop_Writer* writer, uint8_t** buffer, size_t* length)
+size_t bebop_indexed_message_size(
+    size_t payload_size, const uint8_t* sorted_tags, uint8_t field_count
+)
 {
-  if (!writer || !buffer || !length) {
-    return BEBOP_WIRE_ERR_NULL;
+  if (!bebop_message_tags_valid(sorted_tags, field_count) || payload_size > UINT32_MAX) {
+    return SIZE_MAX;
+  }
+  const uint8_t width = payload_size <= UINT8_MAX ? 1 : payload_size <= UINT16_MAX ? 2 : 4;
+  const bebop_message_directory_layout_t directory =
+      bebop_message_directory_layout(sorted_tags, field_count);
+  const size_t boundary_count = field_count == 0 ? 0 : (size_t)field_count - 1;
+  const size_t metadata_size = 1u + directory.size + boundary_count * width;
+  if (payload_size > UINT32_MAX - metadata_size
+      || payload_size > SIZE_MAX - BEBOP_WIRE_SIZE_LEN - metadata_size)
+  {
+    return SIZE_MAX;
+  }
+  return BEBOP_WIRE_SIZE_LEN + payload_size + metadata_size;
+}
+
+Bebop_Result bebop_writer_end_indexed_message(
+    Bebop_Writer* writer,
+    size_t length_position,
+    size_t payload_start,
+    const uint8_t* sorted_tags,
+    const uint32_t* payload_offsets,
+    uint8_t field_count
+)
+{
+  if (!writer || (field_count != 0 && (!sorted_tags || !payload_offsets))) {
+    return BEBOP_RESULT_NULL;
+  }
+  if (!bebop_message_tags_valid(sorted_tags, field_count)) {
+    return BEBOP_RESULT_INVALID;
   }
 
-  *buffer = writer->buffer;
-  *length = Bebop_Writer_Len(writer);
-  return BEBOP_WIRE_OK;
+  const size_t written = bebop_writer_length(writer);
+  if (length_position > SIZE_MAX - BEBOP_WIRE_SIZE_LEN
+      || length_position + BEBOP_WIRE_SIZE_LEN != payload_start || payload_start > written)
+  {
+    return BEBOP_RESULT_INVALID;
+  }
+  const size_t payload_size = written - payload_start;
+  if (payload_size > UINT32_MAX) {
+    return BEBOP_RESULT_OVERFLOW;
+  }
+  if (field_count == 0 && payload_size != 0) {
+    return BEBOP_RESULT_INVALID;
+  }
+  if (field_count != 0 && payload_offsets[0] != 0) {
+    return BEBOP_RESULT_INVALID;
+  }
+  for (uint16_t i = 0; i < field_count; i++) {
+    if (payload_offsets[i] > payload_size
+        || (i != 0 && payload_offsets[i] < payload_offsets[i - 1]))
+    {
+      return BEBOP_RESULT_INVALID;
+    }
+  }
+
+  const uint8_t width = payload_size <= UINT8_MAX ? 1 : payload_size <= UINT16_MAX ? 2 : 4;
+  const uint8_t width_code = width == 1 ? 0 : width == 2 ? 1 : 2;
+  const bebop_message_directory_layout_t directory =
+      bebop_message_directory_layout(sorted_tags, field_count);
+  const size_t boundary_count = field_count == 0 ? 0 : (size_t)field_count - 1;
+  const size_t metadata_size = 1u + directory.size + boundary_count * width;
+  if (payload_size > UINT32_MAX - metadata_size) {
+    return BEBOP_RESULT_OVERFLOW;
+  }
+
+  Bebop_Result result = bebop_writer_reserve(writer, metadata_size);
+  if (result != BEBOP_RESULT_OK) {
+    return result;
+  }
+  uint8_t* output = writer->current;
+  for (uint16_t i = 1; i < field_count; i++) {
+    bebop_wire_store_le(&output, payload_offsets[i], width);
+  }
+
+  switch (directory.kind) {
+    case BEBOP_MESSAGE_DIRECTORY_EMPTY:
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_TINY1:
+    case BEBOP_MESSAGE_DIRECTORY_TINY2:
+    case BEBOP_MESSAGE_DIRECTORY_TINY3:
+      memcpy(output, sorted_tags, field_count);
+      output += field_count;
+      break;
+    case BEBOP_MESSAGE_DIRECTORY_MASK8:
+    case BEBOP_MESSAGE_DIRECTORY_MASK16:
+    case BEBOP_MESSAGE_DIRECTORY_MASK32: {
+      uint32_t mask = 0;
+      for (uint16_t i = 0; i < field_count; i++) {
+        mask |= UINT32_C(1) << (sorted_tags[i] - 1u);
+      }
+      bebop_wire_store_le(&output, mask, directory.size);
+      break;
+    }
+    case BEBOP_MESSAGE_DIRECTORY_BLOCKS: {
+      uint16_t next = 0;
+      uint8_t rank = 0;
+      for (uint8_t block = 0; block < 8; block++) {
+        if ((directory.block_mask & (uint8_t)(1u << block)) == 0) {
+          continue;
+        }
+        uint32_t mask = 0;
+        const uint8_t first_tag = (uint8_t)(block * 32u + 1u);
+        const uint16_t block_limit = (uint16_t)first_tag + 32u;
+        while (next < field_count && sorted_tags[next] < block_limit) {
+          mask |= UINT32_C(1) << (sorted_tags[next] - first_tag);
+          next++;
+        }
+        *output++ = rank;
+        bebop_wire_store_le(&output, mask, 4);
+        rank = (uint8_t)(rank + bebop_wire_popcount32(mask));
+      }
+      *output++ = directory.block_mask;
+      break;
+    }
+    default:
+      return BEBOP_RESULT_INVALID;
+  }
+  *output++ = (uint8_t)((directory.kind << 2) | width_code);
+  writer->current = output;
+  return bebop_writer_end_length(writer, length_position, (uint32_t)(payload_size + metadata_size));
 }
 
 static const uint8_t bebop__wire_ascii_to_hex[256] = {
@@ -2655,7 +3396,7 @@ static const char bebop__wire_hex_chars[16] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
 };
 
-Bebop_UUID Bebop_UUID_FromString(const char* str)
+Bebop_UUID bebop_uuid_parse(const char* str)
 {
   Bebop_UUID uuid = {0};
   if (!str) {
@@ -2690,7 +3431,7 @@ Bebop_UUID Bebop_UUID_FromString(const char* str)
   return uuid;
 }
 
-size_t Bebop_UUID_ToString(Bebop_UUID uuid, char* buf, size_t len)
+size_t bebop_uuid_format(Bebop_UUID uuid, char* buf, size_t len)
 {
   if (!buf || len < BEBOP_WIRE_UUID_STR_LEN + 1) {
     return 0;
@@ -2709,90 +3450,97 @@ size_t Bebop_UUID_ToString(Bebop_UUID uuid, char* buf, size_t len)
   return BEBOP_WIRE_UUID_STR_LEN;
 }
 
-Bebop_WireCtxOpts Bebop_WireCtx_DefaultOpts(void)
+Bebop_ContextOptions bebop_context_options(void)
 {
-  const Bebop_WireCtxOpts options = {
+  const Bebop_ContextOptions options = {
       .arena_options =
           {.initial_block_size = 4096,
            .max_block_size = 1048576,
-           .allocator = {.alloc = NULL, .ctx = NULL}},
-      .initial_writer_size = 1024
+           .allocator = {.alloc = bebop_default_alloc, .ctx = NULL}},
+      .initial_writer_size = 1024,
+      .max_decode_depth = BEBOP_WIRE_DEFAULT_MAX_DECODE_DEPTH
   };
   return options;
 }
 
-size_t Bebop_Reader_Pos(const Bebop_Reader* reader)
+size_t bebop_reader_position(const Bebop_Reader* reader)
 {
   return reader ? (size_t)(reader->current - reader->start) : 0;
 }
 
-const uint8_t* Bebop_Reader_Ptr(const Bebop_Reader* reader)
+const uint8_t* bebop_reader_data(const Bebop_Reader* reader)
 {
   return reader ? reader->current : NULL;
 }
 
-size_t Bebop_Reader_Remaining(const Bebop_Reader* reader)
+size_t bebop_reader_remaining(const Bebop_Reader* reader)
 {
   return reader ? (size_t)(reader->end - reader->current) : 0;
 }
 
-Bebop_WireResult Bebop_Reader_PushLimit(Bebop_Reader* reader, uint32_t len, const uint8_t** old_end)
+Bebop_Result bebop_reader_push_limit(Bebop_Reader* reader, uint32_t len, const uint8_t** old_end)
 {
   if (BEBOP_WIRE_UNLIKELY(!reader || !old_end)) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
   if (BEBOP_WIRE_UNLIKELY((size_t)len > (size_t)(reader->end - reader->current))) {
-    return BEBOP_WIRE_ERR_MALFORMED;
+    return BEBOP_RESULT_MALFORMED;
   }
   *old_end = reader->end;
   reader->end = reader->current + len;
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-void Bebop_Reader_PopLimit(Bebop_Reader* reader, const uint8_t* old_end)
+void bebop_reader_pop_limit(Bebop_Reader* reader, const uint8_t* old_end)
 {
   if (reader && old_end && old_end >= reader->end) {
     reader->end = old_end;
   }
 }
 
-size_t Bebop_Writer_Len(const Bebop_Writer* writer)
+size_t bebop_writer_length(const Bebop_Writer* writer)
 {
   return writer ? (size_t)(writer->current - writer->buffer) : 0;
 }
 
-size_t Bebop_Writer_Remaining(const Bebop_Writer* writer)
+Bebop_View bebop_writer_view(const Bebop_Writer* writer)
+{
+  return writer ? (Bebop_View) {writer->buffer, (size_t)(writer->current - writer->buffer)}
+                : (Bebop_View) {NULL, 0};
+}
+
+size_t bebop_writer_available(const Bebop_Writer* writer)
 {
   return writer ? (size_t)(writer->end - writer->current) : 0;
 }
 
-Bebop_Str Bebop_Str_FromCStr(const char* str)
+Bebop_String bebop_string(const char* str)
 {
-  const Bebop_Str view = {str, str ? strlen(str) : 0};
+  const Bebop_String view = {str, str ? strlen(str) : 0};
   return view;
 }
 
-bool Bebop_Str_Equal(Bebop_Str a, Bebop_Str b)
+bool bebop_string_equal(Bebop_String a, Bebop_String b)
 {
   return a.length == b.length && (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);
 }
 
-bool Bebop_UUID_Equal(Bebop_UUID a, Bebop_UUID b)
+bool bebop_uuid_equal(Bebop_UUID a, Bebop_UUID b)
 {
   return memcmp(&a, &b, sizeof(Bebop_UUID)) == 0;
 }
 
-void* Bebop_WireCtx_Alloc(Bebop_WireCtx* context, size_t size)
+void* bebop_context_alloc(Bebop_Context* context, size_t size)
 {
   return context ? bebop_wire_arena_alloc(context->arena, size) : NULL;
 }
 
-void* Bebop_WireCtx_Realloc(Bebop_WireCtx* context, void* ptr, size_t old_size, size_t new_size)
+void* bebop_context_realloc(Bebop_Context* context, void* ptr, size_t old_size, size_t new_size)
 {
   return context ? bebop_wire_arena_realloc(context->arena, ptr, old_size, new_size) : NULL;
 }
 
-void* Bebop_WireCtx_AllocArray(Bebop_WireCtx* context, size_t count, size_t elem_size)
+void* bebop_context_alloc_array(Bebop_Context* context, size_t count, size_t elem_size)
 {
   if (!context || (elem_size != 0 && count > SIZE_MAX / elem_size)) {
     return NULL;
@@ -2886,19 +3634,7 @@ static inline uint64_t bebop__map_clear_match(uint64_t match, size_t offset)
   return (shift < 64) ? (match & ~((1ULL << shift) - 1)) : 0;
 }
 
-void Bebop_Map_Init(Bebop_Map* m, Bebop_WireCtx* ctx, Bebop_MapHashFn hash, Bebop_MapEqFn eq)
-{
-  m->ctrl = NULL;
-  m->slots = NULL;
-  m->length = 0;
-  m->capacity = 0;
-  m->growth_left = 0;
-  m->hash = hash;
-  m->eq = eq;
-  m->ctx = ctx;
-}
-
-void* Bebop_Map_Get(const Bebop_Map* m, const void* key)
+void* bebop_map_get(const Bebop_Map* m, const void* key)
 {
   if (!m || !m->ctrl || m->length == 0) {
     return NULL;
@@ -2938,7 +3674,7 @@ void* Bebop_Map_Get(const Bebop_Map* m, const void* key)
   return NULL;
 }
 
-bool Bebop_Map_Put(Bebop_Map* m, void* key, void* value)
+bool bebop_map_set(Bebop_Map* m, void* key, void* value)
 {
   if (!m) {
     return false;
@@ -3007,7 +3743,7 @@ bool Bebop_Map_Put(Bebop_Map* m, void* key, void* value)
   return false;
 }
 
-bool Bebop_Map_Del(Bebop_Map* m, const void* key)
+bool bebop_map_remove(Bebop_Map* m, const void* key)
 {
   if (!m || !m->ctrl || m->length == 0) {
     return false;
@@ -3045,7 +3781,7 @@ bool Bebop_Map_Del(Bebop_Map* m, const void* key)
   return false;
 }
 
-void Bebop_Map_Clear(Bebop_Map* m)
+void bebop_map_clear(Bebop_Map* m)
 {
   if (m && m->ctrl) {
     memset(m->ctrl, CTRL_EMPTY, m->capacity);
@@ -3054,13 +3790,13 @@ void Bebop_Map_Clear(Bebop_Map* m)
   }
 }
 
-void Bebop_MapIter_Init(Bebop_MapIter* it, const Bebop_Map* m)
+void bebop_map_iter_init(Bebop_MapIter* it, const Bebop_Map* m)
 {
   it->map = m;
   it->index = 0;
 }
 
-bool Bebop_MapIter_Next(Bebop_MapIter* it, void** key, void** value)
+bool bebop_map_iter_next(Bebop_MapIter* it, void** key, void** value)
 {
   if (!it || !it->map || !it->map->ctrl) {
     return false;
@@ -3090,13 +3826,13 @@ static bool bebop__map_grow(Bebop_Map* m)
   const size_t ctrl_size = new_cap + BEBOP_MAP_GROUP_SIZE;  // extra group for probing wraparound
   const size_t slots_size = new_cap * sizeof(Bebop_MapSlot);
 
-  int8_t* new_ctrl = Bebop_WireCtx_Alloc(m->ctx, ctrl_size);
+  int8_t* new_ctrl = bebop_context_alloc(m->ctx, ctrl_size);
   if (!new_ctrl) {
     return false;
   }
   memset(new_ctrl, CTRL_EMPTY, ctrl_size);
 
-  Bebop_MapSlot* new_slots = Bebop_WireCtx_Alloc(m->ctx, slots_size);
+  Bebop_MapSlot* new_slots = bebop_context_alloc(m->ctx, slots_size);
   if (!new_slots) {
     return false;
   }
@@ -3114,7 +3850,7 @@ static bool bebop__map_grow(Bebop_Map* m)
   // Rehash all entries
   for (size_t i = 0; i < old_cap; i++) {
     if (old_ctrl && CTRL_IS_FULL(old_ctrl[i])) {
-      if (!Bebop_Map_Put(m, old_slots[i].key, old_slots[i].value)) {
+      if (!bebop_map_set(m, old_slots[i].key, old_slots[i].value)) {
         return false;
       }
     }
@@ -3289,57 +4025,52 @@ static inline uint64_t bebop__wyhash64(uint64_t a, uint64_t b)
 }
 
 // Map hash functions for all valid map key types
-uint64_t Bebop_MapHash_Bool(const void* key)
+static uint64_t bebop_map_hash_bool(const void* key)
 {
   return bebop__wyhash64(*(const bool*)key, 0);
 }
 
-uint64_t Bebop_MapHash_Byte(const void* key)
-{
-  return bebop__wyhash64(*(const uint8_t*)key, 0);
-}
-
-uint64_t Bebop_MapHash_I8(const void* key)
+static uint64_t bebop_map_hash_i8(const void* key)
 {
   return bebop__wyhash64((uint64_t)*(const int8_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_U8(const void* key)
+static uint64_t bebop_map_hash_u8(const void* key)
 {
   return bebop__wyhash64(*(const uint8_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_I16(const void* key)
+static uint64_t bebop_map_hash_i16(const void* key)
 {
   return bebop__wyhash64((uint64_t)*(const int16_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_U16(const void* key)
+static uint64_t bebop_map_hash_u16(const void* key)
 {
   return bebop__wyhash64(*(const uint16_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_I32(const void* key)
+static uint64_t bebop_map_hash_i32(const void* key)
 {
   return bebop__wyhash64((uint64_t)*(const int32_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_U32(const void* key)
+static uint64_t bebop_map_hash_u32(const void* key)
 {
   return bebop__wyhash64(*(const uint32_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_I64(const void* key)
+static uint64_t bebop_map_hash_i64(const void* key)
 {
   return bebop__wyhash64(*(const uint64_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_U64(const void* key)
+static uint64_t bebop_map_hash_u64(const void* key)
 {
   return bebop__wyhash64(*(const uint64_t*)key, 0);
 }
 
-uint64_t Bebop_MapHash_I128(const void* key)
+static uint64_t bebop_map_hash_i128(const void* key)
 {
   uint64_t lo, hi;
   memcpy(&lo, key, sizeof(lo));
@@ -3347,7 +4078,7 @@ uint64_t Bebop_MapHash_I128(const void* key)
   return bebop__wyhash64(lo, hi);
 }
 
-uint64_t Bebop_MapHash_U128(const void* key)
+static uint64_t bebop_map_hash_u128(const void* key)
 {
   uint64_t lo, hi;
   memcpy(&lo, key, sizeof(lo));
@@ -3355,7 +4086,7 @@ uint64_t Bebop_MapHash_U128(const void* key)
   return bebop__wyhash64(lo, hi);
 }
 
-uint64_t Bebop_MapHash_UUID(const void* key)
+static uint64_t bebop_map_hash_uuid(const void* key)
 {
   uint64_t lo, hi;
   memcpy(&lo, key, sizeof(lo));
@@ -3363,83 +4094,126 @@ uint64_t Bebop_MapHash_UUID(const void* key)
   return bebop__wyhash64(lo, hi);
 }
 
-uint64_t Bebop_MapHash_Str(const void* key)
+static uint64_t bebop_map_hash_string(const void* key)
 {
-  const Bebop_Str* s = (const Bebop_Str*)key;
+  const Bebop_String* s = (const Bebop_String*)key;
   return bebop__wyhash(s->data, s->length, 0);
 }
 
 // Map equality functions for all valid map key types
-bool Bebop_MapEq_Bool(const void* a, const void* b)
+static bool bebop_map_equal_bool(const void* a, const void* b)
 {
   return *(const bool*)a == *(const bool*)b;
 }
 
-bool Bebop_MapEq_Byte(const void* a, const void* b)
-{
-  return *(const uint8_t*)a == *(const uint8_t*)b;
-}
-
-bool Bebop_MapEq_I8(const void* a, const void* b)
+static bool bebop_map_equal_i8(const void* a, const void* b)
 {
   return *(const int8_t*)a == *(const int8_t*)b;
 }
 
-bool Bebop_MapEq_U8(const void* a, const void* b)
+static bool bebop_map_equal_u8(const void* a, const void* b)
 {
   return *(const uint8_t*)a == *(const uint8_t*)b;
 }
 
-bool Bebop_MapEq_I16(const void* a, const void* b)
+static bool bebop_map_equal_i16(const void* a, const void* b)
 {
   return *(const int16_t*)a == *(const int16_t*)b;
 }
 
-bool Bebop_MapEq_U16(const void* a, const void* b)
+static bool bebop_map_equal_u16(const void* a, const void* b)
 {
   return *(const uint16_t*)a == *(const uint16_t*)b;
 }
 
-bool Bebop_MapEq_I32(const void* a, const void* b)
+static bool bebop_map_equal_i32(const void* a, const void* b)
 {
   return *(const int32_t*)a == *(const int32_t*)b;
 }
 
-bool Bebop_MapEq_U32(const void* a, const void* b)
+static bool bebop_map_equal_u32(const void* a, const void* b)
 {
   return *(const uint32_t*)a == *(const uint32_t*)b;
 }
 
-bool Bebop_MapEq_I64(const void* a, const void* b)
+static bool bebop_map_equal_i64(const void* a, const void* b)
 {
   return *(const int64_t*)a == *(const int64_t*)b;
 }
 
-bool Bebop_MapEq_U64(const void* a, const void* b)
+static bool bebop_map_equal_u64(const void* a, const void* b)
 {
   return *(const uint64_t*)a == *(const uint64_t*)b;
 }
 
-bool Bebop_MapEq_I128(const void* a, const void* b)
+static bool bebop_map_equal_i128(const void* a, const void* b)
 {
   return memcmp(a, b, 16) == 0;
 }
 
-bool Bebop_MapEq_U128(const void* a, const void* b)
+static bool bebop_map_equal_u128(const void* a, const void* b)
 {
   return memcmp(a, b, 16) == 0;
 }
 
-bool Bebop_MapEq_UUID(const void* a, const void* b)
+static bool bebop_map_equal_uuid(const void* a, const void* b)
 {
   return memcmp(a, b, 16) == 0;
 }
 
-bool Bebop_MapEq_Str(const void* a, const void* b)
+static bool bebop_map_equal_string(const void* a, const void* b)
 {
-  const Bebop_Str* sa = (const Bebop_Str*)a;
-  const Bebop_Str* sb = (const Bebop_Str*)b;
+  const Bebop_String* sa = (const Bebop_String*)a;
+  const Bebop_String* sb = (const Bebop_String*)b;
   return sa->length == sb->length && memcmp(sa->data, sb->data, sa->length) == 0;
+}
+
+void bebop_map_init(Bebop_Map* map, Bebop_Context* context, Bebop_MapKeyKind key_kind)
+{
+  static const Bebop_MapHashFn hashes[] = {
+      bebop_map_hash_bool,
+      bebop_map_hash_i8,
+      bebop_map_hash_u8,
+      bebop_map_hash_i16,
+      bebop_map_hash_u16,
+      bebop_map_hash_i32,
+      bebop_map_hash_u32,
+      bebop_map_hash_i64,
+      bebop_map_hash_u64,
+      bebop_map_hash_i128,
+      bebop_map_hash_u128,
+      bebop_map_hash_string,
+      bebop_map_hash_uuid,
+  };
+  static const Bebop_MapEqFn equals[] = {
+      bebop_map_equal_bool,
+      bebop_map_equal_i8,
+      bebop_map_equal_u8,
+      bebop_map_equal_i16,
+      bebop_map_equal_u16,
+      bebop_map_equal_i32,
+      bebop_map_equal_u32,
+      bebop_map_equal_i64,
+      bebop_map_equal_u64,
+      bebop_map_equal_i128,
+      bebop_map_equal_u128,
+      bebop_map_equal_string,
+      bebop_map_equal_uuid,
+  };
+
+  if (!map) {
+    return;
+  }
+  *map = (Bebop_Map) {0};
+  if (!context || key_kind < BEBOP_MAP_KEY_BOOL || key_kind > BEBOP_MAP_KEY_UUID) {
+    assert(context && key_kind >= BEBOP_MAP_KEY_BOOL && key_kind <= BEBOP_MAP_KEY_UUID);
+    return;
+  }
+  *map = (Bebop_Map) {
+      .hash = hashes[key_kind],
+      .eq = equals[key_kind],
+      .ctx = context,
+  };
 }
 
 // #endregion
@@ -3514,9 +4288,9 @@ __attribute__((weak))
 const char BEBOP_TYPE_URL_PREFIX[] = "type.bebop.sh/";
 
 typedef struct {
-  Bebop_Str type_url;
+  Bebop_String type_url;
   Bebop_U8_Array value;
-} Bebop_Any_Layout;
+} bebop_any_layout;
 
 static size_t bebop__cstrlen(const char* s)
 {
@@ -3527,26 +4301,26 @@ static size_t bebop__cstrlen(const char* s)
   return (size_t)(p - s);
 }
 
-BEBOP_API Bebop_WireResult Bebop_Any_Pack(
-    Bebop_WireCtx* ctx, Bebop_Any* any, const void* record, const Bebop_TypeInfo* type_info
+BEBOP_API Bebop_Result bebop_any_pack(
+    Bebop_Context* ctx, Bebop_Any* any, const void* record, const Bebop_TypeInfo* type_info
 )
 {
   if (!ctx || !any || !record || !type_info || !type_info->type_fqn || !type_info->size_fn
       || !type_info->encode_fn)
   {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
-  Bebop_Any_Layout* a = (Bebop_Any_Layout*)any;
+  bebop_any_layout* a = (bebop_any_layout*)any;
 
   const char* prefix = type_info->prefix ? type_info->prefix : BEBOP_TYPE_URL_PREFIX;
   const size_t prefix_len = bebop__cstrlen(prefix);
   const size_t fqn_len = bebop__cstrlen(type_info->type_fqn);
   const size_t url_len = prefix_len + fqn_len;
 
-  char* url_buf = (char*)Bebop_WireCtx_Alloc(ctx, url_len + 1);
+  char* url_buf = (char*)bebop_context_alloc(ctx, url_len + 1);
   if (!url_buf) {
-    return BEBOP_WIRE_ERR_OOM;
+    return BEBOP_RESULT_OOM;
   }
   memcpy(url_buf, prefix, prefix_len);
   memcpy(url_buf + prefix_len, type_info->type_fqn, fqn_len);
@@ -3557,43 +4331,35 @@ BEBOP_API Bebop_WireResult Bebop_Any_Pack(
 
   const size_t encoded_size = type_info->size_fn(record);
 
-  Bebop_Writer* w;
-  Bebop_WireResult r = Bebop_WireCtx_WriterHint(ctx, encoded_size, &w);
-  if (r != BEBOP_WIRE_OK) {
+  Bebop_Writer* w = bebop_context_writer(ctx, encoded_size);
+  if (!w) {
+    return BEBOP_RESULT_OOM;
+  }
+
+  Bebop_Result r = type_info->encode_fn(w, record);
+  if (r != BEBOP_RESULT_OK) {
     return r;
   }
 
-  r = type_info->encode_fn(w, record);
-  if (r != BEBOP_WIRE_OK) {
-    return r;
-  }
-
-  uint8_t* buf;
-  size_t len;
-  r = Bebop_Writer_Buf(w, &buf, &len);
-  if (r != BEBOP_WIRE_OK) {
-    return r;
-  }
-
-  a->value.data = buf;
-  a->value.length = len;
+  a->value.data = w->buffer;
+  a->value.length = bebop_writer_length(w);
   a->value.capacity = 0;
 
-  return BEBOP_WIRE_OK;
+  return BEBOP_RESULT_OK;
 }
 
-BEBOP_API bool Bebop_Any_Is(const Bebop_Any* any, const char* type_fqn)
+BEBOP_API bool bebop_any_is(const Bebop_Any* any, const char* type_fqn)
 {
   if (!any || !type_fqn) {
     return false;
   }
 
-  const char* name = Bebop_Any_TypeName(any);
+  const char* name = bebop_any_type_name(any);
   if (!name) {
     return false;
   }
 
-  const Bebop_Any_Layout* a = (const Bebop_Any_Layout*)any;
+  const bebop_any_layout* a = (const bebop_any_layout*)any;
   const char* url_end = a->type_url.data + a->type_url.length;
   const size_t name_len = (size_t)(url_end - name);
   const size_t fqn_len = bebop__cstrlen(type_fqn);
@@ -3605,13 +4371,13 @@ BEBOP_API bool Bebop_Any_Is(const Bebop_Any* any, const char* type_fqn)
   return memcmp(name, type_fqn, fqn_len) == 0;
 }
 
-BEBOP_API const char* Bebop_Any_TypeName(const Bebop_Any* any)
+BEBOP_API const char* bebop_any_type_name(const Bebop_Any* any)
 {
   if (!any) {
     return NULL;
   }
 
-  const Bebop_Any_Layout* a = (const Bebop_Any_Layout*)any;
+  const bebop_any_layout* a = (const bebop_any_layout*)any;
 
   if (!a->type_url.data || a->type_url.length == 0) {
     return NULL;
@@ -3631,24 +4397,23 @@ BEBOP_API const char* Bebop_Any_TypeName(const Bebop_Any* any)
   return last_slash + 1;
 }
 
-BEBOP_API Bebop_WireResult Bebop_Any_Unpack(
-    Bebop_WireCtx* ctx, const Bebop_Any* any, void* record, const Bebop_TypeInfo* type_info
+BEBOP_API Bebop_Result bebop_any_unpack(
+    Bebop_Context* ctx, const Bebop_Any* any, void* record, const Bebop_TypeInfo* type_info
 )
 {
   if (!ctx || !any || !record || !type_info || !type_info->decode_fn) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
-  const Bebop_Any_Layout* a = (const Bebop_Any_Layout*)any;
+  const bebop_any_layout* a = (const bebop_any_layout*)any;
 
   if (!a->value.data) {
-    return BEBOP_WIRE_ERR_NULL;
+    return BEBOP_RESULT_NULL;
   }
 
-  Bebop_Reader* rd;
-  const Bebop_WireResult r = Bebop_WireCtx_Reader(ctx, a->value.data, a->value.length, &rd);
-  if (r != BEBOP_WIRE_OK) {
-    return r;
+  Bebop_Reader* rd = bebop_context_reader(ctx, bebop_view(a->value.data, a->value.length));
+  if (!rd) {
+    return BEBOP_RESULT_OOM;
   }
 
   return type_info->decode_fn(ctx, rd, record);

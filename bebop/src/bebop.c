@@ -109,7 +109,7 @@ typedef struct {
 
 #define BEBOP_DISCARD_CONST(type, ptr) ((type)(uintptr_t)(ptr))
 
-#define BEBOP_ARRAY_PUSH(arena, arr, count, cap, T) \
+#define BEBOP_INTERNAL_ARRAY_PUSH(arena, arr, count, cap, T) \
   ((T*)bebop__array_push((arena), (void**)&(arr), &(count), &(cap), sizeof(T)))
 
 #define BEBOP_DIAG_FMT(schema, sev, code, span, ...) \
@@ -281,9 +281,8 @@ static inline void* bebop__array_push(
     if ((size_t)new_cap > SIZE_MAX / elem_size) {
       return NULL;
     }
-    void* new_arr = bebop_arena_realloc(
-        arena, *arr, (size_t)*cap * elem_size, (size_t)new_cap * elem_size
-    );
+    void* new_arr =
+        bebop_arena_realloc(arena, *arr, (size_t)*cap * elem_size, (size_t)new_cap * elem_size);
     if (!new_arr) {
       return NULL;
     }
@@ -303,7 +302,8 @@ static inline void* bebop__arena_alloc_n(
   return bebop_arena_alloc(arena, elem_size * n, align);
 }
 
-#define bebop_arena_new(arena, T, n) ((T*)bebop__arena_alloc_n((arena), sizeof(T), (n), _Alignof(T)))
+#define bebop_arena_new(arena, T, n) \
+  ((T*)bebop__arena_alloc_n((arena), sizeof(T), (n), _Alignof(T)))
 
 #define bebop_arena_new1(arena, T) bebop_arena_new((arena), T, 1)
 
@@ -1232,11 +1232,11 @@ void bebop__context_set_error(bebop_context_t* ctx, const bebop_error_t error, c
 #ifndef CLANGD_TU_bebop_wire
 #include "bebop_wire.c"
 #endif
+#include "generated/descriptor.bb.c"
+#include "generated/plugin.bb.c"
 #ifndef CLANGD_TU_bebop_descriptor
 #include "bebop_descriptor.c"
 #endif
-#include "generated/descriptor.bb.c"
-#include "generated/plugin.bb.c"
 #ifndef CLANGD_TU_bebop_plugin
 #include "bebop_plugin.c"
 #endif

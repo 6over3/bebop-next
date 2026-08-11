@@ -28,6 +28,12 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - uses: oven-sh/setup-bun@v2
+
       - name: Setup Swift
         if: inputs.swift-version != '' && runner.os != 'macOS'
         uses: ./.github/actions/setup-swift

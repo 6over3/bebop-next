@@ -5,6 +5,7 @@ set(BEBOP_SOURCES
 set(BEBOP_HEADERS
     include/bebop.h
     include/bebop_wire.h
+    include/bebop_wire_codegen.h
 )
 
 add_library(bebop STATIC ${BEBOP_SOURCES})
@@ -62,6 +63,7 @@ add_custom_command(TARGET bebop POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/include/bebop.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/bebop_wire.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/bebop_wire_codegen.h
         ${BEBOP_OUTPUT_DIR}/include/
     COMMAND ${CMAKE_COMMAND} -E make_directory ${BEBOP_OUTPUT_DIR}/share/bebop
     COMMAND ${CMAKE_COMMAND} -E copy_directory

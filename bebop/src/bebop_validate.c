@@ -49,7 +49,7 @@ static void bebop__validate_add_reference(
     bebop_validator_t* v, bebop_def_t* def, const bebop_span_t span
 )
 {
-  bebop_span_t* slot = BEBOP_ARRAY_PUSH(
+  bebop_span_t* slot = BEBOP_INTERNAL_ARRAY_PUSH(
       BEBOP_ARENA(v->ctx),
       def->references,
       def->references_count,
@@ -67,7 +67,7 @@ static void bebop__validate_add_dependent(
     bebop_validator_t* v, bebop_def_t* def, bebop_def_t* dependent
 )
 {
-  bebop_def_t** slot = BEBOP_ARRAY_PUSH(
+  bebop_def_t** slot = BEBOP_INTERNAL_ARRAY_PUSH(
       BEBOP_ARENA(v->ctx),
       def->dependents,
       def->dependents_count,
@@ -177,9 +177,7 @@ static void bebop__validate_resolve_imports(const bebop_validator_t* v)
         }
         for (uint32_t t = lo; t < indexed && strcmp(index[t].base, base) == 0; t++) {
           bebop_schema_t* target = index[t].schema;
-          if (target != schema
-              && bebop__validate_paths_equal(target->path, imp->resolved_path))
-          {
+          if (target != schema && bebop__validate_paths_equal(target->path, imp->resolved_path)) {
             imp->schema = target;
             break;
           }
@@ -580,7 +578,7 @@ static void bebop__validate_collect_type_deps(
         if (bebop__deps_contains(deps->items, deps->count, resolved->fqn)) {
           break;
         }
-        bebop_str_t* slot = BEBOP_ARRAY_PUSH(
+        bebop_str_t* slot = BEBOP_INTERNAL_ARRAY_PUSH(
             BEBOP_ARENA(v->ctx), deps->items, deps->count, deps->capacity, bebop_str_t
         );
         if (!slot) {
@@ -623,8 +621,9 @@ static void bebop__validate_get_deps(
         const bebop_union_branch_t* branch = &def->union_def.branches[i];
 
         if (branch->def && !bebop_str_is_null(branch->def->name)) {
-          bebop_str_t* slot =
-              BEBOP_ARRAY_PUSH(BEBOP_ARENA(v->ctx), dl.items, dl.count, dl.capacity, bebop_str_t);
+          bebop_str_t* slot = BEBOP_INTERNAL_ARRAY_PUSH(
+              BEBOP_ARENA(v->ctx), dl.items, dl.count, dl.capacity, bebop_str_t
+          );
           if (!slot) {
             v->alloc_failed = true;
             return;
@@ -662,8 +661,9 @@ static void bebop__validate_get_deps(
       continue; \
     if (bebop__deps_contains(dl.items, dl.count, dec->resolved->fqn)) \
       continue; \
-    bebop_str_t* slot = \
-        BEBOP_ARRAY_PUSH(BEBOP_ARENA(v->ctx), dl.items, dl.count, dl.capacity, bebop_str_t); \
+    bebop_str_t* slot = BEBOP_INTERNAL_ARRAY_PUSH( \
+        BEBOP_ARENA(v->ctx), dl.items, dl.count, dl.capacity, bebop_str_t \
+    ); \
     if (!slot) { \
       v->alloc_failed = true; \
       return; \

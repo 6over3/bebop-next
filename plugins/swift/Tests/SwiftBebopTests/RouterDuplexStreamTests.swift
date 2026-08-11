@@ -8,8 +8,8 @@ import Testing
         let ctx = RpcContext(methodId: syncWidgetsId, metadata: [:], deadline: nil)
         let (send, finish, responses) = try await router.duplexStream(methodId: syncWidgetsId, ctx: ctx)
 
-        try await send(EchoRequest(value: "x").serializedData())
-        try await send(EchoRequest(value: "y").serializedData())
+        try await send(EchoRequest(value: "x").encode())
+        try await send(EchoRequest(value: "y").encode())
         try await finish()
 
         var results: [String] = []

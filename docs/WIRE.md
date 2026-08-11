@@ -183,18 +183,73 @@ Empty structs encode as zero bytes.
 ## Messages
 
 ```
-┌─────────────────┬───────────────────────────────────────────────────┐
-│ length (uint32) │ content (tag₀, value₀, tag₁, value₁, ..., 0x00)   │
-└─────────────────┴───────────────────────────────────────────────────┘
+┌─────────────────┬───────────────┬──────────────────┬───────────┬─────────┐
+│ length (uint32) │ field payload │ field boundaries │ directory │ control │
+└─────────────────┴───────────────┴──────────────────┴───────────┴─────────┘
 ```
 
-- 4-byte unsigned length prefix (byte count of content)
-- Fields as tag-value pairs:
-  - 1-byte tag (field index, 1-255)
-  - Value encoded according to field type
-- 0x00 byte terminates the field sequence
+- The 4-byte unsigned length is the byte count after the prefix.
+- Present field values are concatenated in ascending tag order. Tags are 1 through 255.
+- For `n` present fields, `n - 1` boundary offsets record the start of the second and later
+  fields, relative to the start of the payload.
+- A directory maps field tags to their rank in the payload.
+- The final control byte describes the boundary width and directory representation.
 
-Fields may appear in any order. Absent fields are not encoded. Unknown tags should be skipped by decoders.
+Absent fields consume no payload or boundary entry. A decoder can locate a known or unknown field from the
+directory without decoding preceding fields. Field values retain their normal encoding; the index only supplies
+their exact byte ranges.
+
+### Control byte
+
+```
+  7   6   5   4   3   2   1   0
+┌───────────┬───────────┬───────┐
+│ reserved  │ directory │ width │
+└───────────┴───────────┴───────┘
+```
+
+- Bits 0-1 are the boundary width code: `0` = 1 byte, `1` = 2 bytes, `2` = 4 bytes.
+  Code `3` is invalid. Encoders choose the smallest width that can represent the total payload size.
+- Bits 2-4 are the directory kind listed below.
+- Bits 5-7 are reserved and must be zero.
+
+Boundary offsets are unsigned little-endian integers. They must be nondecreasing and no greater than the
+payload size. Equal boundaries are valid because a present field can have a zero-byte encoding, such as an empty
+struct.
+
+### Directories
+
+| Kind | Value | Directory bytes |
+|------|-------|-----------------|
+| Empty | 0 | No bytes |
+| Tiny 1 | 1 | One tag byte |
+| Tiny 2 | 2 | Two sorted tag bytes |
+| Tiny 3 | 3 | Three sorted tag bytes |
+| Mask 8 | 4 | 8-bit presence mask for tags 1-8 |
+| Mask 16 | 5 | 16-bit little-endian presence mask for tags 1-16 |
+| Mask 32 | 6 | 32-bit little-endian presence mask for tags 1-32 |
+| Blocks | 7 | Nonempty 32-tag block entries followed by an 8-bit block mask |
+
+In a mask directory, bit `tag - 1` indicates presence. A field's rank is the population count of all lower
+bits.
+
+The block directory divides tags into eight blocks: 1-32, 33-64, ..., 225-255. Each nonempty block is emitted
+in ascending block order as:
+
+```
+┌──────────────────────┬───────────────────────────────┐
+│ preceding rank (u8)  │ 32-bit little-endian tag mask │
+└──────────────────────┴───────────────────────────────┘
+```
+
+An 8-bit mask of the nonempty blocks follows all entries. `preceding rank` is the number of fields in earlier
+blocks. Bit 31 of the final block mask is invalid because tag 256 does not exist.
+
+Encoders must use the smallest directory. Start with the block representation, replace it with Mask 8, Mask 16,
+or Mask 32 when the maximum tag fits and that mask is no larger, then replace it with a tiny directory when there
+are at most three fields and the tiny directory is strictly smaller. This tie rule makes the encoding canonical.
+
+### Example
 
 ```bebop
 message UserRequest {
@@ -207,28 +262,32 @@ message UserRequest {
 
 ```
 08 00 00 00    // length = 8 bytes
-01             // tag = 1 (user_id)
-2a 00 00 00    // value = 42
-02             // tag = 2 (include_profile)
-01             // value = true
-00             // end marker
+2a 00 00 00    // field 1: user_id = 42
+01             // field 2: include_profile = true
+04             // field 2 starts at payload offset 4
+03             // Mask 8 directory: tags 1 and 2 are present
+10             // Mask 8 directory, 1-byte boundaries
 ```
 
 `UserRequest { user_id: 42 }` (include_profile absent) encodes as:
 
 ```
 06 00 00 00    // length = 6 bytes
-01             // tag = 1 (user_id)
-2a 00 00 00    // value = 42
-00             // end marker
+2a 00 00 00    // field 1: user_id = 42
+01             // Mask 8 directory: tag 1 is present
+10             // Mask 8 directory, 1-byte boundaries
 ```
 
 Empty message encodes as:
 
 ```
 01 00 00 00    // length = 1
-00             // end marker
+00             // Empty directory, 1-byte boundary width
 ```
+
+Decoders must reject an invalid length, control byte, directory, field count, tag order, rank, boundary, or
+nonempty payload paired with an empty directory. A decoder may validate the complete index once and then expose
+field views, or validate the selected field's boundaries during trusted lazy access.
 
 ## Unions
 
@@ -280,12 +339,13 @@ union Event {
 }
 ```
 
-The `Request` branch is an inline message. Its content encodes as a message with its own length prefix and tag-value pairs:
+The `Request` branch is an inline message. Its content encodes as a message with its own length prefix, payload,
+boundaries, directory, and control byte:
 
 ```
 05 00 00 00    // union length = 5 bytes
 01             // discriminator = 1 (Request)
-...            // message content (length + tag-value pairs + end marker)
+...            // indexed message content
 ```
 
 The `Ack` branch is an inline struct. Its content encodes as a struct (fields in order, no tags):
@@ -347,7 +407,7 @@ Empty values are valid and encode normally. Null values do not exist in Bebop.
 | `string` | 4 bytes length (0) + 1 byte NUL = 5 bytes |
 | `byte[]` | 4 bytes count (0) = 4 bytes |
 | Empty struct | 0 bytes |
-| Message (no fields set) | 4 bytes length (1) + 1 byte end marker = 5 bytes |
+| Message (no fields set) | 4 bytes length (1) + 1 byte control = 5 bytes |
 
 An empty struct in an array takes zero bytes. An empty string in an array takes 5 bytes. All are valid; there is no way to encode "null" or "missing" for array elements.
 
@@ -376,7 +436,8 @@ Messages are designed for schema evolution:
 - Adding fields with new tags is backward compatible
 - Removing fields is safe (old tags are ignored by new decoders)
 - Reusing a removed tag with a different type breaks compatibility
-- Field order in the wire format does not matter
+- Encoders write present fields in ascending tag order
+- Decoders can skip unknown fields by using their indexed byte ranges
 
 ### Unions
 
@@ -411,7 +472,7 @@ Minimum sizes for computing buffer requirements:
 | Fixed array | element_size × count |
 | Map | 4 bytes (count only) |
 | Struct | Sum of field sizes |
-| Message | 5 bytes (4 length + 1 end marker) |
+| Message | 5 bytes (4 length + 1 control) |
 | Union | 5 bytes (4 length + 1 discriminator) |
 
 ## Design notes
@@ -420,9 +481,10 @@ Bebop uses fixed-width integers for all length prefixes and numeric types. There
 
 This design enables:
 
-- **Single-pass encoding/decoding** - each byte is visited exactly once, no backtracking
+- **Single-pass encoding/decoding** - values are encoded and decoded without backtracking
 - **Linear time complexity** - O(n) where n is data size, which is optimal for serialization
 - **Cache efficiency** - sequential memory access patterns with no random seeks
-- **Zero-copy decoding** - strings and byte arrays can reference the input buffer directly
+- **Indexed message access** - a field can be located without decoding earlier fields
+- **Zero-copy views** - encoded fields, strings, and byte arrays can reference the input buffer directly
 
 If wire size is a concern, apply a fast compression layer like zstd or lz4 to the encoded output. This typically achieves better compression than varint encoding while maintaining high throughput.

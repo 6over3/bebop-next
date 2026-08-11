@@ -92,6 +92,26 @@ bebop_add_test(resolve)
 bebop_add_test(map)
 bebop_add_test(bebop_rt)
 
+# Generate a focused schema with the current C plugin and test composed aggregate views.
+set(BEBOP_C_VIEWS_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schemas/views.bop")
+set(BEBOP_C_VIEWS_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/c_views")
+set(BEBOP_C_VIEWS_SOURCE "${BEBOP_C_VIEWS_GENERATED_DIR}/views.bb.c")
+set(BEBOP_C_VIEWS_HEADER "${BEBOP_C_VIEWS_GENERATED_DIR}/views.bb.h")
+add_custom_command(
+    OUTPUT "${BEBOP_C_VIEWS_SOURCE}" "${BEBOP_C_VIEWS_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BEBOP_C_VIEWS_GENERATED_DIR}"
+    COMMAND $<TARGET_FILE:bebopc> build "${BEBOP_C_VIEWS_SCHEMA}"
+            --plugin=c=$<TARGET_FILE:bebopc-gen-c>
+            --c_out=${BEBOP_C_VIEWS_GENERATED_DIR}
+            --quiet
+    DEPENDS bebopc bebopc-gen-c "${BEBOP_C_VIEWS_SCHEMA}"
+    VERBATIM
+)
+add_executable(test_c_views test_c_views.c "${BEBOP_C_VIEWS_SOURCE}")
+target_include_directories(test_c_views PRIVATE "${BEBOP_C_VIEWS_GENERATED_DIR}")
+target_link_libraries(test_c_views PRIVATE bebop::bebop unity)
+add_test(NAME c_views COMMAND test_c_views)
+
 # Frontend tests
 bebopc_add_test(dir)
 bebopc_add_test(glob)

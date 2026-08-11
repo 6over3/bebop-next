@@ -37,6 +37,10 @@ enum GenerateStruct {
                 doc: docComment(field.documentation)
             )
         }
+        try validateUniqueGeneratedNames(
+            fieldDecls.map(\.swiftName),
+            in: "struct '\(defName)'"
+        )
 
         var body: [String] = []
 
@@ -66,16 +70,41 @@ enum GenerateStruct {
         let hasFixedArray = fieldDecls.contains { $0.type.kind == .fixedArray }
 
         if hasFixedArray {
-            let eqExpr = fieldDecls.map { "lhs.\($0.swiftName) == rhs.\($0.swiftName)" }
-                .joined(separator: " && ")
+            var equalityBody: [String] = []
+            for field in fieldDecls {
+                if field.type.kind == .fixedArray {
+                    equalityBody.append(
+                        contentsOf: try fixedArrayEqualityLines(
+                            type: field.type,
+                            lhs: "lhs.\(field.swiftName)",
+                            rhs: "rhs.\(field.swiftName)"
+                        )
+                    )
+                } else {
+                    equalityBody.append(
+                        "if lhs.\(field.swiftName) != rhs.\(field.swiftName) { return false }"
+                    )
+                }
+            }
+            equalityBody.append("return true")
             let boolType = TypeMapper.unshadow("Bool")
+            let equalityBodyString = equalityBody.map { indent($0) }.joined(separator: "\n")
             body.append(
-                "\(vis)static func == (lhs: \(name), rhs: \(name)) -> \(boolType) {\n\(indent("return \(eqExpr)"))\n}"
+                "\(vis)static func == (lhs: \(name), rhs: \(name)) -> \(boolType) {\n\(equalityBodyString)\n}"
             )
 
             var hashBody: [String] = []
             for f in fieldDecls {
-                hashBody.append("hasher.combine(\(f.swiftName))")
+                if f.type.kind == .fixedArray {
+                    hashBody.append(
+                        contentsOf: try fixedArrayHashLines(
+                            type: f.type,
+                            value: f.swiftName
+                        )
+                    )
+                } else {
+                    hashBody.append("hasher.combine(\(f.swiftName))")
+                }
             }
             let hashBodyStr = hashBody.map { indent($0) }.joined(separator: "\n")
             body.append("\(vis)func hash(into hasher: inout Hasher) {\n\(hashBodyStr)\n}")
@@ -161,6 +190,65 @@ enum GenerateStruct {
             let sizeBodyStr = sizeBody.map { indent($0) }.joined(separator: "\n")
             body.append("\(vis)var encodedSize: Int {\n\(sizeBodyStr)\n}")
         }
+
+        // immutable zero-copy view
+        var viewBody: [String] = [
+            "\(vis)let encoded: BebopView",
+            "private let _decodeLimits: BebopDecodeLimits",
+        ]
+        for field in fieldDecls {
+            let viewType = try TypeMapper.viewType(for: field.type)
+            viewBody.append("\(field.doc)\(vis)let \(field.swiftName): \(viewType)")
+        }
+        viewBody.append(
+            "\(vis)init(_ bytes: [UInt8], limits: BebopDecodeLimits = .default) throws { try self.init(BebopView(bytes), limits: limits) }"
+        )
+        let initViewBody = [
+            "var reader = BebopViewReader(encoded, limits: limits)",
+            "self = try \(name).readView(from: &reader)",
+            "try reader.finish()",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append(
+            "\(vis)init(_ encoded: BebopView, limits: BebopDecodeLimits = .default) throws {\n\(initViewBody)\n}"
+        )
+        let validatedParameters = try fieldDecls.map { field in
+            let viewType = try TypeMapper.viewType(for: field.type)
+            return "\(field.swiftName): \(viewType)"
+        }.joined(separator: ", ")
+        let parameterSuffix = validatedParameters.isEmpty ? "" : ", " + validatedParameters
+        var validatedBody = [
+            "self.encoded = encoded",
+            "self._decodeLimits = limits",
+        ]
+        validatedBody.append(contentsOf: fieldDecls.map { "self.\($0.swiftName) = \($0.swiftName)" })
+        let validatedBodyString = validatedBody.map { indent($0) }.joined(separator: "\n")
+        viewBody.append(
+            "fileprivate init(validated encoded: BebopView, limits: BebopDecodeLimits\(parameterSuffix)) {\n\(validatedBodyString)\n}"
+        )
+        let decodedBody = [
+            "try encoded.withUnsafeBytes { bytes in",
+            "    var reader = BebopReader(data: bytes, limits: _decodeLimits)",
+            "    return try \(name).decode(from: &reader)",
+            "}",
+        ].map { indent($0) }.joined(separator: "\n")
+        viewBody.append("\(vis)func decoded() throws -> \(name) {\n\(decodedBody)\n}")
+        let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
+        body.append("\(vis)struct View: BebopRecordView {\n\(viewBodyString)\n}")
+
+        var readViewBody = ["let start = reader.position"]
+        for field in fieldDecls {
+            let read = try TypeMapper.viewReadExpression(for: field.type)
+            readViewBody.append("let \(field.swiftName) = \(read)")
+        }
+        let viewArguments = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
+        let argumentSuffix = viewArguments.isEmpty ? "" : ", " + viewArguments
+        readViewBody.append(
+            "return View(validated: reader.view(from: start), limits: reader.limits\(argumentSuffix))"
+        )
+        let readViewBodyString = readViewBody.map { indent($0) }.joined(separator: "\n")
+        body.append(
+            "\(vis)static func readView(from reader: inout BebopViewReader) throws -> View {\n\(readViewBodyString)\n}"
+        )
 
         body.append(
             """
