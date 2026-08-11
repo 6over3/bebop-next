@@ -60,14 +60,14 @@ import Testing
         let upload = try await client.uploadWidgets()
         let requests = ["one", "two", "three"].map(EchoRequest.init)
         let response = try await upload.send(requests)
-        #expect(response.value.value == "one,two,three")
+        #expect(response.value == "one,two,three")
     }
 
     @Test func clientStreamSendNothing() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let upload = try await client.uploadWidgets()
         let response = try await upload.finish()
-        #expect(response.value.value == "")
+        #expect(response.value == "")
     }
 
     @Test func clientStreamSendSingleItem() async throws {
@@ -75,7 +75,7 @@ import Testing
         let upload = try await client.uploadWidgets()
         try await upload.send(EchoRequest(value: "solo"))
         let response = try await upload.finish()
-        #expect(response.value.value == "solo")
+        #expect(response.value == "solo")
     }
 
     @Test func duplexInterleavedSendAndReceive() async throws {
@@ -141,7 +141,7 @@ import Testing
             continuation.finish()
         }
         let response = try await upload.send(source)
-        #expect(response.value.value == "alpha,bravo,charlie")
+        #expect(response.value == "alpha,bravo,charlie")
     }
 
     @Test func duplexSendFromAsyncGeneratorReadInLoop() async throws {

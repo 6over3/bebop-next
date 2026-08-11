@@ -589,6 +589,17 @@ enum GenerateService {
                             response: { try \(m.responseTypeName).decode(from: $0) }
                         )
                     }
+
+                    \(prefix)\(vis)func \(m.swiftName)<Requests: AsyncSequence & Sendable, Result: Sendable>(
+                        _ requests: Requests,
+                        context: RpcContext = RpcContext(),
+                        receive: @escaping @Sendable (StreamResponse<\(m.responseTypeName), C.Metadata>) async throws -> Result
+                    ) async throws -> Result where Requests.Element == \(m.requestTypeName) {
+                        try await \(m.swiftName)(context: context).exchange(
+                            requests,
+                            receive: receive
+                        )
+                    }
                     """)
             }
         }

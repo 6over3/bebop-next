@@ -122,6 +122,51 @@ public struct DuplexStream<Request: Sendable, Reply: Sendable, Metadata: Sendabl
         try await finishRequests()
     }
 
+    /// Sends an asynchronous sequence while `receive` consumes responses.
+    public func exchange<Requests: AsyncSequence & Sendable, Result: Sendable>(
+        _ requests: Requests,
+        receive: @escaping @Sendable (StreamResponse<Reply, Metadata>) async throws -> Result
+    ) async throws -> Result where Requests.Element == Request {
+        try await runExchange(
+            sending: { try await send(requests) },
+            receive: receive
+        )
+    }
+
+    /// Sends a sequence while `receive` consumes responses.
+    public func exchange<Requests: Sequence & Sendable, Result: Sendable>(
+        _ requests: Requests,
+        receive: @escaping @Sendable (StreamResponse<Reply, Metadata>) async throws -> Result
+    ) async throws -> Result where Requests.Element == Request {
+        try await runExchange(
+            sending: { try await send(requests) },
+            receive: receive
+        )
+    }
+
+    private func runExchange<Result: Sendable>(
+        sending: @escaping @Sendable () async throws -> Void,
+        receive: @escaping @Sendable (StreamResponse<Reply, Metadata>) async throws -> Result
+    ) async throws -> Result {
+        try await withThrowingTaskGroup(of: ExchangeTaskResult<Result>.self) { group in
+            group.addTask {
+                try await sending()
+                return .sendingFinished
+            }
+            group.addTask {
+                .received(try await receive(responses))
+            }
+
+            while let outcome = try await group.next() {
+                if case .received(let result) = outcome {
+                    group.cancelAll()
+                    return result
+                }
+            }
+            throw CancellationError()
+        }
+    }
+
     /// Adapts both stream directions without buffering either one.
     public func map<MappedRequest: Sendable, MappedReply: Sendable>(
         request encode: @escaping @Sendable (MappedRequest) throws -> Request,
@@ -133,4 +178,9 @@ public struct DuplexStream<Request: Sendable, Reply: Sendable, Metadata: Sendabl
             responses: responses.map(decode)
         )
     }
+}
+
+private enum ExchangeTaskResult<Result: Sendable>: Sendable {
+    case sendingFinished
+    case received(Result)
 }

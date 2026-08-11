@@ -1525,5 +1525,9 @@ struct SwiftGeneratorTests {
             code.contains(
                 "func duplexStream(\n        context: RpcContext = RpcContext()\n    ) async throws -> DuplexStream<Msg, Msg, C.Metadata>"
             ))
+        #expect(
+            code.contains(
+                "func duplexStream<Requests: AsyncSequence & Sendable, Result: Sendable>(\n        _ requests: Requests,\n        context: RpcContext = RpcContext(),\n        receive: @escaping @Sendable (StreamResponse<Msg, C.Metadata>) async throws -> Result\n    ) async throws -> Result where Requests.Element == Msg"
+            ))
     }
 }

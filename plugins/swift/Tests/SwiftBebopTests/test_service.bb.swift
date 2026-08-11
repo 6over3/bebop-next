@@ -603,6 +603,18 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
             response: { try EchoResponse.decode(from: $0) }
         )
     }
+
+    /// Bidirectional echo.
+    public func syncWidgets<Requests: AsyncSequence & Sendable, Result: Sendable>(
+        _ requests: Requests,
+        context: RpcContext = RpcContext(),
+        receive: @escaping @Sendable (StreamResponse<EchoResponse, C.Metadata>) async throws -> Result
+    ) async throws -> Result where Requests.Element == EchoRequest {
+        try await syncWidgets(context: context).exchange(
+            requests,
+            receive: receive
+        )
+    }
 }
 
 public struct WidgetServiceBatch<C: BebopChannel> {

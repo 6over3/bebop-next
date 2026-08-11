@@ -6,13 +6,14 @@ import Testing
     @Test func unaryGetWidget() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let response = try await client.getWidget(EchoRequest(value: "hello"))
-        #expect(response.value.value == "hello")
+        #expect(response.value == "hello")
+        #expect(response.message == EchoResponse(value: "hello"))
     }
 
     @Test func unaryGetWidgetDeconstructed() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let response = try await client.getWidget(value: "decon")
-        #expect(response.value.value == "decon")
+        #expect(response.value == "decon")
     }
 
     @Test func serverStreamListWidgets() async throws {
@@ -41,7 +42,7 @@ import Testing
         try await upload.send(EchoRequest(value: "a"))
         try await upload.send(EchoRequest(value: "b"))
         let response = try await upload.finish()
-        #expect(response.value.value == "a,b")
+        #expect(response.value == "a,b")
     }
 
     @Test func duplexStreamSyncWidgets() async throws {
@@ -55,6 +56,26 @@ import Testing
             results.append(item.value)
         }
         #expect(results == ["x", "y"])
+    }
+
+    @Test func duplexExchangePumpsAnAsyncSequenceWhileReceiving() async throws {
+        let client = WidgetServiceClient(channel: buildChannel())
+        let outgoing = AsyncStream<EchoRequest> { continuation in
+            for value in ["one", "two", "three"] {
+                continuation.yield(EchoRequest(value: value))
+            }
+            continuation.finish()
+        }
+
+        let received = try await client.syncWidgets(outgoing) { responses in
+            var values: [String] = []
+            for try await response in responses {
+                values.append(response.value)
+            }
+            return values
+        }
+
+        #expect(received == ["one", "two", "three"])
     }
 
     @Test func duplexHandlerMayAwaitARequestBeforeProducingResponses() async throws {

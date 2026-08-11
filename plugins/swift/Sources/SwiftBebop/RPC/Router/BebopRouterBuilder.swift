@@ -1,6 +1,6 @@
 /// Mutable builder for `BebopRouter`.
 public final class BebopRouterBuilder {
-    public var config = BebopRouterConfig()
+    public var config: BebopRouterConfig
 
     private static let reservedMethodIds: Set<UInt32> = [
         BebopReservedMethod.discovery,
@@ -14,7 +14,9 @@ public final class BebopRouterBuilder {
     private var serviceInfos: [ServiceInfo] = []
     private var interceptors: [any BebopInterceptor] = []
 
-    public init() {}
+    public init(config: BebopRouterConfig = BebopRouterConfig()) {
+        self.config = config
+    }
 
     public func addInterceptor(_ interceptor: some BebopInterceptor) {
         interceptors.append(interceptor)

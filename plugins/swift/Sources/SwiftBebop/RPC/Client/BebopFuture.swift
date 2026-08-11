@@ -5,7 +5,7 @@ public struct BebopFuture<Value: Sendable>: Sendable {
 
     public var value: Value {
         get async throws {
-            try await response.value
+            try await response.message
         }
     }
 
@@ -16,7 +16,7 @@ public struct BebopFuture<Value: Sendable>: Sendable {
             switch outcome {
             case let .success(success):
                 return try Response(
-                    value: decode(success.payload),
+                    message: decode(success.payload),
                     metadata: success.metadata
                 )
             case let .error(rpcError):

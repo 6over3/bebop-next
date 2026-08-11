@@ -112,7 +112,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
             request: request.encode(),
             context: context
         )
-        let response = try BatchResponse.decode(from: result.value)
+        let response = try BatchResponse.decode(from: result.message)
         return try BatchResults(response)
     }
 
@@ -146,7 +146,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
             context: dispatchCtx
         )
 
-        let handle = try FutureHandle.decode(from: response.value)
+        let handle = try FutureHandle.decode(from: response.message)
 
         return BebopFuture(
             id: handle.id,

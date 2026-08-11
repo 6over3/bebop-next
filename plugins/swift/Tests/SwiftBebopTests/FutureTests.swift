@@ -350,7 +350,7 @@ private struct MetadataHandler: WidgetServiceHandler {
         )
 
         let resp: Response<EchoResponse, [String: String]> = try await future.response
-        #expect(resp.value.value == "meta")
+        #expect(resp.value == "meta")
         #expect(resp.metadata["x-trace"] == "abc-123")
     }
 

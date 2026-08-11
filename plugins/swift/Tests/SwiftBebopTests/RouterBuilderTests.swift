@@ -17,6 +17,18 @@ import Testing
         #expect(!router.config.discoveryEnabled)
     }
 
+    @Test func acceptsConfigurationAtInitialization() {
+        let config = BebopRouterConfig(
+            discoveryEnabled: false,
+            decodeLimits: BebopDecodeLimits(maxCollectionElements: 12, maxDepth: 3)
+        )
+
+        let router = BebopRouterBuilder(config: config).build()
+
+        #expect(!router.config.discoveryEnabled)
+        #expect(router.config.decodeLimits == config.decodeLimits)
+    }
+
     @Test func registeredMethodsAreAccessible() {
         let router = buildRouter()
         #expect(router.methodType(for: getWidgetId) == .unary)

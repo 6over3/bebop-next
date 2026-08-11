@@ -8,17 +8,37 @@ public enum BebopReservedMethod {
 }
 
 public struct BebopRouterConfig: Sendable {
-    public var discoveryEnabled: Bool = true
-    public var futuresEnabled: Bool = false
-    public var maxBatchSize: UInt = 1_024
-    public var maxBatchStreamElements: UInt = 10_000
-    public var maxPendingFutures: UInt = 10_000
-    public var maxCompletedFutures: UInt = 10_000
-    public var futureSubscriberBufferCapacity: Int = 256
-    public var decodeLimits: BebopDecodeLimits = .default
-    public var allowUnauthenticatedFutureOwners: Bool = false
+    public var discoveryEnabled: Bool
+    public var futuresEnabled: Bool
+    public var maxBatchSize: UInt
+    public var maxBatchStreamElements: UInt
+    public var maxPendingFutures: UInt
+    public var maxCompletedFutures: UInt
+    public var futureSubscriberBufferCapacity: Int
+    public var decodeLimits: BebopDecodeLimits
+    public var allowUnauthenticatedFutureOwners: Bool
 
-    public init() {}
+    public init(
+        discoveryEnabled: Bool = true,
+        futuresEnabled: Bool = false,
+        maxBatchSize: UInt = 1_024,
+        maxBatchStreamElements: UInt = 10_000,
+        maxPendingFutures: UInt = 10_000,
+        maxCompletedFutures: UInt = 10_000,
+        futureSubscriberBufferCapacity: Int = 256,
+        decodeLimits: BebopDecodeLimits = .default,
+        allowUnauthenticatedFutureOwners: Bool = false
+    ) {
+        self.discoveryEnabled = discoveryEnabled
+        self.futuresEnabled = futuresEnabled
+        self.maxBatchSize = maxBatchSize
+        self.maxBatchStreamElements = maxBatchStreamElements
+        self.maxPendingFutures = maxPendingFutures
+        self.maxCompletedFutures = maxCompletedFutures
+        self.futureSubscriberBufferCapacity = futureSubscriberBufferCapacity
+        self.decodeLimits = decodeLimits
+        self.allowUnauthenticatedFutureOwners = allowUnauthenticatedFutureOwners
+    }
 }
 
 public struct BebopRouter<Store: FutureStorage>: Sendable {

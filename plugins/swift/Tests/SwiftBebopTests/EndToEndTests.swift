@@ -6,7 +6,7 @@ import Testing
     @Test func fullUnaryFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
         let response = try await client.getWidget(value: "e2e")
-        #expect(response.value.value == "e2e")
+        #expect(response.value == "e2e")
     }
 
     @Test func fullServerStreamFlow() async throws {
@@ -23,7 +23,7 @@ import Testing
         let client = WidgetServiceClient(channel: buildChannel())
         let upload = try await client.uploadWidgets()
         let response = try await upload.send(["hello", "world"].map(EchoRequest.init))
-        #expect(response.value.value == "hello,world")
+        #expect(response.value == "hello,world")
     }
 
     @Test func fullDuplexStreamFlow() async throws {
@@ -72,7 +72,7 @@ import Testing
 
         let client = WidgetServiceClient(channel: buildChannel(interceptors: [TagInterceptor()]))
         let response = try await client.getWidget(value: "intercepted")
-        #expect(response.value.value == "intercepted")
+        #expect(response.value == "intercepted")
     }
 
     @Test func errorFromHandlerPropagates() async {

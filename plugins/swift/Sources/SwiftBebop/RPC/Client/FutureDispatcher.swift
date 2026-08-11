@@ -55,7 +55,7 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
             context: dispatchCtx
         )
 
-        let handle = try FutureHandle.decode(from: response.value)
+        let handle = try FutureHandle.decode(from: response.message)
 
         return BebopFuture(
             id: handle.id,

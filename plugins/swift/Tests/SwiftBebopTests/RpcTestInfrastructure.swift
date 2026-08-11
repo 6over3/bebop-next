@@ -65,7 +65,7 @@ struct LoopbackChannel: BebopChannel {
         let serverCtx = context.binding(to: method)
         if let peerInfo { serverCtx[PeerInfoKey.self] = peerInfo }
         let data = try await router.unary(methodId: method, payload: request, ctx: serverCtx)
-        return Response(value: data, metadata: ())
+        return Response(message: data, metadata: ())
     }
 
     func serverStream(method: UInt32, request: [UInt8], context: RpcContext) async throws
@@ -98,7 +98,7 @@ struct LoopbackChannel: BebopChannel {
         let (send, rawFinish) = try await router.clientStream(methodId: method, ctx: serverCtx)
         return ClientStream(
             send: send,
-            finish: { try await Response(value: rawFinish(), metadata: ()) }
+            finish: { try await Response(message: rawFinish(), metadata: ()) }
         )
     }
 
