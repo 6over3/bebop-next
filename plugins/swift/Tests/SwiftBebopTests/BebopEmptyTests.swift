@@ -6,7 +6,7 @@ import Testing
     @Test func encodesToZeroBytes() {
         let empty = BebopEmpty()
         #expect(empty.encodedSize == 0)
-        #expect(empty.serializedData().isEmpty)
+        #expect(empty.encode().isEmpty)
     }
 
     @Test func decodesFromEmptyInput() throws {

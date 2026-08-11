@@ -5,7 +5,7 @@ import Testing
 @Suite struct WireTypeTests {
     @Test func frameHeaderRoundTrip() throws {
         let header = FrameHeader(length: 42, flags: FrameFlags(rawValue: 3), streamId: 7)
-        let bytes = header.serializedData()
+        let bytes = header.encode()
         let decoded = try FrameHeader.decode(from: bytes)
         #expect(decoded.length == 42)
         #expect(decoded.flags == FrameFlags(rawValue: 3))
@@ -17,7 +17,7 @@ import Testing
             methodId: 0xAABB, deadline: BebopTimestamp(seconds: 100, nanoseconds: 500),
             metadata: ["auth": "bearer xyz"]
         )
-        let bytes = header.serializedData()
+        let bytes = header.encode()
         let decoded = try CallHeader.decode(from: bytes)
         #expect(decoded.methodId == 0xAABB)
         #expect(decoded.deadline?.seconds == 100)
@@ -27,7 +27,7 @@ import Testing
 
     @Test func callHeaderNilFields() throws {
         let header = CallHeader()
-        let bytes = header.serializedData()
+        let bytes = header.encode()
         let decoded = try CallHeader.decode(from: bytes)
         #expect(decoded.methodId == nil)
         #expect(decoded.deadline == nil)
@@ -36,7 +36,7 @@ import Testing
 
     @Test func rpcErrorRoundTrip() throws {
         let err = RpcError(code: .notFound, detail: "missing", metadata: ["retry": "true"])
-        let bytes = err.serializedData()
+        let bytes = err.encode()
         let decoded = try RpcError.decode(from: bytes)
         #expect(decoded.code == .notFound)
         #expect(decoded.detail == "missing")
@@ -45,7 +45,7 @@ import Testing
 
     @Test func trailingMetadataRoundTrip() throws {
         let meta = TrailingMetadata(metadata: ["x-trace": "abc123"])
-        let bytes = meta.serializedData()
+        let bytes = meta.encode()
         let decoded = try TrailingMetadata.decode(from: bytes)
         #expect(decoded.metadata?["x-trace"] == "abc123")
     }
@@ -82,7 +82,7 @@ import Testing
                 ),
             ]
         )
-        let bytes = info.serializedData()
+        let bytes = info.encode()
         let decoded = try ServiceInfo.decode(from: bytes)
         #expect(decoded.name == "Foo")
         #expect(decoded.methods.count == 1)
@@ -96,7 +96,7 @@ import Testing
             ServiceInfo(name: "A", methods: []),
             ServiceInfo(name: "B", methods: []),
         ])
-        let bytes = response.serializedData()
+        let bytes = response.encode()
         let decoded = try DiscoveryResponse.decode(from: bytes)
         #expect(decoded.services.count == 2)
         #expect(decoded.services[0].name == "A")
@@ -105,7 +105,7 @@ import Testing
 
     @Test func batchCallRoundTrip() throws {
         let call = BatchCall(callId: 0, methodId: 0x1000, payload: [1, 2, 3], inputFrom: -1)
-        let bytes = call.serializedData()
+        let bytes = call.encode()
         let decoded = try BatchCall.decode(from: bytes)
         #expect(decoded.callId == 0)
         #expect(decoded.methodId == 0x1000)
@@ -118,7 +118,7 @@ import Testing
             calls: [BatchCall(callId: 0, methodId: 0x1000, payload: [0xFF], inputFrom: -1)],
             metadata: ["trace": "abc"]
         )
-        let bytes = req.serializedData()
+        let bytes = req.encode()
         let decoded = try BatchRequest.decode(from: bytes)
         #expect(decoded.calls.count == 1)
         #expect(decoded.metadata["trace"] == "abc")
@@ -126,7 +126,7 @@ import Testing
 
     @Test func batchOutcomeSuccess() throws {
         let outcome = BatchOutcome.success(BatchSuccess(payloads: [[1, 2], [3, 4]]))
-        let bytes = outcome.serializedData()
+        let bytes = outcome.encode()
         let decoded = try BatchOutcome.decode(from: bytes)
         guard case let .success(s) = decoded else {
             Issue.record("expected success")
@@ -139,7 +139,7 @@ import Testing
 
     @Test func batchOutcomeError() throws {
         let outcome = BatchOutcome.error(RpcError(code: .notFound, detail: "nope"))
-        let bytes = outcome.serializedData()
+        let bytes = outcome.encode()
         let decoded = try BatchOutcome.decode(from: bytes)
         guard case let .error(e) = decoded else {
             Issue.record("expected error")
@@ -154,7 +154,7 @@ import Testing
             BatchResult(callId: 0, outcome: .success(BatchSuccess(payloads: [[42]]))),
             BatchResult(callId: 1, outcome: .error(RpcError(code: .internal))),
         ])
-        let bytes = response.serializedData()
+        let bytes = response.encode()
         let decoded = try BatchResponse.decode(from: bytes)
         #expect(decoded.results.count == 2)
         #expect(decoded.results[0].callId == 0)

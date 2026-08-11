@@ -5,7 +5,7 @@ import Testing
 @Suite struct BatchEncodingTests {
     @Test func payloadEncodedOnceInBatchCall() throws {
         let request = EchoRequest(value: "hello")
-        let expectedBytes = request.serializedData()
+        let expectedBytes = request.encode()
 
         let batch = buildChannel().makeBatch()
         let _: CallRef<EchoResponse> = batch.addUnary(
@@ -20,7 +20,7 @@ import Testing
                 ),
             ], metadata: [:]
         )
-        let wireBytes = batchRequest.serializedData()
+        let wireBytes = batchRequest.encode()
         let decoded = try BatchRequest.decode(from: wireBytes)
 
         #expect(decoded.calls[0].payload == expectedBytes)
@@ -28,7 +28,7 @@ import Testing
 
     @Test func payloadSurvivesFullRoundTrip() async throws {
         let request = EchoRequest(value: "round-trip")
-        let requestBytes = request.serializedData()
+        let requestBytes = request.encode()
 
         let router = buildRouter()
         let ctx = RpcContext(methodId: 1, metadata: [:], deadline: nil)
@@ -44,7 +44,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: batchReq.serializedData(), ctx: ctx
+            methodId: 1, payload: batchReq.encode(), ctx: ctx
         )
         let batchResp = try BatchResponse.decode(from: responseBytes)
 
@@ -57,7 +57,7 @@ import Testing
         let decoded = try EchoResponse.decode(from: responsePayload)
         #expect(decoded.value == "round-trip")
 
-        #expect(decoded.serializedData() == responsePayload)
+        #expect(decoded.encode() == responsePayload)
     }
 
     @Test func pipelinedCallUsesResponseBytesDirectly() async throws {
@@ -68,7 +68,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "piped").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "piped").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -76,7 +76,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: batchReq.serializedData(), ctx: ctx
+            methodId: 1, payload: batchReq.encode(), ctx: ctx
         )
         let batchResp = try BatchResponse.decode(from: responseBytes)
 
@@ -96,14 +96,14 @@ import Testing
     }
 
     @Test func batchCallPayloadIsNotReEncodedByFraming() throws {
-        let innerPayload: [UInt8] = EchoRequest(value: "test").serializedData()
+        let innerPayload: [UInt8] = EchoRequest(value: "test").encode()
 
         let call = BatchCall(
             callId: 0, methodId: getWidgetId,
             payload: innerPayload, inputFrom: -1
         )
 
-        let wireBytes = call.serializedData()
+        let wireBytes = call.encode()
         let decoded = try BatchCall.decode(from: wireBytes)
 
         #expect(decoded.payload == innerPayload)
@@ -113,11 +113,11 @@ import Testing
     }
 
     @Test func batchResponsePayloadsAreOpaqueBytes() throws {
-        let p1 = EchoResponse(value: "a").serializedData()
-        let p2 = EchoResponse(value: "b").serializedData()
+        let p1 = EchoResponse(value: "a").encode()
+        let p2 = EchoResponse(value: "b").encode()
         let success = BatchSuccess(payloads: [p1, p2])
 
-        let wireBytes = success.serializedData()
+        let wireBytes = success.encode()
         let decoded = try BatchSuccess.decode(from: wireBytes)
 
         #expect(decoded.payloads.count == 2)

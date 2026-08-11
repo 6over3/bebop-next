@@ -112,7 +112,7 @@ public final class FutureResolver: Sendable {
 
     func cancel(id: BebopUUID) async throws {
         let req = FutureCancelRequest(id: id)
-        try await _sendCancel(req.serializedData())
+        try await _sendCancel(req.encode())
     }
 
     private func ensureResolveStream() {
@@ -123,7 +123,7 @@ public final class FutureResolver: Sendable {
                 var streamError: (any Error)?
                 do {
                     let req = FutureResolveRequest()
-                    try await _consumeResolveStream(req.serializedData()) { bytes in
+                    try await _consumeResolveStream(req.encode()) { bytes in
                         let result = try FutureResult.decode(from: bytes)
                         self.resolve(result: result)
                     }

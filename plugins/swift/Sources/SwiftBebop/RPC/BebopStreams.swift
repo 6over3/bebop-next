@@ -1,7 +1,7 @@
 private actor PullingMapState<Element: Sendable> {
     private enum Status {
         case open
-        case finished
+        case finished(Result<Element?, any Error>)
     }
 
     private var status = Status.open
@@ -19,7 +19,9 @@ private actor PullingMapState<Element: Sendable> {
             try await withCheckedThrowingContinuation {
                 (continuation: CheckedContinuation<Element?, any Error>) in
                 guard case .open = status else {
-                    continuation.resume(returning: nil)
+                    if case let .finished(result) = status {
+                        continuation.resume(with: result)
+                    }
                     return
                 }
                 guard consumer == nil else {
@@ -48,7 +50,8 @@ private actor PullingMapState<Element: Sendable> {
             }
             demand = continuation
         }
-        return status == .open
+        if case .open = status { return true }
+        return false
     }
 
     func yield(_ element: Element) {
@@ -59,12 +62,13 @@ private actor PullingMapState<Element: Sendable> {
 
     func finish(_ result: Result<Element?, any Error>) async {
         guard case .open = status else { return }
-        status = .finished
+        status = .finished(result)
 
         demand?.resume(returning: ())
         demand = nil
         if let consumer {
             self.consumer = nil
+            status = .finished(.success(nil))
             switch result {
             case .success(let element): consumer.resume(returning: element)
             case .failure(let error): consumer.resume(throwing: error)
@@ -99,6 +103,14 @@ public enum BebopStreams {
         onCancel: @escaping @Sendable () async -> Void = {},
         _ transform: @escaping @Sendable (Input) throws -> Output
     ) -> AsyncThrowingStream<Output, Error> {
+        map([], then: { source }, onCancel: onCancel, transform)
+    }
+
+    public static func map<Input: Sendable, Output: Sendable>(
+        _ source: @escaping @Sendable () async throws -> AsyncThrowingStream<Input, Error>,
+        onCancel: @escaping @Sendable () async -> Void = {},
+        _ transform: @escaping @Sendable (Input) throws -> Output
+    ) -> AsyncThrowingStream<Output, Error> {
         map([], then: source, onCancel: onCancel, transform)
     }
 
@@ -108,10 +120,19 @@ public enum BebopStreams {
         onCancel: @escaping @Sendable () async -> Void = {},
         _ transform: @escaping @Sendable (Input) throws -> Output
     ) -> AsyncThrowingStream<Output, Error> {
+        map(leading, then: { source }, onCancel: onCancel, transform)
+    }
+
+    private static func map<Input: Sendable, Output: Sendable>(
+        _ leading: [Input],
+        then source: @escaping @Sendable () async throws -> AsyncThrowingStream<Input, Error>,
+        onCancel: @escaping @Sendable () async -> Void,
+        _ transform: @escaping @Sendable (Input) throws -> Output
+    ) -> AsyncThrowingStream<Output, Error> {
         let state = PullingMapState<Output>(termination: onCancel)
         let worker = Task {
-            var iterator = source.makeAsyncIterator()
             do {
+                var iterator = try await source().makeAsyncIterator()
                 for input in leading {
                     guard try await state.waitForDemand() else { return }
                     try Task.checkCancellation()

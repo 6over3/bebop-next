@@ -207,13 +207,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: uploadWidgetsId,
-            payload: EchoRequest(value: "x").serializedData()
+            payload: EchoRequest(value: "x").encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -227,13 +227,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: syncWidgetsId,
-            payload: EchoRequest(value: "x").serializedData()
+            payload: EchoRequest(value: "x").encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -247,13 +247,13 @@ private struct MetadataHandler: WidgetServiceHandler {
 
         let req = FutureDispatchRequest(
             methodId: listWidgetsId,
-            payload: CountRequest(n: 1).serializedData()
+            payload: CountRequest(n: 1).encode()
         )
 
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")
@@ -273,7 +273,7 @@ private struct MetadataHandler: WidgetServiceHandler {
         do {
             _ = try await channel.unary(
                 method: BebopReservedMethod.dispatch,
-                request: req.serializedData(),
+                request: req.encode(),
                 context: RpcContext()
             )
             Issue.record("expected error")

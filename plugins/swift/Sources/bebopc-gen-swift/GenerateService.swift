@@ -362,7 +362,7 @@ enum GenerateService {
                 unaryBody.append("case .\(m.swiftName):")
                 unaryBody.append("    let req = try \(m.requestTypeName).View(payload, limits: context.decodeLimits)")
                 unaryBody.append("    let res = try await handler.\(m.swiftName)(req, context: context)")
-                unaryBody.append("    return res.serializedData()")
+                unaryBody.append("    return res.encode()")
             case .serverStream:
                 serverStreamBody.append("case .\(m.swiftName):")
                 serverStreamBody.append("    let req = try \(m.requestTypeName).View(payload, limits: context.decodeLimits)")
@@ -377,7 +377,7 @@ enum GenerateService {
                 serverStreamBody.append(
                     "        }")
                 serverStreamBody.append(
-                    "        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())"
+                    "        return StreamElement(bytes: item.encode(), cursor: context.dequeueCursor())"
                 )
                 serverStreamBody.append("    }")
             case .clientStream:
@@ -422,7 +422,7 @@ enum GenerateService {
                 clientStreamBody.append("        },")
                 clientStreamBody.append("        finish: {")
                 clientStreamBody.append("            await inbound.finish()")
-                clientStreamBody.append("            return try await task.value.serializedData()")
+                clientStreamBody.append("            return try await task.value.encode()")
                 clientStreamBody.append("        }")
                 clientStreamBody.append("    )")
             case .duplexStream:
@@ -430,10 +430,12 @@ enum GenerateService {
                 duplexStreamBody.append(
                     "    let inbound = RpcInboundStream<\(m.requestTypeName).View>()"
                 )
+                duplexStreamBody.append("    let rawResponses = BebopStreams.map(")
                 duplexStreamBody.append(
-                    "    let typedResponses = try await handler.\(m.swiftName)(inbound.stream, context: context)")
-                duplexStreamBody.append(
-                    "    let rawResponses = BebopStreams.map(typedResponses, onCancel: { await inbound.finish() }) { item in")
+                    "        { try await handler.\(m.swiftName)(inbound.stream, context: context) },"
+                )
+                duplexStreamBody.append("        onCancel: { await inbound.finish() }")
+                duplexStreamBody.append("    ) { item in")
                 duplexStreamBody.append("        try Task.checkCancellation()")
                 duplexStreamBody.append(
                     "        if let d = context.deadline, d.isPast {")
@@ -442,7 +444,7 @@ enum GenerateService {
                 duplexStreamBody.append(
                     "        }")
                 duplexStreamBody.append(
-                    "        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())"
+                    "        return StreamElement(bytes: item.encode(), cursor: context.dequeueCursor())"
                 )
                 duplexStreamBody.append("    }")
                 duplexStreamBody.append("    return (")
@@ -524,7 +526,7 @@ enum GenerateService {
                     ) async throws -> Response<\(m.responseTypeName), C.Metadata> {
                         try await channel.unary(
                             method: 0x\(hex(m.methodId)),
-                            request: request.serializedData(),
+                            request: request.encode(),
                             context: context
                         ).map { try \(m.responseTypeName).decode(from: $0) }
                     }
@@ -545,7 +547,7 @@ enum GenerateService {
                     ) async throws -> StreamResponse<\(m.responseTypeName), C.Metadata> {
                         try await channel.serverStream(
                             method: 0x\(hex(m.methodId)),
-                            request: request.serializedData(),
+                            request: request.encode(),
                             context: context
                         ).map { try \(m.responseTypeName).decode(from: $0) }
                     }
@@ -561,17 +563,15 @@ enum GenerateService {
                 body.append(
                     """
                     \(prefix)\(vis)func \(m.swiftName)(
-                        context: RpcContext = RpcContext(),
-                        body: (
-                            _ send: @Sendable (\(m.requestTypeName)) async throws -> Void
-                        ) async throws -> Void
-                    ) async throws -> Response<\(m.responseTypeName), C.Metadata> {
-                        let (rawSend, rawFinish) = try await channel.clientStream(
+                        context: RpcContext = RpcContext()
+                    ) async throws -> ClientStream<\(m.requestTypeName), \(m.responseTypeName), C.Metadata> {
+                        try await channel.clientStream(
                             method: 0x\(hex(m.methodId)),
                             context: context
+                        ).map(
+                            request: { $0.encode() },
+                            response: { try \(m.responseTypeName).decode(from: $0) }
                         )
-                        try await body({ try await rawSend($0.serializedData()) })
-                        return try await rawFinish().map { try \(m.responseTypeName).decode(from: $0) }
                     }
                     """)
 
@@ -579,27 +579,15 @@ enum GenerateService {
                 body.append(
                     """
                     \(prefix)\(vis)func \(m.swiftName)(
-                        context: RpcContext = RpcContext(),
-                        body: (
-                            _ send: @Sendable (\(m.requestTypeName)) async throws -> Void,
-                            _ finish: @Sendable () async throws -> Void,
-                            _ responses: StreamResponse<\(m.responseTypeName), C.Metadata>
-                        ) async throws -> Void
-                    ) async throws {
-                        let (rawSend, rawFinish, rawResponses) = try await channel.duplexStream(
+                        context: RpcContext = RpcContext()
+                    ) async throws -> DuplexStream<\(m.requestTypeName), \(m.responseTypeName), C.Metadata> {
+                        try await channel.duplexStream(
                             method: 0x\(hex(m.methodId)),
                             context: context
+                        ).map(
+                            request: { $0.encode() },
+                            response: { try \(m.responseTypeName).decode(from: $0) }
                         )
-                        do {
-                            try await body(
-                                { try await rawSend($0.serializedData()) },
-                                rawFinish,
-                                rawResponses.map { try \(m.responseTypeName).decode(from: $0) }
-                            )
-                        } catch {
-                            try? await rawFinish()
-                            throw error
-                        }
                     }
                     """)
             }

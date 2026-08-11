@@ -27,14 +27,14 @@ import Testing
             BatchCall(
                 callId: 0,
                 methodId: getWidgetId,
-                payload: EchoRequest(value: "bound").serializedData(),
+                payload: EchoRequest(value: "bound").encode(),
                 inputFrom: -1
             )
         ])
 
         _ = try await router.unary(
             methodId: BebopReservedMethod.batch,
-            payload: request.serializedData(),
+            payload: request.encode(),
             ctx: context
         )
     }
@@ -47,14 +47,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hi").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hi").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 1)
@@ -76,18 +76,18 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "a").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "a").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 1, methodId: getWidgetId,
-                    payload: EchoRequest(value: "b").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "b").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 2)
@@ -118,7 +118,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hello").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hello").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -126,7 +126,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.count == 2)
@@ -140,14 +140,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: listWidgetsId,
-                    payload: CountRequest(n: 3).serializedData(), inputFrom: -1
+                    payload: CountRequest(n: 3).encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -174,7 +174,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         guard case let .error(e) = response.results[0].outcome else {
@@ -190,7 +190,7 @@ import Testing
 
         let req = BatchRequest(calls: [], metadata: [:])
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         #expect(response.results.isEmpty)
@@ -204,11 +204,11 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "a").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "a").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "b").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "b").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
@@ -216,7 +216,7 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -234,7 +234,7 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -252,7 +252,7 @@ import Testing
 
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
-                methodId: 1, payload: req.serializedData(), ctx: ctx
+                methodId: 1, payload: req.encode(), ctx: ctx
             )
         }
     }
@@ -280,14 +280,14 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "fail").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "fail").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
         guard case let .error(e) = response.results[0].outcome else {
@@ -321,7 +321,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "x").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "x").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -329,7 +329,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -364,7 +364,7 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
@@ -409,17 +409,17 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "hi").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "hi").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
         let ref = CallRef<EchoResponse>(callId: 0)
 
         let meta = try results.metadata(for: ref)
@@ -450,21 +450,21 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "alpha").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "alpha").encode(), inputFrom: -1
                 ),
                 BatchCall(
                     callId: 1, methodId: getWidgetId,
-                    payload: EchoRequest(value: "beta").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "beta").encode(), inputFrom: -1
                 ),
             ],
             metadata: [:]
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref0 = CallRef<EchoResponse>(callId: 0)
         let ref1 = CallRef<EchoResponse>(callId: 1)
@@ -499,7 +499,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "first").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "first").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -507,10 +507,10 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref0 = CallRef<EchoResponse>(callId: 0)
         let ref1 = CallRef<EchoResponse>(callId: 1)
@@ -553,7 +553,7 @@ import Testing
             calls: [
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
-                    payload: EchoRequest(value: "upstream").serializedData(), inputFrom: -1
+                    payload: EchoRequest(value: "upstream").encode(), inputFrom: -1
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
@@ -561,10 +561,10 @@ import Testing
         )
 
         let responseBytes = try await router.unary(
-            methodId: 1, payload: req.serializedData(), ctx: ctx
+            methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        let results = BatchResults(response)
+        let results = try BatchResults(response)
 
         let ref1 = CallRef<EchoResponse>(callId: 1)
         let meta1 = try results.metadata(for: ref1)

@@ -100,7 +100,7 @@ public struct BebopAny: BebopRecord, BebopReflectable {
     ) -> BebopAny {
         BebopAny(
             typeURL: prefix + T.bebopReflection.fqn,
-            value: record.serializedData()
+            value: record.encode()
         )
     }
 

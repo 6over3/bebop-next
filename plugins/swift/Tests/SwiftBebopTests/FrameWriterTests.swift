@@ -155,6 +155,21 @@ private func collectingWriter() -> (FrameWriter, FrameLog) {
         #expect(wire.code == .cancelled)
     }
 
+    @Test func drainServerStreamDoesNotExposeInternalErrors() async throws {
+        struct HandlerError: Error {}
+
+        let (writer, log) = collectingWriter()
+        let stream = AsyncThrowingStream<StreamElement, Error> {
+            $0.finish(throwing: HandlerError())
+        }
+        try await writer.drainServerStream(stream)
+
+        let frame = try #require(await log.all().first)
+        let wire = try RpcError.decode(from: frame.payload)
+        #expect(wire.code == .internal)
+        #expect(wire.detail == nil)
+    }
+
     @Test func drainEmptyStream() async throws {
         let (writer, log) = collectingWriter()
         let stream = AsyncThrowingStream<StreamElement, Error> { $0.finish() }

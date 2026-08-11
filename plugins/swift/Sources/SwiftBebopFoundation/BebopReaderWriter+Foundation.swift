@@ -11,7 +11,10 @@ public extension BebopReader {
     /// Read `count` bytes as Foundation `Data`.
     @inlinable
     mutating func readData(_ count: Int) throws -> Data {
-        try Data(readBytes(count))
+        guard count >= 0 else { throw BebopDecodingError.invalidLength }
+        var data = Data(count: count)
+        try data.withUnsafeMutableBytes { try readBytes(into: $0) }
+        return data
     }
 }
 
@@ -25,9 +28,6 @@ public extension BebopWriter {
     /// Write Foundation `Data` bytes.
     @inlinable
     mutating func writeData(_ data: Data) {
-        guard !data.isEmpty else { return }
-        data.withUnsafeBytes { buf in
-            writeBytes(Array(buf.bindMemory(to: UInt8.self)))
-        }
+        data.withUnsafeBytes { writeBytes($0) }
     }
 }

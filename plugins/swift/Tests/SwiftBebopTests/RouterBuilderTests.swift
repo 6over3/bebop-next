@@ -37,7 +37,7 @@ import Testing
 
         _ = try await router.unary(
             methodId: getWidgetId,
-            payload: EchoRequest(value: "limits").serializedData(),
+            payload: EchoRequest(value: "limits").encode(),
             ctx: context
         )
 
@@ -51,7 +51,7 @@ import Testing
         await #expect(throws: BebopRpcError.self) {
             _ = try await router.unary(
                 methodId: getWidgetId,
-                payload: EchoRequest(value: "wrong context").serializedData(),
+                payload: EchoRequest(value: "wrong context").encode(),
                 ctx: context
             )
         }

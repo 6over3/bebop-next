@@ -32,7 +32,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
                 BatchCall(
                     callId: id,
                     methodId: methodId,
-                    payload: request.serializedData(),
+                    payload: request.encode(),
                     inputFrom: -1
                 ))
             return CallRef(callId: id)
@@ -72,7 +72,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
                 BatchCall(
                     callId: id,
                     methodId: methodId,
-                    payload: request.serializedData(),
+                    payload: request.encode(),
                     inputFrom: -1
                 ))
             return StreamRef(callId: id)
@@ -109,11 +109,11 @@ public final class Batch<Channel: BebopChannel>: Sendable {
         }
         let result = try await channel.unary(
             method: BebopReservedMethod.batch,
-            request: request.serializedData(),
+            request: request.encode(),
             context: context
         )
         let response = try BatchResponse.decode(from: result.value)
-        return BatchResults(response)
+        return try BatchResults(response)
     }
 
     /// Dispatch the entire batch as a future. The server runs the batch
@@ -131,7 +131,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
 
         let dispatchReq = FutureDispatchRequest(
             methodId: BebopReservedMethod.batch,
-            payload: request.serializedData(),
+            payload: request.encode(),
             idempotencyKey: options.idempotencyKey,
             metadata: context.metadata,
             deadline: context.deadline,
@@ -142,7 +142,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
 
         let response = try await dispatcher.channel.unary(
             method: BebopReservedMethod.dispatch,
-            request: dispatchReq.serializedData(),
+            request: dispatchReq.encode(),
             context: dispatchCtx
         )
 
@@ -153,7 +153,7 @@ public final class Batch<Channel: BebopChannel>: Sendable {
             resolver: dispatcher.resolver,
             decode: { bytes in
                 let batchResponse = try BatchResponse.decode(from: bytes)
-                return BatchResults(batchResponse)
+                return try BatchResults(batchResponse)
             }
         )
     }

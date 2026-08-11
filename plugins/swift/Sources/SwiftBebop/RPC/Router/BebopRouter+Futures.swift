@@ -91,7 +91,7 @@ extension BebopRouter {
             }
         }
 
-        return FutureHandle(id: id).serializedData()
+        return FutureHandle(id: id).encode()
     }
 
     // MARK: - Resolve (method ID 3)
@@ -114,7 +114,7 @@ extension BebopRouter {
         )
 
         return BebopStreams.map(immediate, then: stream) { result in
-            StreamElement(bytes: result.serializedData())
+            StreamElement(bytes: result.encode())
         }
     }
 
@@ -132,6 +132,6 @@ extension BebopRouter {
         guard try await store.cancel(id: req.id, owner: owner) else {
             throw BebopRpcError(code: .notFound, detail: "future not found")
         }
-        return BebopEmpty().serializedData()
+        return BebopEmpty().encode()
     }
 }

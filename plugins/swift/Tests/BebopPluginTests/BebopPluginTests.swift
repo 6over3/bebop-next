@@ -7,7 +7,7 @@ import Testing
 // MARK: - Round-Trip Helper
 
 private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
-    let bytes = value.serializedData()
+    let bytes = value.encode()
     #expect(bytes.count == value.encodedSize)
     return try T.decode(from: bytes)
 }
@@ -100,7 +100,7 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
             mapKey: TypeDescriptor(kind: .string),
             mapValue: TypeDescriptor(kind: .uint64)))
 
-    let view = try TypeDescriptor.View(descriptor.serializedData())
+    let view = try TypeDescriptor.View(descriptor.encode())
 
     #expect(try view.kind == .array)
     #expect(try view.arrayElement?.kind == .map)

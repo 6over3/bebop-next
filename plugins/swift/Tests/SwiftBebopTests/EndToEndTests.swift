@@ -21,25 +21,20 @@ import Testing
 
     @Test func fullClientStreamFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        let response = try await client.uploadWidgets { send in
-            try await send(EchoRequest(value: "hello"))
-            try await send(EchoRequest(value: "world"))
-        }
+        let upload = try await client.uploadWidgets()
+        let response = try await upload.send(["hello", "world"].map(EchoRequest.init))
         #expect(response.value.value == "hello,world")
     }
 
     @Test func fullDuplexStreamFlow() async throws {
         let client = WidgetServiceClient(channel: buildChannel())
-        try await client.syncWidgets { send, finish, responses in
-            try await send(EchoRequest(value: "m1"))
-            try await send(EchoRequest(value: "m2"))
-            try await finish()
-            var results: [String] = []
-            for try await item in responses {
-                results.append(item.value)
-            }
-            #expect(results == ["m1", "m2"])
+        let sync = try await client.syncWidgets()
+        try await sync.send(["m1", "m2"].map(EchoRequest.init))
+        var results: [String] = []
+        for try await item in sync {
+            results.append(item.value)
         }
+        #expect(results == ["m1", "m2"])
     }
 
     @Test func discoveryThroughChannel() async throws {

@@ -19,6 +19,19 @@ private func roundTrip<T>(
     }
 }
 
+@Test func foundationDataCopiesDirectlyToAndFromRuntimeBuffers() throws {
+    let expected = Data([0, 1, 2, 3, 255])
+    var writer = BebopWriter()
+    writer.writeData(expected)
+
+    let actual = try writer.withUnsafeBytes { bytes in
+        var reader = BebopReader(data: bytes)
+        return try reader.readData(expected.count)
+    }
+
+    #expect(actual == expected)
+}
+
 // MARK: - Bool
 
 @Test func boolTrue() throws {

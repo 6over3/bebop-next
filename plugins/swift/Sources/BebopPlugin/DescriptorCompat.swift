@@ -40,13 +40,12 @@ public final class ResponseBuilder: Sendable {
 
     /// Serialize the accumulated response to Bebop wire format.
     public func encode() -> [UInt8] {
-        state.withLock { state in
-            CodeGeneratorResponse(
-                error: state.error,
-                files: state.error == nil && !state.files.isEmpty ? state.files : nil,
-                diagnostics: state.diagnostics.isEmpty ? nil : state.diagnostics
-            ).serializedData()
-        }
+        let snapshot = state.withLock { $0 }
+        return CodeGeneratorResponse(
+            error: snapshot.error,
+            files: snapshot.error == nil && !snapshot.files.isEmpty ? snapshot.files : nil,
+            diagnostics: snapshot.diagnostics.isEmpty ? nil : snapshot.diagnostics
+        ).encode()
     }
 }
 

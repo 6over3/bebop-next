@@ -9,7 +9,7 @@ extension BebopRouter {
         let calls = request.calls
 
         guard !calls.isEmpty else {
-            return BatchResponse(results: []).serializedData()
+            return BatchResponse(results: []).encode()
         }
 
         guard UInt(calls.count) <= config.maxBatchSize else {
@@ -50,14 +50,18 @@ extension BebopRouter {
             outcomes.merge(layerResults) { _, new in new }
         }
 
-        let results = calls.map { call in
-            BatchResult(
-                callId: call.callId,
-                outcome: outcomes[call.callId]
-                    ?? .error(RpcError(code: .internal, detail: "missing outcome"))
-            )
+        var results: [BatchResult] = []
+        results.reserveCapacity(calls.count)
+        for call in calls {
+            guard let outcome = outcomes[call.callId] else {
+                throw BebopRpcError(
+                    code: .internal,
+                    detail: "batch execution did not produce outcome for call \(call.callId)"
+                )
+            }
+            results.append(BatchResult(callId: call.callId, outcome: outcome))
         }
-        return BatchResponse(results: results).serializedData()
+        return BatchResponse(results: results).encode()
     }
 
     // MARK: - Dependency graph

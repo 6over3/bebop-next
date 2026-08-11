@@ -17,17 +17,10 @@ public protocol BebopChannel: Sendable {
     func clientStream(
         method: UInt32,
         context: RpcContext
-    ) async throws -> (
-        send: @Sendable ([UInt8]) async throws -> Void,
-        finish: @Sendable () async throws -> Response<[UInt8], Metadata>
-    )
+    ) async throws -> ClientStream<[UInt8], [UInt8], Metadata>
 
     func duplexStream(
         method: UInt32,
         context: RpcContext
-    ) async throws -> (
-        send: @Sendable ([UInt8]) async throws -> Void,
-        finish: @Sendable () async throws -> Void,
-        responses: StreamResponse<[UInt8], Metadata>
-    )
+    ) async throws -> DuplexStream<[UInt8], [UInt8], Metadata>
 }

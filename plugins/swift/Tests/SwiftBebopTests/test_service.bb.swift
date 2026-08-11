@@ -456,7 +456,7 @@ extension BebopRouterBuilder {
                 case .getWidget:
                     let req = try EchoRequest.View(payload, limits: context.decodeLimits)
                     let res = try await handler.getWidget(req, context: context)
-                    return res.serializedData()
+                    return res.encode()
                 default: throw BebopRpcError(code: .unimplemented)
             }
         }, serverStream: { method, context, payload in
@@ -469,7 +469,7 @@ extension BebopRouterBuilder {
                         if let d = context.deadline, d.isPast {
                             throw BebopRpcError(code: .deadlineExceeded)
                         }
-                        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())
+                        return StreamElement(bytes: item.encode(), cursor: context.dequeueCursor())
                     }
                 default: throw BebopRpcError(code: .unimplemented)
             }
@@ -498,7 +498,7 @@ extension BebopRouterBuilder {
                         },
                         finish: {
                             await inbound.finish()
-                            return try await task.value.serializedData()
+                            return try await task.value.encode()
                         }
                     )
                 default: throw BebopRpcError(code: .unimplemented)
@@ -507,13 +507,15 @@ extension BebopRouterBuilder {
             switch method {
                 case .syncWidgets:
                     let inbound = RpcInboundStream<EchoRequest.View>()
-                    let typedResponses = try await handler.syncWidgets(inbound.stream, context: context)
-                    let rawResponses = BebopStreams.map(typedResponses, onCancel: { await inbound.finish() }) { item in
+                    let rawResponses = BebopStreams.map(
+                        { try await handler.syncWidgets(inbound.stream, context: context) },
+                        onCancel: { await inbound.finish() }
+                    ) { item in
                         try Task.checkCancellation()
                         if let d = context.deadline, d.isPast {
                             throw BebopRpcError(code: .deadlineExceeded)
                         }
-                        return StreamElement(bytes: item.serializedData(), cursor: context.dequeueCursor())
+                        return StreamElement(bytes: item.encode(), cursor: context.dequeueCursor())
                     }
                     return (
                         send: { bytes in
@@ -545,7 +547,7 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
     ) async throws -> Response<EchoResponse, C.Metadata> {
         try await channel.unary(
             method: 0xA3F73AA7,
-            request: request.serializedData(),
+            request: request.encode(),
             context: context
         ).map { try EchoResponse.decode(from: $0) }
     }
@@ -564,7 +566,7 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
     ) async throws -> StreamResponse<CountResponse, C.Metadata> {
         try await channel.serverStream(
             method: 0xBB7F3698,
-            request: request.serializedData(),
+            request: request.encode(),
             context: context
         ).map { try CountResponse.decode(from: $0) }
     }
@@ -578,42 +580,28 @@ public struct WidgetServiceClient<C: BebopChannel>: Sendable {
 
     @available(*, deprecated, message: "use CollectV2")
     public func uploadWidgets(
-        context: RpcContext = RpcContext(),
-        body: (
-            _ send: @Sendable (EchoRequest) async throws -> Void
-        ) async throws -> Void
-    ) async throws -> Response<EchoResponse, C.Metadata> {
-        let (rawSend, rawFinish) = try await channel.clientStream(
+        context: RpcContext = RpcContext()
+    ) async throws -> ClientStream<EchoRequest, EchoResponse, C.Metadata> {
+        try await channel.clientStream(
             method: 0xC1A30C3B,
             context: context
+        ).map(
+            request: { $0.encode() },
+            response: { try EchoResponse.decode(from: $0) }
         )
-        try await body({ try await rawSend($0.serializedData()) })
-        return try await rawFinish().map { try EchoResponse.decode(from: $0) }
     }
 
     /// Bidirectional echo.
     public func syncWidgets(
-        context: RpcContext = RpcContext(),
-        body: (
-            _ send: @Sendable (EchoRequest) async throws -> Void,
-            _ finish: @Sendable () async throws -> Void,
-            _ responses: StreamResponse<EchoResponse, C.Metadata>
-        ) async throws -> Void
-    ) async throws {
-        let (rawSend, rawFinish, rawResponses) = try await channel.duplexStream(
+        context: RpcContext = RpcContext()
+    ) async throws -> DuplexStream<EchoRequest, EchoResponse, C.Metadata> {
+        try await channel.duplexStream(
             method: 0x317F5C17,
             context: context
+        ).map(
+            request: { $0.encode() },
+            response: { try EchoResponse.decode(from: $0) }
         )
-        do {
-            try await body(
-                { try await rawSend($0.serializedData()) },
-                rawFinish,
-                rawResponses.map { try EchoResponse.decode(from: $0) }
-            )
-        } catch {
-            try? await rawFinish()
-            throw error
-        }
     }
 }
 

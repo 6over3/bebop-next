@@ -36,7 +36,7 @@ import Testing
 
     @Test func roundTrip() throws {
         for code in [StatusCode.ok, .cancelled, .notFound, .internal] {
-            let bytes = code.serializedData()
+            let bytes = code.encode()
             let decoded = try StatusCode.decode(from: bytes)
             #expect(decoded == code)
         }

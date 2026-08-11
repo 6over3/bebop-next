@@ -30,7 +30,7 @@ public extension BebopRecord {
     }
 
     /// Encode to a new byte array.
-    func serializedData() -> [UInt8] {
+    func encode() -> [UInt8] {
         var writer = BebopWriter()
         encode(to: &writer)
         return writer.toBytes()

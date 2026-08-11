@@ -33,7 +33,7 @@ import Testing
 
 @Test func structViewUsesNaturalProperties() throws {
     let value = BatchSuccess(payloads: [[1, 2, 3], [4]], metadata: ["trace": "abc"])
-    let view = try BatchSuccess.View(value.serializedData())
+    let view = try BatchSuccess.View(value.encode())
 
     #expect(view.payloads.map(Array.init) == [[1, 2, 3], [4]])
     #expect(view.payloads.first?.bytes.elementsEqual([1, 2, 3]) == true)
@@ -48,7 +48,7 @@ import Testing
 
     #expect(throws: BebopDecodingError.limitExceeded) {
         try BatchSuccess.View(
-            value.serializedData(),
+            value.encode(),
             limits: BebopDecodeLimits(maxCollectionElements: 1)
         )
     }
@@ -56,7 +56,7 @@ import Testing
 
 @Test func messageViewProvidesTypedOptionalFields() throws {
     let value = RpcError(code: .invalidArgument, detail: "bad widget", metadata: ["field": "name"])
-    let view = try RpcError.View(value.serializedData())
+    let view = try RpcError.View(value.encode())
 
     #expect(try view.code == .invalidArgument)
     #expect(try view.detail?.string == "bad widget")
@@ -68,7 +68,7 @@ import Testing
 @Test func unionViewExposesTypedContentWithoutDecoding() throws {
     let value = BatchOutcome.success(
         BatchSuccess(payloads: [[9, 8, 7]], metadata: ["request": "42"]))
-    let view = try BatchOutcome.View(value.serializedData())
+    let view = try BatchOutcome.View(value.encode())
 
     #expect(view.discriminator == 1)
     guard case .success(let success) = view.value else {
@@ -82,7 +82,7 @@ import Testing
 
 @Test func unionViewPreservesUnknownPayloadAsAView() throws {
     let value = BatchOutcome.unknown(discriminator: 99, data: [1, 2, 3])
-    let view = try BatchOutcome.View(value.serializedData())
+    let view = try BatchOutcome.View(value.encode())
 
     guard case .unknown(let discriminator, let data) = view.value else {
         Issue.record("expected unknown view")
@@ -113,6 +113,7 @@ import Testing
     }
 
     #expect(view.count == 3)
+    #expect(view[1] == 20)
     #expect(view.bytes.elementsEqual([10, 20, 30]))
     #expect(Array(view) == [10, 20, 30])
     try reader.finish()
@@ -124,6 +125,32 @@ import Testing
     #expect(throws: BebopDecodingError.unexpectedEndOfData) {
         try reader.readContiguousArrayView(elementSize: 4) { reader in
             try reader.readUInt32()
+        }
+    }
+}
+
+@Test func mapViewsDoNotMaterializeADictionaryToValidateStructure() throws {
+    var writer = BebopWriter()
+    writer.writeMapLength(2)
+    writer.writeString("same")
+    writer.writeUInt32(1)
+    writer.writeString("same")
+    writer.writeUInt32(2)
+    let encoded = writer.toBytes()
+
+    var viewReader = BebopViewReader(BebopView(encoded))
+    let view = try viewReader.readMapView(
+        key: { try $0.readStringView() },
+        value: { try $0.readUInt32() }
+    )
+    #expect(view.map { ($0.key.string, $0.value) }.count == 2)
+
+    #expect(throws: BebopDecodingError.duplicateMapKey) {
+        try encoded.withUnsafeBytes { bytes in
+            var reader = BebopReader(data: bytes)
+            return try reader.readDynamicMap { reader in
+                (try reader.readString(), try reader.readUInt32())
+            }
         }
     }
 }

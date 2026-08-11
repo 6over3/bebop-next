@@ -250,6 +250,16 @@ public struct BebopReader {
         return result
     }
 
+    /// Copies bytes into a caller-provided contiguous buffer.
+    @inlinable
+    public mutating func readBytes(into destination: UnsafeMutableRawBufferPointer) throws {
+        try ensureBytes(destination.count)
+        if !destination.isEmpty {
+            destination.baseAddress!.copyMemory(from: base + offset, byteCount: destination.count)
+        }
+        advance(by: destination.count)
+    }
+
     /// Bulk-read `count` contiguous scalars via memcpy.
     ///
     /// Only valid for types whose in-memory layout matches the Bebop

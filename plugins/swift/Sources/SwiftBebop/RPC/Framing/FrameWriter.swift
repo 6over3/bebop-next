@@ -26,14 +26,14 @@ public struct FrameWriter: Sendable {
 
     public func error(_ error: BebopRpcError, streamId: UInt32 = 0) async throws {
         let flags: FrameFlags = [.endStream, .error]
-        let payload = error.toWire().serializedData()
+        let payload = error.toWire().encode()
         try validatePayload(payload)
         try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
     }
 
     public func trailer(_ metadata: [String: String], streamId: UInt32 = 0) async throws {
         let flags: FrameFlags = [.endStream, .trailer]
-        let payload = TrailingMetadata(metadata: metadata).serializedData()
+        let payload = TrailingMetadata(metadata: metadata).encode()
         try validatePayload(payload)
         try await write(Frame(payload: payload, flags: flags, streamId: streamId).encode(), flags)
     }
@@ -71,7 +71,7 @@ public extension FrameWriter {
             }
         } catch {
             try await self.error(
-                (error as? BebopRpcError) ?? BebopRpcError(code: .internal, detail: "\(error)"),
+                (error as? BebopRpcError) ?? BebopRpcError(code: .internal),
                 streamId: streamId
             )
             return

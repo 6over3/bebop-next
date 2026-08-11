@@ -305,15 +305,18 @@ public struct BebopWriter: ~Copyable, @unchecked Sendable {
 
     @inlinable
     public mutating func writeBytes(_ bytes: [UInt8]) {
-        let count = bytes.count
-        guard count > 0 else { return }
-        ensureCapacity(for: count)
         bytes.withUnsafeBufferPointer { buf in
-            (storage + _count).copyMemory(
-                from: UnsafeRawPointer(buf.baseAddress!), byteCount: count
-            )
+            writeBytes(UnsafeRawBufferPointer(buf))
         }
-        _count &+= count
+    }
+
+    /// Copies a contiguous raw buffer directly into the writer.
+    @inlinable
+    public mutating func writeBytes(_ bytes: UnsafeRawBufferPointer) {
+        guard !bytes.isEmpty else { return }
+        ensureCapacity(for: bytes.count)
+        (storage + _count).copyMemory(from: bytes.baseAddress!, byteCount: bytes.count)
+        _count &+= bytes.count
     }
 
     /// Bulk-write contiguous scalars via memcpy.

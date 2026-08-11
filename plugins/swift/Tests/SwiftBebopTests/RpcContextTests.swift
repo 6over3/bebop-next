@@ -203,4 +203,15 @@ private enum BytesKey: AttachmentKey {
         let batch = ctx.makeBatchContext(methodId: 42)
         #expect(batch.cursor == 0)
     }
+
+    @Test func emittedCursorsRemainOrderedAcrossQueueCompaction() {
+        let context = RpcContext()
+        for cursor in 0..<1_000 {
+            context.emitCursor(UInt64(cursor))
+        }
+        for cursor in 0..<1_000 {
+            #expect(context.dequeueCursor() == UInt64(cursor))
+        }
+        #expect(context.dequeueCursor() == nil)
+    }
 }

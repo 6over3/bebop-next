@@ -154,6 +154,6 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
         guard config.discoveryEnabled else {
             throw BebopRpcError(code: .unimplemented, detail: "discovery disabled")
         }
-        return DiscoveryResponse(services: serviceInfos).serializedData()
+        return DiscoveryResponse(services: serviceInfos).encode()
     }
 }

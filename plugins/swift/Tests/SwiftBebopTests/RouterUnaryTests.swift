@@ -8,7 +8,7 @@ import Testing
         let ctx = RpcContext(methodId: getWidgetId, metadata: [:], deadline: nil)
         let req = EchoRequest(value: "hello")
         let resBytes = try await router.unary(
-            methodId: getWidgetId, payload: req.serializedData(), ctx: ctx
+            methodId: getWidgetId, payload: req.encode(), ctx: ctx
         )
         let res = try EchoResponse.decode(from: resBytes)
         #expect(res.value == "hello")

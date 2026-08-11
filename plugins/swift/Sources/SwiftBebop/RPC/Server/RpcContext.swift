@@ -73,8 +73,13 @@ public final class RpcContext: Sendable {
     public func dequeueCursor() -> UInt64? {
         _state.withLock { state in
             guard state.cursorIndex < state.cursorQueue.count else { return nil }
-            defer { state.cursorIndex += 1 }
-            return state.cursorQueue[state.cursorIndex]
+            let cursor = state.cursorQueue[state.cursorIndex]
+            state.cursorIndex += 1
+            if state.cursorIndex >= 64, state.cursorIndex >= state.cursorQueue.count / 2 {
+                state.cursorQueue.removeFirst(state.cursorIndex)
+                state.cursorIndex = 0
+            }
+            return cursor
         }
     }
 

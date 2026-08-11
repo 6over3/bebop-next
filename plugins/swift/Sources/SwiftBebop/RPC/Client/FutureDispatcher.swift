@@ -39,7 +39,7 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
     ) async throws -> BebopFuture<Res> {
         let dispatchReq = FutureDispatchRequest(
             methodId: methodId,
-            payload: request.serializedData(),
+            payload: request.encode(),
             idempotencyKey: options.idempotencyKey,
             metadata: context.metadata,
             deadline: context.deadline,
@@ -51,7 +51,7 @@ public struct FutureDispatcher<Channel: BebopChannel>: Sendable {
 
         let response = try await channel.unary(
             method: BebopReservedMethod.dispatch,
-            request: dispatchReq.serializedData(),
+            request: dispatchReq.encode(),
             context: dispatchCtx
         )
 

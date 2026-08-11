@@ -92,7 +92,7 @@ public protocol BebopRecordView: Sendable {
 
 public extension BebopRecordView {
     /// Copies the original encoding without decoding and re-encoding the value.
-    func serializedData() -> [UInt8] { encoded.bytes }
+    func encode() -> [UInt8] { encoded.bytes }
 }
 
 /// A validated, immutable UTF-8 string that remains backed by encoded bytes.
@@ -363,6 +363,7 @@ public struct BebopViewReader: Sendable {
         return BebopArrayView(
             validated: encoded.slice(start..<offset),
             count: count,
+            elementSize: elementSize,
             limits: decodeLimits,
             depth: depth,
             decode: decode
@@ -408,6 +409,7 @@ public struct BebopViewReader: Sendable {
             validated: encoded.slice(start..<offset),
             count: count,
             prefixSize: 0,
+            elementSize: elementSize,
             limits: decodeLimits,
             depth: depth,
             decode: decode
@@ -424,12 +426,8 @@ public struct BebopViewReader: Sendable {
             throw BebopDecodingError.limitExceeded
         }
         let count = Int(wireCount)
-        var keys = Set<Key>(minimumCapacity: min(count, remaining))
         for _ in 0..<count {
-            let decodedKey = try key(&self)
-            guard keys.insert(decodedKey).inserted else {
-                throw BebopDecodingError.duplicateMapKey
-            }
+            let _: Key = try key(&self)
             let _: Value = try value(&self)
         }
         return BebopMapView(
@@ -462,6 +460,7 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
     public let count: Int
     private let encoded: BebopView
     private let prefixSize: Int
+    private let elementSize: Int?
     private let limits: BebopDecodeLimits
     private let depth: UInt16
     private let decode: @Sendable (inout BebopViewReader) throws -> Element
@@ -471,6 +470,7 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
         validated encoded: BebopView,
         count: Int,
         prefixSize: Int = 4,
+        elementSize: Int? = nil,
         limits: BebopDecodeLimits,
         depth: UInt16,
         decode: @escaping @Sendable (inout BebopViewReader) throws -> Element
@@ -478,6 +478,7 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
         self.encoded = encoded
         self.count = count
         self.prefixSize = prefixSize
+        self.elementSize = elementSize
         self.limits = limits
         self.depth = depth
         self.decode = decode
@@ -528,11 +529,48 @@ public struct BebopArrayView<Element: Sendable>: Sendable, Sequence {
     }
 }
 
+extension BebopArrayView: Collection where Element: BebopScalar {
+    public typealias Index = Int
+
+    public var startIndex: Int { 0 }
+    public var endIndex: Int { count }
+
+    public func index(after index: Int) -> Int { index + 1 }
+
+    public subscript(position: Int) -> Element {
+        precondition(position >= 0 && position < count, "BebopArrayView index out of bounds")
+        guard let elementSize else {
+            preconditionFailure("scalar array view is not fixed-width")
+        }
+        let start = prefixSize + position * elementSize
+        var reader = BebopViewReader(
+            encoded.slice(start..<(start + elementSize)),
+            limits: limits,
+            depth: depth
+        )
+        do {
+            return try decode(&reader)
+        } catch {
+            preconditionFailure("validated Bebop array invariant failed: \(error)")
+        }
+    }
+}
+
+extension BebopArrayView: BidirectionalCollection where Element: BebopScalar {
+    public func index(before index: Int) -> Int { index - 1 }
+}
+
+extension BebopArrayView: RandomAccessCollection where Element: BebopScalar {}
+
 public extension BebopArrayView where Element == UInt8 {
     var bytes: BebopView { encoded.slice(prefixSize..<encoded.count) }
 }
 
-/// An immutable, lazily materialized view over an encoded map.
+/// An immutable, lazily materialized view over wire-order map entries.
+///
+/// Constructing a view validates each encoded key and value without allocating
+/// a native dictionary. Materializing the decoded record additionally enforces
+/// unique keys.
 public struct BebopMapView<Key: Hashable & Sendable, Value: Sendable>: Sendable, Sequence {
     public typealias Element = (key: Key, value: Value)
 
@@ -610,12 +648,14 @@ public struct BebopMapView<Key: Hashable & Sendable, Value: Sendable>: Sendable,
 }
 
 public extension BebopMapView where Key: Equatable {
+    /// Finds the first entry matching `key` in O(n) time.
     subscript(key: Key) -> Value? {
         first { $0.key == key }?.value
     }
 }
 
 public extension BebopMapView where Key == BebopStringView {
+    /// Finds the first entry matching `key` in O(n) time.
     subscript(key: String) -> Value? {
         first { $0.key == key }?.value
     }

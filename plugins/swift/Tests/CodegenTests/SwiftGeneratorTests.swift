@@ -1509,15 +1509,21 @@ struct SwiftGeneratorTests {
         #expect(code.contains("case .clientStream: return .clientStream"))
         #expect(code.contains("case .duplexStream: return .duplexStream"))
 
-        // Client stream handler: receives request stream, returns response
         #expect(
             code.contains(
                 "func clientStream(\n        _ requests: AsyncThrowingStream<Msg.View, Error>,\n        context: RpcContext\n    ) async throws -> Msg"
             ))
-        // Duplex stream handler: receives request stream, returns response stream
         #expect(
             code.contains(
                 "func duplexStream(\n        _ requests: AsyncThrowingStream<Msg.View, Error>,\n        context: RpcContext\n    ) async throws -> AsyncThrowingStream<Msg, Error>"
+            ))
+        #expect(
+            code.contains(
+                "func clientStream(\n        context: RpcContext = RpcContext()\n    ) async throws -> ClientStream<Msg, Msg, C.Metadata>"
+            ))
+        #expect(
+            code.contains(
+                "func duplexStream(\n        context: RpcContext = RpcContext()\n    ) async throws -> DuplexStream<Msg, Msg, C.Metadata>"
             ))
     }
 }
