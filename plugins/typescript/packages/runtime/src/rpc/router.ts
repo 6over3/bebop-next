@@ -1,6 +1,6 @@
 import { decode, encode } from "../codec.js";
 import { BebopEmpty } from "../empty.js";
-import type { BebopReaderOptions } from "../wire.js";
+import { resolveBebopReaderOptions, type BebopReaderOptions } from "../wire.js";
 import {
   BatchRequest,
   BatchResponse,
@@ -37,7 +37,6 @@ export const BebopReservedMethod = {
 } as const;
 
 const reservedMethodIds = new Set<number>(Object.values(BebopReservedMethod));
-const emptyPayload = new Uint8Array();
 
 export type RpcStreamElement<Payload> = {
   readonly value: Payload;
@@ -63,6 +62,8 @@ export interface BebopRpcRouter<Payload> {
   methodType(methodId: number): MethodType | undefined;
 }
 
+export type BebopRouter = BebopRpcRouter<Uint8Array>;
+
 export interface RpcInterceptor {
   <Result>(
     methodId: number,
@@ -78,11 +79,14 @@ export type BebopRouterConfig = {
   readonly futuresEnabled?: boolean;
   readonly maxPendingFutures?: number;
   readonly maxCompletedFutures?: number;
+  readonly futureSubscriberBufferSize?: number;
   readonly allowUnauthenticatedFutureOwners?: boolean;
   /** Number of decoded request messages buffered before applying transport backpressure. */
   readonly requestStreamBufferSize?: number;
   /** Maximum dynamic array or map length accepted from one request. */
   readonly maxCollectionLength?: number;
+  /** Maximum nested aggregate depth accepted from one request. */
+  readonly maxDepth?: number;
 };
 
 type UnaryRegistration = {
@@ -121,23 +125,34 @@ type MethodRegistration =
 export class BebopRouterBuilder {
   private readonly methods = new Map<number, MethodRegistration>();
   private readonly services: ServiceInfo[] = [];
+  private readonly serviceNames = new Set<string>();
   private readonly interceptors: RpcInterceptor[] = [];
   private futureStorage: FutureStorage | undefined;
   private readonly config: BebopRouterConfig;
   private readonly requestStreamBufferSize: number;
-  private readonly readerOptions: BebopReaderOptions;
+  private readonly viewOptions: BebopReaderOptions;
 
   constructor(config: BebopRouterConfig = {}) {
-    this.config = config;
-    this.requestStreamBufferSize = validRequestStreamBufferSize(config.requestStreamBufferSize);
-    const maxCollectionLength = validCollectionLimit(config.maxCollectionLength);
-    this.readerOptions = { maxCollectionLength };
+    this.config = { ...config };
+    this.requestStreamBufferSize = positiveSafeInteger(
+      this.config.requestStreamBufferSize,
+      16,
+      "requestStreamBufferSize",
+    );
+    this.viewOptions = resolveBebopReaderOptions({
+      copyArrays: false,
+      ...(this.config.maxCollectionLength === undefined
+        ? {}
+        : { maxCollectionLength: this.config.maxCollectionLength }),
+      ...(this.config.maxDepth === undefined ? {} : { maxDepth: this.config.maxDepth }),
+    });
   }
 
   addService(service: BebopServiceDefinition): this {
-    if (this.services.some(({ name }) => name === service.serviceName)) {
+    if (this.serviceNames.has(service.serviceName)) {
       throw new Error(`service '${service.serviceName}' is already registered`);
     }
+    this.serviceNames.add(service.serviceName);
     this.services.push(service.serviceInfo);
     return this;
   }
@@ -161,30 +176,32 @@ export class BebopRouterBuilder {
     return this;
   }
 
-  registerUnary<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
-    handler: (request: Request, context: RpcContext) => Awaitable<Response>,
+  registerUnary<Request, Response, RequestView>(
+    method: BebopServiceMethod<Request, Response, RequestView>,
+    handler: (request: RequestView, context: RpcContext) => Awaitable<Response>,
   ): this {
+    const viewOptions = this.viewOptions;
     return this.register(method.id, {
       kind: MethodType.UNARY,
       invoke: async (payload, context) => encode(
         method.response,
-        await handler(decode(method.request, payload, this.readerOptions), context),
+        await handler(method.request.view(payload, viewOptions), context),
       ),
     });
   }
 
-  registerServerStream<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+  registerServerStream<Request, Response, RequestView>(
+    method: BebopServiceMethod<Request, Response, RequestView>,
     handler: (
-      request: Request,
+      request: RequestView,
       context: RpcContext,
     ) => Awaitable<StreamSource<Response>>,
   ): this {
+    const viewOptions = this.viewOptions;
     const registration: ServerStreamRegistration = {
       kind: MethodType.SERVER_STREAM,
       invoke: async (payload, context) => {
-        const source = await handler(decode(method.request, payload, this.readerOptions), context);
+        const source = await handler(method.request.view(payload, viewOptions), context);
         return mapStream(source, (value) => {
           const cursor = context.dequeueCursor();
           return {
@@ -197,17 +214,19 @@ export class BebopRouterBuilder {
     return this.register(method.id, registration);
   }
 
-  registerClientStream<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
-    handler: (requests: ReadableStream<Request>, context: RpcContext) => Awaitable<Response>,
+  registerClientStream<Request, Response, RequestView>(
+    method: BebopServiceMethod<Request, Response, RequestView>,
+    handler: (requests: ReadableStream<RequestView>, context: RpcContext) => Awaitable<Response>,
   ): this {
+    const bufferSize = this.requestStreamBufferSize;
+    const viewOptions = this.viewOptions;
     return this.register(method.id, {
       kind: MethodType.CLIENT_STREAM,
       invoke: async (context) => {
-        const requests = createRequestStream<Request>(context, this.requestStreamBufferSize);
-        const response = Promise.resolve(handler(requests.readable, context));
+        const requests = createRequestStream<RequestView>(context, bufferSize);
+        const response = Promise.resolve().then(() => handler(requests.readable, context));
         return {
-          send: (payload) => requests.send(decode(method.request, payload, this.readerOptions)),
+          send: (payload) => requests.send(method.request.view(payload, viewOptions)),
           finish: async () => {
             await requests.close();
             return encode(method.response, await response);
@@ -217,20 +236,22 @@ export class BebopRouterBuilder {
     });
   }
 
-  registerDuplexStream<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+  registerDuplexStream<Request, Response, RequestView>(
+    method: BebopServiceMethod<Request, Response, RequestView>,
     handler: (
-      requests: ReadableStream<Request>,
+      requests: ReadableStream<RequestView>,
       context: RpcContext,
     ) => Awaitable<StreamSource<Response>>,
   ): this {
+    const bufferSize = this.requestStreamBufferSize;
+    const viewOptions = this.viewOptions;
     return this.register(method.id, {
       kind: MethodType.DUPLEX_STREAM,
       invoke: async (context) => {
-        const requests = createRequestStream<Request>(context, this.requestStreamBufferSize);
-        const response = Promise.resolve(handler(requests.readable, context));
+        const requests = createRequestStream<RequestView>(context, bufferSize);
+        const response = Promise.resolve().then(() => handler(requests.readable, context));
         return {
-          send: (payload) => requests.send(decode(method.request, payload, this.readerOptions)),
+          send: (payload) => requests.send(method.request.view(payload, viewOptions)),
           finish: () => requests.close(),
           responses: mapStream(response, (value) => {
             const cursor = context.dequeueCursor();
@@ -253,9 +274,12 @@ export class BebopRouterBuilder {
           ...(this.config.maxCompletedFutures === undefined
             ? {}
             : { maxCompleted: this.config.maxCompletedFutures }),
+          ...(this.config.futureSubscriberBufferSize === undefined
+            ? {}
+            : { subscriberBufferCapacity: this.config.futureSubscriberBufferSize }),
         })
       : undefined);
-    return new BebopRouter(
+    return new DefaultBebopRouter(
       new Map(this.methods),
       [...this.services],
       [...this.interceptors],
@@ -265,6 +289,9 @@ export class BebopRouterBuilder {
   }
 
   private register(id: number, registration: MethodRegistration): this {
+    if (!Number.isInteger(id) || id < 0 || id > 0xffff_ffff) {
+      throw new RangeError(`method ID must be a uint32: ${id}`);
+    }
     if (reservedMethodIds.has(id)) throw new Error(`method ID ${id} is reserved`);
     if (this.methods.has(id)) throw new Error(`duplicate method ID 0x${id.toString(16).toUpperCase()}`);
     this.methods.set(id, registration);
@@ -272,8 +299,13 @@ export class BebopRouterBuilder {
   }
 }
 
-export class BebopRouter implements BebopRpcRouter<Uint8Array> {
-  private readonly config: Required<BebopRouterConfig>;
+class DefaultBebopRouter implements BebopRouter {
+  private readonly config: {
+    readonly discoveryEnabled: boolean;
+    readonly maxBatchSize: number;
+    readonly maxBatchStreamElements: number;
+    readonly allowUnauthenticatedFutureOwners: boolean;
+  };
   private readonly readerOptions: BebopReaderOptions;
 
   constructor(
@@ -283,18 +315,30 @@ export class BebopRouter implements BebopRpcRouter<Uint8Array> {
     config: BebopRouterConfig,
     private readonly futureStorage?: FutureStorage,
   ) {
+    const readerOptions = resolveBebopReaderOptions({
+      ...(config.maxCollectionLength === undefined
+        ? {}
+        : { maxCollectionLength: config.maxCollectionLength }),
+      ...(config.maxDepth === undefined ? {} : { maxDepth: config.maxDepth }),
+    });
+    nonNegativeLimit(config.maxPendingFutures, 10_000, "maxPendingFutures");
+    nonNegativeLimit(config.maxCompletedFutures, 10_000, "maxCompletedFutures");
+    positiveSafeInteger(config.requestStreamBufferSize, 16, "requestStreamBufferSize");
+    positiveSafeInteger(config.futureSubscriberBufferSize, 256, "futureSubscriberBufferSize");
     this.config = {
       discoveryEnabled: config.discoveryEnabled ?? true,
-      maxBatchSize: config.maxBatchSize ?? Number.POSITIVE_INFINITY,
-      maxBatchStreamElements: config.maxBatchStreamElements ?? Number.POSITIVE_INFINITY,
-      futuresEnabled: config.futuresEnabled ?? futureStorage !== undefined,
-      maxPendingFutures: config.maxPendingFutures ?? Number.POSITIVE_INFINITY,
-      maxCompletedFutures: config.maxCompletedFutures ?? 10_000,
+      maxBatchSize: nonNegativeLimit(config.maxBatchSize, 1_024, "maxBatchSize"),
+      maxBatchStreamElements: nonNegativeLimit(
+        config.maxBatchStreamElements,
+        10_000,
+        "maxBatchStreamElements",
+      ),
       allowUnauthenticatedFutureOwners: config.allowUnauthenticatedFutureOwners ?? false,
-      requestStreamBufferSize: validRequestStreamBufferSize(config.requestStreamBufferSize),
-      maxCollectionLength: validCollectionLimit(config.maxCollectionLength),
     };
-    this.readerOptions = { maxCollectionLength: this.config.maxCollectionLength };
+    this.readerOptions = {
+      maxCollectionLength: readerOptions.maxCollectionLength,
+      maxDepth: readerOptions.maxDepth,
+    };
   }
 
   async unary(methodId: number, payload: Uint8Array, context = new RpcContext()): Promise<Uint8Array> {
@@ -383,6 +427,7 @@ export class BebopRouter implements BebopRpcRouter<Uint8Array> {
     if (request.calls.length > this.config.maxBatchSize) {
       throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "batch is too large");
     }
+    const batchMetadata = mergeMetadata(parentContext.metadata, request.metadata);
     const calls = new Map<number, (typeof request.calls)[number]>();
     for (const call of request.calls) calls.set(call.callId, call);
     if (calls.size !== request.calls.length) {
@@ -391,18 +436,35 @@ export class BebopRouter implements BebopRpcRouter<Uint8Array> {
     const executionOrder = orderBatchDependencies(calls);
     const results = new Map<number, Promise<BatchResult>>();
     for (const callId of executionOrder) {
-      const call = calls.get(callId)!;
+      const call = calls.get(callId);
+      if (call === undefined) {
+        throw new BebopRpcError(StatusCode.INTERNAL, `batch call ${callId} was not found`);
+      }
       const pending = (async (): Promise<BatchResult> => {
         try {
           let callPayload = call.payload;
+          let upstreamMetadata: ReadonlyMap<string, string> | undefined;
           if (call.inputFrom >= 0) {
-            const dependency = await results.get(call.inputFrom)!;
+            const dependencyResult = results.get(call.inputFrom);
+            if (dependencyResult === undefined) {
+              throw new BebopRpcError(StatusCode.INTERNAL, `dependency ${call.inputFrom} was not scheduled`);
+            }
+            const dependency = await dependencyResult;
             if (dependency.outcome.kind !== "success") {
               throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `dependency ${call.inputFrom} failed`);
             }
-            callPayload = dependency.outcome.value.payloads[0] ?? emptyPayload;
+            const dependencyPayload = dependency.outcome.value.payloads[0];
+            if (dependencyPayload === undefined) {
+              throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `dependency ${call.inputFrom} produced no payload`);
+            }
+            callPayload = dependencyPayload;
+            upstreamMetadata = dependency.outcome.value.metadata;
           }
-          using context = parentContext.fork({ metadata: request.metadata });
+          using context = parentContext.fork({
+            metadata: upstreamMetadata === undefined
+              ? batchMetadata
+              : mergeMetadata(batchMetadata, upstreamMetadata),
+          });
           const type = this.methodType(call.methodId);
           let payloads: readonly Uint8Array[];
           if (type === MethodType.UNARY) payloads = [await this.unary(call.methodId, callPayload, context)];
@@ -429,7 +491,15 @@ export class BebopRouter implements BebopRpcRouter<Uint8Array> {
       })();
       results.set(callId, pending);
     }
-    const ordered = await Promise.all(request.calls.map((call) => results.get(call.callId)!));
+    const pendingResults: Promise<BatchResult>[] = [];
+    for (const call of request.calls) {
+      const result = results.get(call.callId);
+      if (result === undefined) {
+        throw new BebopRpcError(StatusCode.INTERNAL, `batch call ${call.callId} was not scheduled`);
+      }
+      pendingResults.push(result);
+    }
+    const ordered = await Promise.all(pendingResults);
     return encode(BatchResponse, { results: ordered });
   }
 
@@ -520,11 +590,24 @@ export class BebopRouter implements BebopRpcRouter<Uint8Array> {
         await subscription.stream.cancel();
         return;
       }
-      for await (const result of subscription.stream) {
-        context.throwIfCancelled();
-        resolved.add(result.id);
-        yield { value: encode(FutureResult, result) };
-        if (target !== undefined && isSubset(target, resolved)) return;
+      const reader = subscription.stream.getReader();
+      const abort = (): void => {
+        void reader.cancel(context.signal.reason).catch(() => undefined);
+      };
+      context.signal.addEventListener("abort", abort, { once: true });
+      try {
+        while (true) {
+          const next = await reader.read();
+          context.throwIfCancelled();
+          if (next.done) return;
+          resolved.add(next.value.id);
+          yield { value: encode(FutureResult, next.value) };
+          if (target !== undefined && isSubset(target, resolved)) return;
+        }
+      } finally {
+        context.signal.removeEventListener("abort", abort);
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
       }
     })();
   }
@@ -570,7 +653,11 @@ function orderBatchDependencies(
       }
       pathIndexes.set(id, path.length);
       path.push(id);
-      const dependency = calls.get(id)?.inputFrom ?? -1;
+      const call = calls.get(id);
+      if (call === undefined) {
+        throw new BebopRpcError(StatusCode.INTERNAL, `batch call ${id} disappeared during ordering`);
+      }
+      const dependency = call.inputFrom;
       if (dependency < 0) break;
       if (!calls.has(dependency)) {
         throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `unknown batch dependency ${dependency}`);
@@ -642,22 +729,20 @@ function createRequestStream<Request>(context: RpcContext, bufferSize: number): 
   };
 }
 
-function validRequestStreamBufferSize(value: number | undefined): number {
-  const bufferSize = value ?? 16;
+function positiveSafeInteger(value: number | undefined, fallback: number, name: string): number {
+  const bufferSize = value ?? fallback;
   if (!Number.isSafeInteger(bufferSize) || bufferSize < 1) {
-    throw new RangeError(`requestStreamBufferSize must be a positive safe integer: ${bufferSize}`);
+    throw new RangeError(`${name} must be a positive safe integer: ${bufferSize}`);
   }
   return bufferSize;
 }
 
-function validCollectionLimit(value: number | undefined): number {
-  if (value === undefined || value === Number.POSITIVE_INFINITY) {
-    return Number.POSITIVE_INFINITY;
+function nonNegativeLimit(value: number | undefined, fallback: number, name: string): number {
+  const limit = value ?? fallback;
+  if (limit !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(limit) || limit < 0)) {
+    throw new RangeError(`${name} must be a non-negative safe integer or Infinity: ${limit}`);
   }
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new RangeError(`maxCollectionLength must be a non-negative safe integer: ${value}`);
-  }
-  return value;
+  return limit;
 }
 
 function mergeMetadata(left: ReadonlyMap<string, string>, right?: ReadonlyMap<string, string>): Map<string, string> {

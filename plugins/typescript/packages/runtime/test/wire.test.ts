@@ -1,20 +1,23 @@
 import { describe, expect, test } from "vitest";
 import {
   BebopReader,
+  BebopMessageView,
   BebopRuntimeError,
   BebopDuration,
   BebopTimestamp,
   BebopAny,
   BebopEmpty,
   BebopUUID,
+  BebopViewReader,
   BebopWriter,
   BFloat16,
   BFloat16Array,
   decode,
   encode,
   encodeInto,
+  messageEncodedSize,
   utf8ByteLength,
-} from "../src";
+} from "../src/index.js";
 
 describe("Bebop wire primitives", () => {
   test("computes UTF-8 sizes without allocating an encoded buffer", () => {
@@ -41,10 +44,15 @@ describe("Bebop wire primitives", () => {
     writer.writeFloat32(3.5);
     writer.writeFloat64(Math.PI);
     writer.writeBFloat16(BFloat16.fromNumber(-2.25));
-    const timestamp = BebopTimestamp.fromWire(-1n, -500_000_000, 540_000);
-    const duration = BebopDuration.fromWire(12n, 345);
-    writer.writeTimestamp(timestamp);
-    writer.writeDuration(duration);
+    const temporalAvailable = typeof Temporal !== "undefined";
+    const timestamp = temporalAvailable
+      ? BebopTimestamp.fromWire(-1n, -500_000_000, 540_000)
+      : undefined;
+    const duration = temporalAvailable ? BebopDuration.fromWire(12n, 345) : undefined;
+    if (timestamp !== undefined && duration !== undefined) {
+      writer.writeTimestamp(timestamp);
+      writer.writeDuration(duration);
+    }
 
     const reader = new BebopReader(writer.toArray());
     expect(reader.readBool()).toBe(true);
@@ -64,15 +72,33 @@ describe("Bebop wire primitives", () => {
     const bfloat16 = reader.readBFloat16();
     expect(BFloat16.toBitPattern(bfloat16)).toBe(0xc010);
     expect(BFloat16.toNumber(bfloat16)).toBe(-2.25);
-    const decodedTimestamp = reader.readTimestamp();
-    expect(decodedTimestamp.epochNanoseconds).toBe(timestamp.epochNanoseconds);
-    expect(decodedTimestamp.offsetNanoseconds).toBe(540_000_000_000);
-    expect(BebopTimestamp.toWire(decodedTimestamp)).toEqual({
-      seconds: -1n,
-      nanoseconds: -500_000_000,
-      offsetMs: 540_000,
-    });
-    expect(BebopDuration.toWire(reader.readDuration())).toEqual({ seconds: 12n, nanoseconds: 345 });
+    if (timestamp !== undefined) {
+      const decodedTimestamp = reader.readTimestamp();
+      expect(decodedTimestamp.epochNanoseconds).toBe(timestamp.epochNanoseconds);
+      expect(decodedTimestamp.offsetNanoseconds).toBe(540_000_000_000);
+      expect(BebopTimestamp.toWire(decodedTimestamp)).toEqual({
+        seconds: -1n,
+        nanoseconds: -500_000_000,
+        offsetMs: 540_000,
+      });
+      expect(BebopDuration.toWire(reader.readDuration())).toEqual({ seconds: 12n, nanoseconds: 345 });
+      expect(BebopDuration.toWire(Temporal.Duration.from({ milliseconds: 2_500 })))
+        .toEqual({ seconds: 2n, nanoseconds: 500_000_000 });
+      expect(() => BebopTimestamp.fromWire(1n, -1, 0)).toThrow("must have the same sign");
+      expect(() => BebopTimestamp.fromWire(0n, 1_000_000_000, 0))
+        .toThrow("invalid Bebop timestamp nanoseconds");
+      expect(() => BebopDuration.fromWire(1n, -1)).toThrow("must have the same sign");
+      expect(() => BebopDuration.fromWire(0n, 1_000_000_000)).toThrow("invalid Bebop duration nanoseconds");
+    }
+  });
+
+  test("rejects integer values that JavaScript DataView would silently truncate", () => {
+    const writer = new BebopWriter();
+    expect(() => writer.writeByte(-1)).toThrow("byte value is out of range");
+    expect(() => writer.writeInt32(0x8000_0000)).toThrow("int32 value is out of range");
+    expect(() => writer.writeUint32(1.5)).toThrow("uint32 value is out of range");
+    expect(() => writer.writeUint64(-1n)).toThrow("uint64 value is out of range");
+    expect(() => writer.writeInt64(0x8000_0000_0000_0000n)).toThrow("int64 value is out of range");
   });
 
   test("round-trips typed scalar arrays", () => {
@@ -101,6 +127,55 @@ describe("Bebop wire primitives", () => {
     const decodedBFloat16s = reader.readBFloat16Array();
     expect([...decodedBFloat16s.toBitPatterns()]).toEqual([...bfloat16s.toBitPatterns()]);
     expect([...decodedBFloat16s.values()]).toEqual([1.5, -2.25]);
+  });
+
+  test("rejects duplicate map keys instead of silently overwriting values", () => {
+    const writer = new BebopWriter();
+    writer.writeUint32(2);
+    writer.writeByte(7);
+    writer.writeByte(1);
+    writer.writeByte(7);
+    writer.writeByte(2);
+
+    const reader = new BebopReader(writer.toArray());
+    expect(() => reader.readDynamicMap(
+      (entry) => entry.readByte(),
+      (entry) => entry.readByte(),
+    )).toThrow("map contains a duplicate key");
+
+    const viewReader = new BebopViewReader(writer.toArray());
+    const view = viewReader.readMapView(
+      (entry) => entry.readByte(),
+      (entry) => entry.readByte(),
+    );
+    expect(() => view.toMap()).toThrow("map contains a duplicate key");
+
+    const stringWriter = new BebopWriter();
+    stringWriter.writeUint32(2);
+    stringWriter.writeString("duplicate");
+    stringWriter.writeByte(1);
+    stringWriter.writeString("duplicate");
+    stringWriter.writeByte(2);
+    const stringReader = new BebopViewReader(stringWriter.toArray());
+    const stringView = stringReader.readMapView(
+      (entry) => entry.readStringView(),
+      (entry) => entry.readByte(),
+    );
+    expect(stringView.get("duplicate")).toBe(1);
+    expect(() => stringView.toMap()).toThrow("map contains a duplicate key");
+  });
+
+  test("applies production-safe collection limits to every array path", () => {
+    const writer = new BebopWriter();
+    writer.writeUint32(1_000_001);
+    const encoded = writer.toArray();
+
+    expect(() => new BebopReader(encoded).readDynamicArray(() => ({})))
+      .toThrow("collection exceeds configured limit");
+    expect(() => new BebopReader(encoded).readUint8Array())
+      .toThrow("collection exceeds configured limit");
+    expect(() => new BebopReader(new Uint8Array()).readFixedArray(1_000_001, () => ({})))
+      .toThrow("collection exceeds configured limit");
   });
 
   test("round-trips fixed typed scalar arrays without length prefixes", () => {
@@ -224,6 +299,73 @@ describe("Bebop wire primitives", () => {
       .toThrow("collection exceeds configured limit");
   });
 
+  test("writes and randomly accesses every indexed-message directory shape", () => {
+    const tagSets = [
+      [],
+      [5],
+      [1, 8],
+      [1, 9, 16],
+      [1, 16, 32],
+      [1, 33, 97, 255],
+    ] as const;
+
+    for (const tags of tagSets) {
+      const writer = new BebopWriter();
+      const message = writer.beginMessage();
+      for (const tag of tags) {
+        writer.markMessageField(message, tag);
+        writer.writeUint32(tag * 10);
+      }
+      writer.endMessage(message);
+      const encoded = writer.toArray();
+      const blockMask = tags.reduce((mask, tag) => mask | (1 << ((tag - 1) >>> 5)), 0);
+
+      expect(encoded.length).toBe(messageEncodedSize(
+        tags.length * 4,
+        tags.length,
+        tags.at(-1) ?? 0,
+        blockMask,
+      ));
+      const view = new BebopMessageView(encoded);
+      for (const tag of tags) {
+        expect(view.read(tag, (reader) => reader.readUint32())).toBe(tag * 10);
+      }
+      expect(view.field(254)).toBeUndefined();
+    }
+  });
+
+  test("nests indexed messages without corrupting writer metadata", () => {
+    const writer = new BebopWriter();
+    const outer = writer.beginMessage();
+    writer.markMessageField(outer, 1);
+    const inner = writer.beginMessage();
+    writer.markMessageField(inner, 200);
+    writer.writeString("nested");
+    writer.endMessage(inner);
+    writer.markMessageField(outer, 9);
+    writer.writeInt32(42);
+    writer.endMessage(outer);
+
+    const outerView = new BebopMessageView(writer.toArray());
+    const innerBytes = outerView.field(1);
+    expect(innerBytes).toBeDefined();
+    const innerView = new BebopMessageView(innerBytes!);
+    expect(innerView.read(200, (reader) => reader.readString())).toBe("nested");
+    expect(outerView.read(9, (reader) => reader.readInt32())).toBe(42);
+  });
+
+  test("rejects malformed indexed-message metadata", () => {
+    const writer = new BebopWriter();
+    const message = writer.beginMessage();
+    writer.markMessageField(message, 1);
+    writer.writeByte(7);
+    writer.endMessage(message);
+    const encoded = writer.toArray();
+    encoded[encoded.length - 1] = 0xff;
+
+    expect(() => new BebopMessageView(encoded)).toThrow("malformed indexed message");
+  });
+
   test("writes vnext strings with a NUL terminator", () => {
     const writer = new BebopWriter();
     writer.writeString("bebop");
@@ -246,12 +388,20 @@ describe("Bebop wire primitives", () => {
 
   test("writes strings into exact caller-owned buffers", () => {
     for (const value of ["", "plain ascii", "café 東京 😀", "\ud800"]) {
-      const writer = BebopWriter.fromBuffer(new Uint8Array(utf8ByteLength(value) + 5));
+      const writer = new BebopWriter(new Uint8Array(utf8ByteLength(value) + 5));
       writer.writeString(value);
       expect(new BebopReader(writer.toArrayView()).readString()).toBe(
         new TextDecoder().decode(new TextEncoder().encode(value)),
       );
     }
+  });
+
+  test("does not corrupt a fixed writer after a capacity error", () => {
+    const writer = new BebopWriter(new Uint8Array(4));
+    writer.writeUint32(7);
+    expect(() => writer.writeByte(1)).toThrow("supplied buffer is too small");
+    expect(writer.length).toBe(4);
+    expect([...writer.toArrayView()]).toEqual([7, 0, 0, 0]);
   });
 
   test("rejects strings missing their NUL terminator", () => {

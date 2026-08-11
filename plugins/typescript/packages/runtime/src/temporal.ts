@@ -8,6 +8,12 @@ export type BebopTimestamp = Temporal.ZonedDateTime;
 
 export const BebopTimestamp = {
   fromWire(seconds: bigint, nanoseconds: number, offsetMs: number): BebopTimestamp {
+    if (!Number.isInteger(nanoseconds) || Math.abs(nanoseconds) >= 1_000_000_000) {
+      throw new RangeError(`invalid Bebop timestamp nanoseconds: ${nanoseconds}`);
+    }
+    if ((seconds < 0n && nanoseconds > 0) || (seconds > 0n && nanoseconds < 0)) {
+      throw new RangeError("Bebop timestamp components must have the same sign");
+    }
     const instant = Temporal.Instant.fromEpochNanoseconds(
       seconds * nanosecondsPerSecond + BigInt(nanoseconds),
     );
@@ -59,6 +65,12 @@ export type BebopDuration = Temporal.Duration;
 
 export const BebopDuration = {
   fromWire(seconds: bigint, nanoseconds: number): BebopDuration {
+    if (!Number.isInteger(nanoseconds) || Math.abs(nanoseconds) >= 1_000_000_000) {
+      throw new RangeError(`invalid Bebop duration nanoseconds: ${nanoseconds}`);
+    }
+    if ((seconds < 0n && nanoseconds > 0) || (seconds > 0n && nanoseconds < 0)) {
+      throw new RangeError("Bebop duration components must have the same sign");
+    }
     const negative = seconds < 0n || nanoseconds < 0;
     const absoluteSeconds = seconds < 0n ? -seconds : seconds;
     const absoluteNanoseconds = Math.abs(nanoseconds);
@@ -72,13 +84,18 @@ export const BebopDuration = {
     if (value.years !== 0 || value.months !== 0 || value.weeks !== 0 || value.days !== 0) {
       throw new RangeError("Bebop durations cannot encode calendar-relative units");
     }
-    const seconds = BigInt(value.hours) * 3_600n
+    const totalNanoseconds = (
+      BigInt(value.hours) * 3_600n
       + BigInt(value.minutes) * 60n
-      + BigInt(value.seconds);
-    const nanoseconds = value.milliseconds * 1_000_000
-      + value.microseconds * 1_000
-      + value.nanoseconds;
-    return { seconds, nanoseconds };
+      + BigInt(value.seconds)
+    ) * nanosecondsPerSecond
+      + BigInt(value.milliseconds) * 1_000_000n
+      + BigInt(value.microseconds) * 1_000n
+      + BigInt(value.nanoseconds);
+    return {
+      seconds: totalNanoseconds / nanosecondsPerSecond,
+      nanoseconds: Number(totalNanoseconds % nanosecondsPerSecond),
+    };
   },
 
   readFrom(reader: BebopReader): BebopDuration {

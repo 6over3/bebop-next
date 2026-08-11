@@ -1,3 +1,4 @@
+import { BebopRuntimeError } from "./error.js";
 import { BebopReader, BebopWriter, type BebopReaderOptions } from "./wire.js";
 
 export interface BebopCodec<T> {
@@ -7,8 +8,14 @@ export interface BebopCodec<T> {
 }
 
 export function encode<T>(codec: BebopCodec<T>, value: T): Uint8Array {
-  const writer = new BebopWriter(codec.encodedSize(value));
+  const encodedSize = codec.encodedSize(value);
+  const writer = new BebopWriter(encodedSize);
   codec.writeInto(writer, value);
+  if (writer.length !== encodedSize) {
+    throw new BebopRuntimeError(
+      `codec encodedSize returned ${encodedSize}, but writeInto wrote ${writer.length} bytes`,
+    );
+  }
   return writer.toArrayView();
 }
 
@@ -34,5 +41,10 @@ export function decode<T>(
   bytes: Uint8Array,
   options?: BebopReaderOptions,
 ): T {
-  return codec.readFrom(new BebopReader(bytes, options));
+  const reader = new BebopReader(bytes, options);
+  const value = codec.readFrom(reader);
+  if (reader.index !== reader.length) {
+    throw new BebopRuntimeError(`Bebop value contains ${reader.length - reader.index} trailing bytes`);
+  }
+  return value;
 }

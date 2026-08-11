@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { decode, encode, type BebopCodec } from "../src/codec.js";
-import { createBatch } from "../src/rpc/batch.js";
+import { BatchResults, createBatch } from "../src/rpc/batch.js";
 import { bufferedPayload } from "../src/rpc/buffered-payload.js";
 import {
   StreamResponse,
@@ -15,10 +15,13 @@ import { peerInfoKey, RpcContext } from "../src/rpc/context.js";
 import { BebopRouterBuilder } from "../src/rpc/router.js";
 import type { BebopRouter } from "../src/rpc/router.js";
 import { FutureDispatcher } from "../src/rpc/future.js";
+import { InMemoryFutureStorage } from "../src/rpc/future-storage.js";
+import type { BebopViewCodec } from "../src/reflection.js";
 import { defineService } from "../src/rpc/service.js";
-import { Frame, readFrames } from "../src/rpc/frame.js";
-import { MethodType, StatusCode } from "../src/rpc.bb.js";
-import type { BebopReader, BebopWriter } from "../src/wire.js";
+import { Frame, FrameWriter, readFrames } from "../src/rpc/frame.js";
+import { BatchOutcome, MethodType, StatusCode } from "../src/rpc.bb.js";
+import { BebopViewReader } from "../src/view.js";
+import type { BebopReader, BebopReaderOptions, BebopWriter } from "../src/wire.js";
 
 const Uint32Codec = {
   readFrom(reader: BebopReader): number {
@@ -30,7 +33,16 @@ const Uint32Codec = {
   encodedSize(): number {
     return 4;
   },
-} satisfies BebopCodec<number>;
+  view(bytes: Uint8Array, options?: BebopReaderOptions): number {
+    const reader = new BebopViewReader(bytes, options);
+    const value = this.readView(reader);
+    reader.finish();
+    return value;
+  },
+  readView(reader: BebopViewReader): number {
+    return reader.readUint32();
+  },
+} satisfies BebopCodec<number> & BebopViewCodec<number, number>;
 
 interface DoubleHandler {
   double(request: number): number | PromiseLike<number>;
@@ -53,8 +65,8 @@ const DoubleService = defineService(
       responseTypeUrl: "type.bebop.sh/test.Number",
     },
   },
-  (builder, handler: DoubleHandler) => builder.registerUnary(
-    DoubleService.methods.double,
+  (builder, handler: DoubleHandler, methods) => builder.registerUnary(
+    methods.double,
     (request) => handler.double(request),
   ),
 );
@@ -72,8 +84,8 @@ const TripleService = defineService(
       responseTypeUrl: "type.bebop.sh/test.Number",
     },
   },
-  (builder, handler: TripleHandler) => builder.registerUnary(
-    TripleService.methods.triple,
+  (builder, handler: TripleHandler, methods) => builder.registerUnary(
+    methods.triple,
     (request) => handler.triple(request),
   ),
 );
@@ -91,15 +103,63 @@ class DecoratedDoubleHandler implements DoubleHandler, TripleHandler {
 DoubleService.handler(DecoratedDoubleHandler, {
   kind: "class",
   name: "DecoratedDoubleHandler",
+  metadata: {},
   addInitializer() {},
 });
 TripleService.handler(DecoratedDoubleHandler, {
   kind: "class",
   name: "DecoratedDoubleHandler",
+  metadata: {},
   addInitializer() {},
 });
 
 describe("Bebop RPC frames", () => {
+  test("writes headers and payloads directly without joining them", async () => {
+    const chunks: Uint8Array[] = [];
+    const writer = new FrameWriter(new WritableStream({
+      write(chunk) { chunks.push(chunk); },
+    }));
+    const payload = new Uint8Array([1, 2, 3]);
+
+    await writer.data(payload, 7);
+    await writer.close();
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[1]).toBe(payload);
+    expect(frameValue(Frame.decode(concatenate(chunks)))).toEqual(
+      frameValue(new Frame(payload, 0, 7)),
+    );
+    await expect(writer.data(payload)).rejects.toThrow("frame writer is closed");
+  });
+
+  test("rejects unknown flags and values that would truncate on the wire", () => {
+    expect(() => new Frame(new Uint8Array(), 0x80)).toThrow("invalid frame flags");
+    expect(() => new Frame(new Uint8Array(), 0, 0x1_0000_0000)).toThrow("invalid frame stream ID");
+    expect(() => new Frame(new Uint8Array(), 0, 0, -1n)).toThrow("invalid frame cursor");
+  });
+
+  test("keeps concurrent frame writes atomic", async () => {
+    const chunks: Uint8Array[] = [];
+    const writer = new FrameWriter(new WritableStream({
+      async write(chunk) {
+        await Promise.resolve();
+        chunks.push(chunk);
+      },
+    }));
+
+    await Promise.all([
+      writer.data(new Uint8Array([1, 2]), 1),
+      writer.data(new Uint8Array([3, 4]), 2),
+    ]);
+    await writer.close();
+
+    const frames = await collect(readFrames(byteStream(chunks)));
+    expect(frames.map(frameValue)).toEqual([
+      frameValue(new Frame(new Uint8Array([1, 2]), 0, 1)),
+      frameValue(new Frame(new Uint8Array([3, 4]), 0, 2)),
+    ]);
+  });
+
   test("decodes frames across every boundary and one-byte transport chunks", async () => {
     const expected = [
       new Frame(new Uint8Array([1, 2, 3]), 0, 7),
@@ -124,6 +184,38 @@ describe("Bebop RPC frames", () => {
     const encoded = new Frame(new Uint8Array([1, 2, 3])).encode();
     await expect(collect(readFrames(byteStream([encoded.slice(0, -1)]))))
       .rejects.toThrow("incomplete frame");
+  });
+});
+
+describe("generated aggregate views", () => {
+  test("preserves typed union branches and lazy nested collections", () => {
+    const outcome: BatchOutcome = {
+      kind: "success",
+      value: {
+        payloads: [new Uint8Array([1, 2, 3])],
+        metadata: new Map([["trace-id", "abc"]]),
+      },
+    };
+    const view = BatchOutcome.view(BatchOutcome.encode(outcome));
+
+    expect(view.kind).toBe("success");
+    if (view.kind !== "success") throw new Error("expected success view");
+    expect(view.value.payloads.get(0).toArray()).toEqual([1, 2, 3]);
+    expect(view.value.metadata.get("trace-id")?.string).toBe("abc");
+    expect(view.decoded()).toEqual(outcome);
+  });
+
+  test("rejects trailing bytes inside a known union branch", () => {
+    const encoded = BatchOutcome.encode({
+      kind: "success",
+      value: { payloads: [new Uint8Array([1])], metadata: new Map() },
+    });
+    const malformed = new Uint8Array(encoded.length + 1);
+    malformed.set(encoded);
+    new DataView(malformed.buffer).setUint32(0, encoded.length - 3, true);
+
+    expect(() => BatchOutcome.decode(malformed)).toThrow("length-prefixed value contains trailing data");
+    expect(() => BatchOutcome.view(malformed)).toThrow("Bebop value contains trailing data");
   });
 });
 
@@ -274,12 +366,12 @@ describe("Bebop RPC typed client foundations", () => {
       });
     const channel = new InMemoryChannel(builder.build());
 
-    expect((await unaryCall(channel, unary, 21, new RpcContext())).value).toBe(42);
+    expect((await unaryCall(channel, unary, 21, new RpcContext())).message).toBe(42);
     expect(await collect(await serverStreamCall(channel, serverStream, 21, new RpcContext())))
       .toEqual([21, 42]);
 
     const upload = await clientStreamCall(channel, clientStream, [20, 22], new RpcContext());
-    expect(upload.value).toBe(42);
+    expect(upload.message).toBe(42);
 
     const sync = await duplexStreamCall(channel, duplex, values(20, 21), new RpcContext());
     expect(await collect(sync)).toEqual([40, 42]);
@@ -307,7 +399,7 @@ describe("Bebop RPC typed client foundations", () => {
   test("reports unsupported client and duplex streaming before starting a call", async () => {
     const channel: BebopChannel = {
       payload: bufferedPayload,
-      unary: async (_methodId, request) => ({ value: request, metadata: new Map() }),
+      unary: async (_methodId, request) => ({ message: request, metadata: new Map() }),
       serverStream: async () => new StreamResponse(emptyAsync(), Promise.resolve(new Map())),
     };
 
@@ -323,6 +415,83 @@ describe("Bebop RPC typed client foundations", () => {
       [],
       new RpcContext(),
     )).rejects.toMatchObject({ code: StatusCode.UNIMPLEMENTED });
+  });
+
+  test("rejects invalid batch composition before sending it", () => {
+    const channel = new InMemoryChannel(new BebopRouterBuilder().build());
+    const unary = rpcMethod(117, MethodType.UNARY);
+    const firstBatch = createBatch(channel);
+    const dependency = firstBatch.addUnary(unary, 1);
+
+    expect(() => createBatch(channel).addUnary(unary, dependency))
+      .toThrow("same batch");
+    expect(() => firstBatch.addUnary(rpcMethod(118, MethodType.SERVER_STREAM), 1))
+      .toThrow("not unary");
+    expect(() => new BatchResults({
+      results: [
+        { callId: 0, outcome: { kind: "success", value: { payloads: [], metadata: new Map() } } },
+        { callId: 0, outcome: { kind: "success", value: { payloads: [], metadata: new Map() } } },
+      ],
+    })).toThrow("duplicate batch result");
+  });
+
+  test("composes transport, batch, and dependency metadata", async () => {
+    const producer = rpcMethod(119, MethodType.UNARY);
+    const consumer = rpcMethod(120, MethodType.UNARY);
+    const channel = new InMemoryChannel(new BebopRouterBuilder()
+      .registerUnary(producer, (value, context) => {
+        context.responseMetadata.set("source", "dependency");
+        return value;
+      })
+      .registerUnary(consumer, (value, context) => (
+        context.metadata.get("transport") === "request"
+        && context.metadata.get("batch") === "request"
+        && context.metadata.get("source") === "dependency"
+          ? value * 2
+          : 0
+      ))
+      .build());
+    const batch = createBatch(channel, new Map([
+      ["batch", "request"],
+      ["source", "batch"],
+    ]));
+    const first = batch.addUnary(producer, 21);
+    const second = batch.addUnary(consumer, first);
+
+    const results = await batch.execute(new RpcContext({
+      metadata: new Map([["transport", "request"]]),
+    }));
+
+    expect(results.get(second)).toBe(42);
+  });
+});
+
+describe("Bebop RPC future storage", () => {
+  test("rejects invalid retention and subscriber limits", () => {
+    expect(() => new InMemoryFutureStorage({ maxPending: -1 })).toThrow("maxPending");
+    expect(() => new InMemoryFutureStorage({ maxCompleted: 1.5 })).toThrow("maxCompleted");
+    expect(() => new InMemoryFutureStorage({ subscriberBufferCapacity: 0 }))
+      .toThrow("subscriberBufferCapacity");
+  });
+
+  test("fails slow subscribers instead of buffering without bound", async () => {
+    const storage = new InMemoryFutureStorage({ subscriberBufferCapacity: 1 });
+    const { stream } = await storage.subscribe(undefined, "owner");
+    const execute = async (id: string) => ({
+      id,
+      outcome: {
+        kind: "success" as const,
+        value: { payload: new Uint8Array(), metadata: new Map<string, string>() },
+      },
+    });
+
+    await storage.register({ context: new RpcContext(), owner: "owner", execute });
+    await storage.register({ context: new RpcContext(), owner: "owner", execute });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await expect(stream.getReader().read()).rejects.toMatchObject({
+      code: StatusCode.RESOURCE_EXHAUSTED,
+    });
   });
 });
 
@@ -385,7 +554,7 @@ class InMemoryChannel implements BebopChannel {
   async unary(methodId: number, request: Uint8Array, context: RpcContext): Promise<RpcResponse<Uint8Array>> {
     this.attachPeer(context);
     return {
-      value: await this.router.unary(methodId, request, context),
+      message: await this.router.unary(methodId, request, context),
       metadata: context.responseMetadata,
     };
   }
@@ -409,7 +578,7 @@ class InMemoryChannel implements BebopChannel {
     return {
       send: stream.send,
       finish: async () => ({
-        value: await stream.finish(),
+        message: await stream.finish(),
         metadata: context.responseMetadata,
       }),
     };

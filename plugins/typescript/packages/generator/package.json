@@ -3,6 +3,7 @@
   "version": "2026.0.0-alpha.4",
   "description": "Bebop TypeScript code generator plugin.",
   "type": "module",
+  "sideEffects": false,
   "types": "./dist/index.d.ts",
   "main": "./dist/index.js",
   "exports": {

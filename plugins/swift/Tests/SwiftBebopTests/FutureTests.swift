@@ -56,10 +56,17 @@ private struct MetadataHandler: WidgetServiceHandler {
                 outcome: .success(FutureSuccess(payload: [1]))
             )
         )
-        let expected = FutureOutcome.success(FutureSuccess(payload: [2]))
-        resolver.resolve(result: FutureResult(id: id, outcome: expected))
+        resolver.resolve(
+            result: FutureResult(
+                id: id,
+                outcome: .success(FutureSuccess(payload: [2]))
+            )
+        )
 
-        #expect(try await resolver.await(id: id) == expected)
+        #expect(
+            try await resolver.await(id: id)
+                == .success(FutureSuccess(payload: [1]))
+        )
     }
 
     @Test func dispatchUnaryAndAwait() async throws {
@@ -102,7 +109,13 @@ private struct MetadataHandler: WidgetServiceHandler {
             request: EchoRequest(value: "slow")
         )
 
+        let task = Task { try await future.value }
+        try await Task.sleep(for: .milliseconds(50))
         try await future.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
     }
 
     @Test func idempotencyDedup() async throws {

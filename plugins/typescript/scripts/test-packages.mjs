@@ -37,6 +37,16 @@ run(process.execPath, [
     import { BebopWriter, utf8ByteLength } from "@bebop/runtime/wire";
     import { ResponseBuilder } from "@bebop/plugin/sdk";
     import { generate } from "@bebop/generator-typescript";
+    await Promise.all([
+      "any", "bfloat16", "codec", "empty", "error", "json", "message",
+      "reflection", "rpc", "rpc/protocol", "rpc/batch", "rpc/buffered-payload",
+      "rpc/channel", "rpc/context", "rpc/error", "rpc/frame", "rpc/future",
+      "rpc/future-storage", "rpc/payload", "rpc/router", "rpc/service",
+      "temporal", "uuid", "view", "wire",
+    ].map((path) => import(\`@bebop/runtime/\${path}\`)));
+    await Promise.all([
+      "descriptor", "node", "protocol", "sdk",
+    ].map((path) => import(\`@bebop/plugin/\${path}\`)));
     if (new BebopWriter().length !== 0) throw new Error("runtime export failed");
     if (utf8ByteLength("😀") !== 4) throw new Error("runtime subpath failed");
     if (new ResponseBuilder().build() === undefined) throw new Error("plugin SDK export failed");

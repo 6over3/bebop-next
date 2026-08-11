@@ -11,7 +11,7 @@ import {
   TypeKind,
   type CodeGeneratorRequest as CodeGeneratorRequestValue,
 } from "@bebop/plugin";
-import { generate, runGenerator } from "../src/generator";
+import { generate, runGenerator } from "../src/generator.js";
 
 describe("bebopc-gen-typescript bootstrap", () => {
   const tempDir = new URL("./.tmp-generated/", import.meta.url);
@@ -56,7 +56,7 @@ describe("bebopc-gen-typescript bootstrap", () => {
 
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(response.files?.[1]?.content).toContain(
-      `import { Paint, Point } from "./base.bb.js";`,
+      `import { Paint, PaintView, Point, PointView } from "./base.bb.js";`,
     );
     expect(response.files?.[0]?.content).toContain("export const Color =");
     expect(response.files?.[0]?.content).toContain("} as const;");
@@ -65,6 +65,10 @@ describe("bebopc-gen-typescript bootstrap", () => {
     expect(response.files?.[0]?.content).toContain('kind: "enum",');
     expect(response.files?.[0]?.content).toContain("encode(value: Point): Uint8Array");
     expect(response.files?.[0]?.content).toContain("decode(bytes: Uint8Array, options?: BebopReaderOptions): Point");
+    expect(response.files?.[0]?.content).toContain("export class PointView");
+    expect(response.files?.[0]?.content).toContain("view(bytes: Uint8Array, options?: BebopReaderOptions): PointView");
+    expect(response.files?.[0]?.content).toContain("static skip(reader: BebopViewReader): void");
+    expect(response.files?.[1]?.content).toContain("export type ShapeView =");
     expect(response.files?.[0]?.content).toContain("return encode(Point, value);");
     expect(response.files?.[0]?.content).toContain("return decode(Point, bytes, options);");
     expect(response.files?.[0]?.content).not.toContain("export const ColorCodec");
@@ -90,6 +94,9 @@ describe("bebopc-gen-typescript bootstrap", () => {
     expect(response.files?.[1]?.content).toContain("methodType: MethodType.DUPLEX_STREAM");
     expect(response.files?.[1]?.content).toContain(
       "sync(requests: StreamSource<Paint>, context = new RpcContext()): Promise<StreamResponse<Canvas, Metadata>>",
+    );
+    expect(response.files?.[1]?.content).toContain(
+      "sync(requests: ReadableStream<PaintView>, context: RpcContext): Awaitable<StreamSource<Canvas>>",
     );
     expect(response.files?.[1]?.content).toContain(
       "return duplexStreamCall(this.channel, CanvasService.methods.sync, requests, context);",

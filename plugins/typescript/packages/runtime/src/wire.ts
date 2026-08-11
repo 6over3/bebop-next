@@ -1,11 +1,13 @@
 import { BFloat16, BFloat16Array } from "./bfloat16.js";
 import { BebopRuntimeError } from "./error.js";
+import { BebopMessageView, messageDirectoryLayout, popcount32 } from "./message.js";
 import { BebopDuration, BebopTimestamp } from "./temporal.js";
 
 const emptyBytes = new Uint8Array(0);
 const emptyArrayBuffer = new ArrayBuffer(0);
 const emptyString = "";
 const textDecoderThreshold = 300;
+const defaultMaxCollectionLength = 1_000_000;
 let sharedFatalTextDecoder: TextDecoder | undefined;
 
 export type BebopTypedArray =
@@ -26,6 +28,50 @@ export type BebopReaderOptions = {
   readonly copyArrays?: boolean;
   /** Reject dynamic arrays and maps larger than this many elements. */
   readonly maxCollectionLength?: number;
+  /** Maximum nesting of aggregate values. Default 128. */
+  readonly maxDepth?: number;
+};
+
+export type ResolvedBebopReaderOptions = {
+  readonly copyArrays: boolean;
+  readonly maxCollectionLength: number;
+  readonly maxDepth: number;
+};
+
+export function resolveBebopReaderOptions(
+  options: BebopReaderOptions = {},
+): ResolvedBebopReaderOptions {
+  const maxCollectionLength = options.maxCollectionLength ?? defaultMaxCollectionLength;
+  if (
+    maxCollectionLength !== Number.POSITIVE_INFINITY
+    && (!Number.isSafeInteger(maxCollectionLength) || maxCollectionLength < 0)
+  ) {
+    throw new RangeError(
+      `maxCollectionLength must be a non-negative safe integer: ${maxCollectionLength}`,
+    );
+  }
+  const maxDepth = options.maxDepth ?? 128;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
+    throw new RangeError(`maxDepth must be a non-negative safe integer: ${maxDepth}`);
+  }
+  const copyArrays = options.copyArrays !== false;
+  if (
+    Object.isFrozen(options)
+    && options.copyArrays === copyArrays
+    && options.maxCollectionLength === maxCollectionLength
+    && options.maxDepth === maxDepth
+  ) {
+    return options as ResolvedBebopReaderOptions;
+  }
+  return Object.freeze({
+    copyArrays,
+    maxCollectionLength,
+    maxDepth,
+  });
+}
+
+type NestedCodec<Value> = {
+  readFrom(reader: BebopReader): Value;
 };
 
 function invalidUtf8(cause?: TypeError): never {
@@ -38,8 +84,103 @@ function requireLength(length: number): void {
   }
 }
 
+function requireInteger(value: number, minimum: number, maximum: number, type: string): void {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new BebopRuntimeError(`${type} value is out of range: ${value}`);
+  }
+}
+
+function requireBigInt(value: bigint, minimum: bigint, maximum: bigint, type: string): void {
+  if (value < minimum || value > maximum) {
+    throw new BebopRuntimeError(`${type} value is out of range: ${value}`);
+  }
+}
+
 function fatalTextDecoder(): TextDecoder {
   return (sharedFatalTextDecoder ??= new TextDecoder("utf-8", { fatal: true }));
+}
+
+/** Validates UTF-8 without allocating a JavaScript string. */
+export function validateUtf8(bytes: Uint8Array): void {
+  let index = 0;
+  while (index < bytes.length) {
+    const a = bytes[index++]!;
+    if (a < 0x80) continue;
+    if (a >= 0xc2 && a < 0xe0) {
+      continuation(bytes, index++);
+      continue;
+    }
+    if (a >= 0xe0 && a < 0xf0) {
+      const b = continuation(bytes, index++);
+      continuation(bytes, index++);
+      if ((a === 0xe0 && b < 0xa0) || (a === 0xed && b >= 0xa0)) invalidUtf8();
+      continue;
+    }
+    if (a >= 0xf0 && a < 0xf5) {
+      const b = continuation(bytes, index++);
+      continuation(bytes, index++);
+      continuation(bytes, index++);
+      if ((a === 0xf0 && b < 0x90) || (a === 0xf4 && b >= 0x90)) invalidUtf8();
+      continue;
+    }
+    invalidUtf8();
+  }
+}
+
+/** Decodes validated UTF-8 with the optimized small-string path used by Bebop. */
+export function decodeUtf8(bytes: Uint8Array): string {
+  if (bytes.length === 0) return emptyString;
+  if (bytes.length >= textDecoderThreshold) {
+    try {
+      return fatalTextDecoder().decode(bytes);
+    } catch (error) {
+      if (error instanceof TypeError) invalidUtf8(error);
+      throw error;
+    }
+  }
+
+  let result = "";
+  let index = 0;
+  while (index < bytes.length) {
+    const a = bytes[index++]!;
+    let codePoint: number;
+    if (a < 0x80) {
+      codePoint = a;
+    } else if (a >= 0xc2 && a < 0xe0) {
+      const b = continuation(bytes, index++);
+      codePoint = ((a & 0x1f) << 6) | (b & 0x3f);
+    } else if (a >= 0xe0 && a < 0xf0) {
+      const b = continuation(bytes, index++);
+      const c = continuation(bytes, index++);
+      if ((a === 0xe0 && b < 0xa0) || (a === 0xed && b >= 0xa0)) invalidUtf8();
+      codePoint = ((a & 0x0f) << 12) | ((b & 0x3f) << 6) | (c & 0x3f);
+    } else if (a >= 0xf0 && a < 0xf5) {
+      const b = continuation(bytes, index++);
+      const c = continuation(bytes, index++);
+      const d = continuation(bytes, index++);
+      if ((a === 0xf0 && b < 0x90) || (a === 0xf4 && b >= 0x90)) invalidUtf8();
+      codePoint = ((a & 0x07) << 18) | ((b & 0x3f) << 12) | ((c & 0x3f) << 6) | (d & 0x3f);
+    } else {
+      invalidUtf8();
+    }
+    if (codePoint < 0x10000) {
+      result += String.fromCharCode(codePoint);
+    } else {
+      codePoint -= 0x10000;
+      result += String.fromCharCode(
+        (codePoint >>> 10) + 0xd800,
+        (codePoint & 0x03ff) + 0xdc00,
+      );
+    }
+  }
+  return result;
+}
+
+function continuation(bytes: Uint8Array, index: number): number {
+  if (index >= bytes.length) invalidUtf8();
+  const byte = bytes[index]!;
+  if ((byte & 0xc0) !== 0x80) invalidUtf8();
+  return byte;
 }
 
 /** Returns the exact UTF-8 byte length without allocating an encoded buffer. */
@@ -71,13 +212,20 @@ export class BebopReader {
   readonly view: DataView;
   readonly copyArrays: boolean;
   readonly maxCollectionLength: number;
+  readonly maxDepth: number;
+  readonly options: ResolvedBebopReaderOptions;
+  protected nestingDepth: number;
   index = 0;
 
-  constructor(buffer: Uint8Array, options?: BebopReaderOptions) {
+  constructor(buffer: Uint8Array, options?: BebopReaderOptions, depth = 0) {
+    const resolved = resolveBebopReaderOptions(options);
     this.buffer = buffer;
     this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    this.copyArrays = options?.copyArrays !== false;
-    this.maxCollectionLength = validCollectionLength(options?.maxCollectionLength);
+    this.copyArrays = resolved.copyArrays;
+    this.maxCollectionLength = resolved.maxCollectionLength;
+    this.maxDepth = resolved.maxDepth;
+    this.options = resolved;
+    this.nestingDepth = depth;
   }
 
   get length(): number {
@@ -88,6 +236,14 @@ export class BebopReader {
     if (byteCount < 0 || this.index + byteCount > this.buffer.length) {
       throw new BebopRuntimeError("unexpected end of Bebop data");
     }
+  }
+
+  protected validateCollectionLength(count: number): number {
+    requireLength(count);
+    if (count > this.maxCollectionLength) {
+      throw new BebopRuntimeError("collection exceeds configured limit");
+    }
+    return count;
   }
 
   seek(index: number): void {
@@ -230,13 +386,19 @@ export class BebopReader {
       : this.buffer.subarray(start, end);
   }
 
+  /** Reads an immutable slice of the input regardless of `copyArrays`. */
+  readView(byteCount: number): Uint8Array {
+    if (byteCount === 0) return emptyBytes;
+    this.require(byteCount);
+    const start = this.index;
+    this.index += byteCount;
+    return this.buffer.subarray(start, this.index);
+  }
+
   /** Reads a length-prefixed byte array, or exactly `length` bytes for fixed arrays. */
   readUint8Array(length?: number): Uint8Array {
-    if (length === undefined) {
-      return this.readBytes(this.readUint32());
-    }
-    requireLength(length);
-    return this.readBytes(length);
+    const count = this.validateCollectionLength(length ?? this.readUint32());
+    return this.readBytes(count);
   }
 
   readInt8Array(length?: number): Int8Array {
@@ -294,70 +456,68 @@ export class BebopReader {
     if (this.buffer[end] !== 0) {
       throw new BebopRuntimeError("string missing NUL terminator");
     }
-    if (lengthBytes === 0) {
-      this.index = end + 1;
-      return emptyString;
-    }
-
-    if (lengthBytes >= textDecoderThreshold) {
-      const decoder = fatalTextDecoder();
-      let value: string;
-      try {
-        value = decoder.decode(this.buffer.subarray(start, end));
-      } catch (error) {
-        if (error instanceof TypeError) invalidUtf8(error);
-        throw error;
-      }
-      this.index = end + 1;
-      return value;
-    }
-
-    let result = "";
-    let codePoint = 0;
-    while (this.index < end) {
-      const a = this.buffer[this.index++]!;
-      if (a < 0x80) {
-        codePoint = a;
-      } else if (a >= 0xc2 && a < 0xe0) {
-        const b = this.readContinuationByte(end);
-        codePoint = ((a & 0x1f) << 6) | (b & 0x3f);
-      } else if (a >= 0xe0 && a < 0xf0) {
-        const b = this.readContinuationByte(end);
-        const c = this.readContinuationByte(end);
-        if ((a === 0xe0 && b < 0xa0) || (a === 0xed && b >= 0xa0)) invalidUtf8();
-        codePoint = ((a & 0x0f) << 12) | ((b & 0x3f) << 6) | (c & 0x3f);
-      } else if (a >= 0xf0 && a < 0xf5) {
-        const b = this.readContinuationByte(end);
-        const c = this.readContinuationByte(end);
-        const d = this.readContinuationByte(end);
-        if ((a === 0xf0 && b < 0x90) || (a === 0xf4 && b >= 0x90)) invalidUtf8();
-        codePoint = ((a & 0x07) << 18) | ((b & 0x3f) << 12) | ((c & 0x3f) << 6) | (d & 0x3f);
-      } else {
-        invalidUtf8();
-      }
-
-      if (codePoint < 0x10000) {
-        result += String.fromCharCode(codePoint);
-      } else {
-        codePoint -= 0x10000;
-        result += String.fromCharCode((codePoint >> 10) + 0xd800, (codePoint & 0x03ff) + 0xdc00);
-      }
-    }
     this.index = end + 1;
-    return result;
+    return decodeUtf8(this.buffer.subarray(start, end));
   }
 
-  readMessageEnd(): number {
+  /** Reads a string's bytes without copying. Aggregate view readers validate them. */
+  protected readStringBytes(): Uint8Array {
+    const lengthBytes = this.readUint32();
+    this.require(lengthBytes + 1);
+    const start = this.index;
+    const end = start + lengthBytes;
+    if (this.buffer[end] !== 0) {
+      throw new BebopRuntimeError("string missing NUL terminator");
+    }
+    this.index = end + 1;
+    return this.buffer.subarray(start, end);
+  }
+
+  /** Reads one length-prefixed aggregate body without copying it. */
+  readLengthPrefixedView(): Uint8Array {
+    const lengthBytes = this.readUint32();
+    return this.readView(lengthBytes);
+  }
+
+  readLengthPrefixed<Value>(decode: (reader: BebopReader) => Value): Value {
+    const reader = new BebopReader(this.readLengthPrefixedView(), this.options, this.nestingDepth);
+    const value = decode(reader);
+    if (reader.index !== reader.length) {
+      throw new BebopRuntimeError("length-prefixed value contains trailing data");
+    }
+    return value;
+  }
+
+  readMessage(): BebopMessageView {
+    const start = this.index;
     const lengthBytes = this.readUint32();
     const end = this.index + lengthBytes;
-    if (end > this.buffer.length) {
+    if (lengthBytes === 0 || end > this.buffer.length) {
       throw new BebopRuntimeError("message length exceeds input size");
     }
-    return end;
+    this.index = end;
+    return new BebopMessageView(this.buffer.subarray(start, end), this.options, this.nestingDepth);
+  }
+
+  readNested<Value>(codec: NestedCodec<Value>): Value {
+    if (this.nestingDepth >= this.maxDepth) {
+      throw new BebopRuntimeError("Bebop aggregate nesting exceeds configured limit");
+    }
+    this.nestingDepth++;
+    try {
+      return codec.readFrom(this);
+    } finally {
+      this.nestingDepth--;
+    }
   }
 
   readDynamicArray<T>(readElement: (reader: BebopReader) => T): T[] {
-    const count = this.readCollectionLength();
+    const count = this.readCollectionCount();
+    return this.readFixedArray(count, readElement);
+  }
+
+  readFixedArray<T>(count: number, readElement: (reader: BebopReader) => T): T[] {
+    this.validateCollectionLength(count);
     const values: T[] = new Array(Math.min(count, this.buffer.length - this.index));
     for (let i = 0; i < count; i++) {
       values[i] = readElement(this);
@@ -369,10 +529,11 @@ export class BebopReader {
     readKey: (reader: BebopReader) => K,
     readValue: (reader: BebopReader) => V,
   ): Map<K, V> {
-    const count = this.readCollectionLength();
+    const count = this.readCollectionCount();
     const values = new Map<K, V>();
     for (let i = 0; i < count; i++) {
       const key = readKey(this);
+      if (values.has(key)) throw new BebopRuntimeError("map contains a duplicate key");
       values.set(key, readValue(this));
     }
     return values;
@@ -382,7 +543,7 @@ export class BebopReader {
     count: number,
     ctor: BebopTypedArrayConstructor<T>,
   ): T {
-    requireLength(count);
+    this.validateCollectionLength(count);
     const byteCount = count * ctor.BYTES_PER_ELEMENT;
     if (byteCount === 0) {
       return new ctor(emptyArrayBuffer, 0, 0);
@@ -404,35 +565,19 @@ export class BebopReader {
     return new ctor(bytes.buffer, 0, count);
   }
 
-  private readCollectionLength(): number {
-    const count = this.readUint32();
-    if (count > this.maxCollectionLength) {
-      throw new BebopRuntimeError("collection exceeds configured limit");
-    }
-    return count;
+  readCollectionCount(): number {
+    return this.validateCollectionLength(this.readUint32());
   }
-
-  private readContinuationByte(end: number): number {
-    if (this.index >= end) invalidUtf8();
-    const byte = this.buffer[this.index++]!;
-    if ((byte & 0xc0) !== 0x80) invalidUtf8();
-    return byte;
-  }
-}
-
-function validCollectionLength(value: number | undefined): number {
-  if (value === undefined || value === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new RangeError(`maxCollectionLength must be a non-negative safe integer: ${value}`);
-  }
-  return value;
 }
 
 export class BebopWriter {
   private buffer: Uint8Array;
   private view: DataView;
-  private readonly origin: number;
   private readonly fixed: boolean;
+  private readonly messageTags: number[] = [];
+  private readonly messageOffsets: number[] = [];
+  private readonly messageTagStarts: number[] = [];
+  private readonly messagePayloadStarts: number[] = [];
   length: number;
 
   /**
@@ -442,31 +587,31 @@ export class BebopWriter {
    */
   constructor(storage: number | Uint8Array | ArrayBuffer = 256) {
     if (typeof storage === "number") {
+      if (!Number.isSafeInteger(storage) || storage < 0) {
+        throw new RangeError(`writer capacity must be a non-negative safe integer: ${storage}`);
+      }
       this.buffer = new Uint8Array(Math.max(16, storage));
-      this.origin = 0;
       this.fixed = false;
     } else if (storage instanceof Uint8Array) {
       this.buffer = storage;
-      this.origin = 0;
       this.fixed = true;
     } else {
       this.buffer = new Uint8Array(storage);
-      this.origin = 0;
       this.fixed = true;
     }
     this.view = new DataView(this.buffer.buffer, this.buffer.byteOffset, this.buffer.byteLength);
-    this.length = this.origin;
-  }
-
-  /** Creates a writer that writes into a caller-owned buffer and never reallocates. */
-  static fromBuffer(buffer: Uint8Array): BebopWriter {
-    return new BebopWriter(buffer);
+    this.length = 0;
   }
 
   private reserve(byteCount: number): number {
+    if (!Number.isSafeInteger(byteCount) || byteCount < 0) {
+      throw new BebopRuntimeError(`invalid write length: ${byteCount}`);
+    }
     const index = this.length;
-    this.length += byteCount;
-    this.guaranteeBufferLength(this.length);
+    const next = index + byteCount;
+    if (!Number.isSafeInteger(next)) throw new BebopRuntimeError("writer length overflow");
+    this.guaranteeBufferLength(next);
+    this.length = next;
     return index;
   }
 
@@ -489,7 +634,7 @@ export class BebopWriter {
 
   /** Returns a copy of the written bytes. Safe to retain and reuse. */
   toArray(): Uint8Array {
-    return this.buffer.slice(this.origin, this.length);
+    return this.buffer.slice(0, this.length);
   }
 
   /**
@@ -500,7 +645,7 @@ export class BebopWriter {
    * another message encoded with this or a pooled writer.
    */
   toArrayView(): Uint8Array {
-    return this.buffer.subarray(this.origin, this.length);
+    return this.buffer.subarray(0, this.length);
   }
 
   /**
@@ -509,10 +654,14 @@ export class BebopWriter {
    * @remarks Any view from {@link toArrayView} is unsafe to retain after this.
    */
   reset(): void {
-    this.length = this.origin;
+    if (this.messageTagStarts.length !== 0) {
+      throw new BebopRuntimeError("cannot reset a writer while a message is open");
+    }
+    this.length = 0;
   }
 
   writeByte(value: number): void {
+    requireInteger(value, 0, 0xff, "byte");
     this.buffer[this.reserve(1)] = value;
   }
 
@@ -525,41 +674,56 @@ export class BebopWriter {
   }
 
   writeInt8(value: number): void {
+    requireInteger(value, -0x80, 0x7f, "int8");
     this.view.setInt8(this.reserve(1), value);
   }
 
   writeUint16(value: number): void {
+    requireInteger(value, 0, 0xffff, "uint16");
     this.view.setUint16(this.reserve(2), value, true);
   }
 
   writeInt16(value: number): void {
+    requireInteger(value, -0x8000, 0x7fff, "int16");
     this.view.setInt16(this.reserve(2), value, true);
   }
 
   writeUint32(value: number): void {
+    requireInteger(value, 0, 0xffff_ffff, "uint32");
     this.view.setUint32(this.reserve(4), value, true);
   }
 
   writeInt32(value: number): void {
+    requireInteger(value, -0x8000_0000, 0x7fff_ffff, "int32");
     this.view.setInt32(this.reserve(4), value, true);
   }
 
   writeUint64(value: bigint): void {
-    this.view.setBigUint64(this.reserve(8), BigInt.asUintN(64, value), true);
+    requireBigInt(value, 0n, 0xffff_ffff_ffff_ffffn, "uint64");
+    this.view.setBigUint64(this.reserve(8), value, true);
   }
 
   writeInt64(value: bigint): void {
-    this.view.setBigInt64(this.reserve(8), BigInt.asIntN(64, value), true);
+    requireBigInt(value, -0x8000_0000_0000_0000n, 0x7fff_ffff_ffff_ffffn, "int64");
+    this.view.setBigInt64(this.reserve(8), value, true);
   }
 
   writeUint128(value: bigint): void {
-    const normalized = BigInt.asUintN(128, value);
-    this.writeUint64(normalized & 0xffff_ffff_ffff_ffffn);
-    this.writeUint64(normalized >> 64n);
+    requireBigInt(value, 0n, 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffffn, "uint128");
+    this.writeUint64(value & 0xffff_ffff_ffff_ffffn);
+    this.writeUint64(value >> 64n);
   }
 
   writeInt128(value: bigint): void {
-    this.writeUint128(BigInt.asUintN(128, value));
+    requireBigInt(
+      value,
+      -0x8000_0000_0000_0000_0000_0000_0000_0000n,
+      0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffffn,
+      "int128",
+    );
+    const encoded = value < 0n ? value + (1n << 128n) : value;
+    this.writeUint64(encoded & 0xffff_ffff_ffff_ffffn);
+    this.writeUint64(encoded >> 64n);
   }
 
   writeFloat16(value: number): void {
@@ -671,21 +835,127 @@ export class BebopWriter {
     }
 
     if (writeIndex === this.buffer.length) this.guaranteeBufferLength(writeIndex + 1);
-    this.view.setUint32(start, writeIndex - writeStart, true);
+    const byteLength = writeIndex - writeStart;
+    if (byteLength > 0xffff_ffff) throw new BebopRuntimeError("string exceeds uint32 length");
+    this.view.setUint32(start, byteLength, true);
     this.buffer[writeIndex++] = 0;
     this.length = writeIndex;
   }
 
-  reserveMessageLength(): number {
+  beginLengthPrefixed(): number {
     return this.reserve(4);
   }
 
-  fillMessageLength(position: number): void {
-    this.view.setUint32(position, this.length - position - 4, true);
+  endLengthPrefixed(position: number): void {
+    if (!Number.isInteger(position) || position < 0 || position + 4 > this.length) {
+      throw new BebopRuntimeError(`invalid length-prefix position: ${position}`);
+    }
+    const bodyLength = this.length - position - 4;
+    if (bodyLength > 0xffff_ffff) {
+      throw new BebopRuntimeError("length-prefixed value exceeds uint32 length");
+    }
+    this.view.setUint32(position, bodyLength, true);
   }
 
-  writeEndMarker(): void {
-    this.writeByte(0);
+  /** Starts an indexed message and returns a token required by its field/end operations. */
+  beginMessage(): number {
+    const token = this.messageTagStarts.length;
+    this.reserve(4);
+    this.messageTagStarts.push(this.messageTags.length);
+    this.messagePayloadStarts.push(this.length);
+    return token;
+  }
+
+  /** Records the start of a present field. Tags must be written in ascending order. */
+  markMessageField(token: number, tag: number): void {
+    this.requireOpenMessage(token);
+    if (!Number.isInteger(tag) || tag < 1 || tag > 255) {
+      throw new BebopRuntimeError(`message tag is out of range: ${tag}`);
+    }
+    const tagStart = this.messageTagStarts[token]!;
+    const previous = this.messageTags.length === tagStart
+      ? 0
+      : this.messageTags[this.messageTags.length - 1]!;
+    if (tag <= previous) {
+      throw new BebopRuntimeError("message fields must be written in ascending tag order");
+    }
+    this.messageTags.push(tag);
+    this.messageOffsets.push(this.length - this.messagePayloadStarts[token]!);
+  }
+
+  /** Finishes the current indexed message without allocating per-message metadata arrays. */
+  endMessage(token: number): void {
+    this.requireOpenMessage(token);
+    const tagStart = this.messageTagStarts[token]!;
+    const payloadStart = this.messagePayloadStarts[token]!;
+    const fieldCount = this.messageTags.length - tagStart;
+    const payloadSize = this.length - payloadStart;
+    const offsetWidth = payloadSize <= 0xff ? 1 : payloadSize <= 0xffff ? 2 : 4;
+    const maxTag = fieldCount === 0 ? 0 : this.messageTags[this.messageTags.length - 1]!;
+    let blockMask = 0;
+    for (let index = tagStart; index < this.messageTags.length; index++) {
+      blockMask |= 1 << ((this.messageTags[index]! - 1) >>> 5);
+    }
+    const directory = messageDirectoryLayout(fieldCount, maxTag, blockMask);
+    const bodySize = payloadSize
+      + Math.max(0, fieldCount - 1) * offsetWidth
+      + directory.size
+      + 1;
+    if (bodySize > 0xffff_ffff) {
+      throw new BebopRuntimeError("message body exceeds uint32 length");
+    }
+
+    for (let index = 1; index < fieldCount; index++) {
+      this.writeOffset(this.messageOffsets[tagStart + index]!, offsetWidth);
+    }
+
+    switch (directory.kind) {
+      case 0:
+        break;
+      case 1:
+      case 2:
+      case 3:
+        for (let index = tagStart; index < this.messageTags.length; index++) {
+          this.writeByte(this.messageTags[index]!);
+        }
+        break;
+      case 4:
+      case 5:
+      case 6: {
+        let mask = 0;
+        for (let index = tagStart; index < this.messageTags.length; index++) {
+          mask |= 1 << (this.messageTags[index]! - 1);
+        }
+        this.writeOffset(mask >>> 0, 1 << (directory.kind - 4));
+        break;
+      }
+      case 7: {
+        let rank = 0;
+        for (let block = 0; block < 8; block++) {
+          if ((blockMask & (1 << block)) === 0) continue;
+          let mask = 0;
+          for (let index = tagStart; index < this.messageTags.length; index++) {
+            const tag = this.messageTags[index]!;
+            if (((tag - 1) >>> 5) === block) mask |= 1 << ((tag - 1) & 31);
+          }
+          this.writeByte(rank);
+          this.writeUint32(mask >>> 0);
+          rank += popcount32(mask);
+        }
+        this.writeByte(blockMask);
+        break;
+      }
+      default:
+        throw new BebopRuntimeError("invalid message directory kind");
+    }
+
+    const widthCode = offsetWidth === 1 ? 0 : offsetWidth === 2 ? 1 : 2;
+    this.writeByte((directory.kind << 2) | widthCode);
+    this.view.setUint32(payloadStart - 4, bodySize, true);
+    this.messageTags.length = tagStart;
+    this.messageOffsets.length = tagStart;
+    this.messageTagStarts.pop();
+    this.messagePayloadStarts.pop();
   }
 
   writeDynamicArray<T>(values: readonly T[], writeElement: (writer: BebopWriter, value: T) => void): void {
@@ -700,7 +970,22 @@ export class BebopWriter {
     writeEntry: (writer: BebopWriter, key: K, value: V) => void,
   ): void {
     this.writeUint32(values.size);
-    values.forEach((value, key) => writeEntry(this, key, value));
+    for (const [key, value] of values) writeEntry(this, key, value);
+  }
+
+  private requireOpenMessage(token: number): void {
+    if (token !== this.messageTagStarts.length - 1) {
+      throw new BebopRuntimeError("message operations must be properly nested");
+    }
+  }
+
+  private writeOffset(value: number, width: number): void {
+    switch (width) {
+      case 1: this.writeByte(value); break;
+      case 2: this.writeUint16(value); break;
+      case 4: this.writeUint32(value); break;
+      default: throw new BebopRuntimeError(`invalid message offset width: ${width}`);
+    }
   }
 
   private writeTypedArray(value: BebopTypedArray, length?: number): void {

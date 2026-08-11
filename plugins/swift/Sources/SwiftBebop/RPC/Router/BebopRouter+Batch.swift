@@ -7,6 +7,7 @@ extension BebopRouter {
     func handleBatch(payload: [UInt8], ctx: RpcContext) async throws -> [UInt8] {
         let request = try BatchRequest.decode(from: payload, limits: config.decodeLimits)
         let calls = request.calls
+        let batchContext = ctx.deriving(appending: request.metadata)
 
         guard !calls.isEmpty else {
             return BatchResponse(results: []).encode()
@@ -42,7 +43,10 @@ extension BebopRouter {
                 for index in layer {
                     let call = calls[index]
                     group.addTask {
-                        await (call.callId, self.executeBatchCall(call, outcomes: snapshot, ctx: ctx))
+                        await (
+                            call.callId,
+                            self.executeBatchCall(call, outcomes: snapshot, ctx: batchContext)
+                        )
                     }
                 }
                 return await group.reduce(into: [:]) { $0[$1.0] = $1.1 }

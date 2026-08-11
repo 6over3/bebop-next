@@ -533,6 +533,9 @@ import Testing
                 if let widgetId = context.metadata["widget-id"] {
                     context.setResponseMetadata("saw-widget-id", widgetId)
                 }
+                if let batch = context.metadata["batch"] {
+                    context.setResponseMetadata("saw-batch", batch)
+                }
                 return EchoResponse(value: request.value.string)
             }
 
@@ -557,7 +560,7 @@ import Testing
                 ),
                 BatchCall(callId: 1, methodId: getWidgetId, payload: [], inputFrom: 0),
             ],
-            metadata: [:]
+            metadata: ["widget-id": "batch", "batch": "present"]
         )
 
         let responseBytes = try await router.unary(
@@ -569,5 +572,6 @@ import Testing
         let ref1 = CallRef<EchoResponse>(callId: 1)
         let meta1 = try results.metadata(for: ref1)
         #expect(meta1["saw-widget-id"] == "42")
+        #expect(meta1["saw-batch"] == "present")
     }
 }

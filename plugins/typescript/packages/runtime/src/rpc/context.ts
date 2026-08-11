@@ -46,11 +46,12 @@ export class RpcContext {
     this.signal = this.controller.signal;
 
     if (options.signal !== undefined) {
-      if (options.signal.aborted) this.controller.abort(options.signal.reason);
+      const sourceSignal = options.signal;
+      if (sourceSignal.aborted) this.controller.abort(sourceSignal.reason);
       else {
-        this.sourceSignal = options.signal;
-        this.sourceAbortHandler = () => this.controller.abort(options.signal?.reason);
-        options.signal.addEventListener("abort", this.sourceAbortHandler, { once: true });
+        this.sourceSignal = sourceSignal;
+        this.sourceAbortHandler = () => this.controller.abort(sourceSignal.reason);
+        sourceSignal.addEventListener("abort", this.sourceAbortHandler, { once: true });
       }
     }
 
@@ -63,7 +64,6 @@ export class RpcContext {
 
   cancel(reason: unknown = new BebopRpcError(StatusCode.CANCELLED)): void {
     this.controller.abort(reason);
-    this.releaseResources();
   }
 
   [Symbol.dispose](): void {

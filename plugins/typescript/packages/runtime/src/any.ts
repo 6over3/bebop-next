@@ -2,6 +2,11 @@ import { decode, encode } from "./codec.js";
 import { BebopRuntimeError } from "./error.js";
 import type { BebopReflectableCodec } from "./reflection.js";
 import { utf8ByteLength, type BebopReader, type BebopWriter } from "./wire.js";
+import {
+  BebopStringView,
+  BebopViewReader,
+  type BebopArrayView,
+} from "./view.js";
 
 export const BEBOP_TYPE_URL_PREFIX = "type.bebop.sh/";
 
@@ -9,6 +14,30 @@ export type BebopAny = {
   readonly typeUrl: string;
   readonly value: Uint8Array;
 };
+
+export class BebopAnyView {
+  private constructor(
+    readonly encoded: Uint8Array,
+    readonly typeUrl: BebopStringView,
+    readonly value: BebopArrayView<number>,
+  ) {}
+
+  static readFrom(reader: BebopViewReader): BebopAnyView {
+    const start = reader.position;
+    const typeUrl = reader.readStringView();
+    const value = reader.readArrayView((element) => element.readByte(), 1);
+    return new BebopAnyView(reader.encodedFrom(start), typeUrl, value);
+  }
+
+  static skip(reader: BebopViewReader): void {
+    reader.skipString();
+    reader.skipArray((element) => element.skip(1), 1);
+  }
+
+  decoded(): BebopAny {
+    return { typeUrl: this.typeUrl.string, value: this.value.encoded.slice(4) };
+  }
+}
 
 export const BebopAny = {
   typeUrlPrefix: BEBOP_TYPE_URL_PREFIX,

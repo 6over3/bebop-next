@@ -1,5 +1,3 @@
-const textEncoder = new TextEncoder();
-
 export class IndentedStringBuilder {
   private readonly chunks: string[] = [];
 
@@ -7,28 +5,12 @@ export class IndentedStringBuilder {
 
   append(text: string): this {
     const indent = " ".repeat(this.spaces);
-    if (!containsLineBreak(text)) {
+    if (!text.includes("\n") && !text.includes("\r")) {
       this.chunks.push(`${indent}${text}`.trimEnd());
       return this;
     }
-    const lines = getLines(text);
+    const lines = text.split(/\r\n|\n|\r/u);
     this.chunks.push(lines.map((line) => `${indent}${line}`.trimEnd()).join("\n").trimEnd());
-    return this;
-  }
-
-  appendMid(text: string): this {
-    if (containsLineBreak(text)) {
-      throw new Error("appendMid must not contain multiple lines");
-    }
-    this.chunks.push(text);
-    return this;
-  }
-
-  appendEnd(text: string): this {
-    if (containsLineBreak(text)) {
-      throw new Error("appendEnd must not contain multiple lines");
-    }
-    this.chunks.push(`${text.trimEnd()}\n`);
     return this;
   }
 
@@ -37,7 +19,7 @@ export class IndentedStringBuilder {
       this.chunks.push("\n");
       return this;
     }
-    if (!containsLineBreak(text)) {
+    if (!text.includes("\n") && !text.includes("\r")) {
       this.chunks.push(`${" ".repeat(this.spaces)}${text.trimEnd()}\n`);
       return this;
     }
@@ -46,42 +28,27 @@ export class IndentedStringBuilder {
     return this;
   }
 
-  indent(spaces = 2): this {
-    this.spaces = Math.max(0, this.spaces + spaces);
-    return this;
-  }
-
-  dedent(spaces = 2): this {
-    this.spaces = Math.max(0, this.spaces - spaces);
-    return this;
-  }
-
   indented(fn: (builder: this) => void, spaces = 2): this {
-    this.indent(spaces);
+    const previous = this.spaces;
+    this.spaces = Math.max(0, previous + spaces);
     try {
       fn(this);
     } finally {
-      this.dedent(spaces);
+      this.spaces = previous;
     }
     return this;
   }
 
   block(openingLine: string, fn: (builder: this) => void, close = "}", open = "{"): this {
     if (openingLine.length > 0) {
-      this.append(openingLine).appendEnd(` ${open}`);
+      this.append(openingLine);
+      this.chunks.push(` ${open}\n`);
     } else {
       this.line(open);
     }
 
     this.indented(fn);
     this.line(close);
-    return this;
-  }
-
-  trimStart(): this {
-    const content = this.toString().trimStart();
-    this.chunks.length = 0;
-    this.chunks.push(content);
     return this;
   }
 
@@ -92,26 +59,7 @@ export class IndentedStringBuilder {
     return this;
   }
 
-  trim(): this {
-    const content = this.toString().trim();
-    this.chunks.length = 0;
-    this.chunks.push(content);
-    return this;
-  }
-
-  encode(): Uint8Array {
-    return textEncoder.encode(this.toString());
-  }
-
   toString(): string {
     return this.chunks.join("");
   }
-}
-
-function getLines(text: string): string[] {
-  return text.split(/\r\n|\n|\r/u);
-}
-
-function containsLineBreak(text: string): boolean {
-  return text.includes("\n") || text.includes("\r");
 }

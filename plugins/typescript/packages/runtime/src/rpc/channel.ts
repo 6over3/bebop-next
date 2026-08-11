@@ -5,7 +5,7 @@ import type { BebopPayloadCodec } from "./payload.js";
 import type { BebopServiceMethod, StreamSource } from "./service.js";
 
 export type RpcResponse<T, Metadata = RpcMetadata> = {
-  readonly value: T;
+  readonly message: T;
   readonly metadata: Metadata;
 };
 
@@ -13,7 +13,9 @@ export class StreamResponse<T, Metadata = RpcMetadata> implements AsyncIterable<
   constructor(
     readonly values: AsyncIterable<T>,
     readonly metadata: Promise<Metadata>,
-  ) {}
+  ) {
+    void metadata.catch(() => undefined);
+  }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return this.values[Symbol.asyncIterator]();
@@ -45,14 +47,32 @@ export interface BebopChannel<Payload = Uint8Array, Metadata = RpcMetadata> {
   }>;
 }
 
-export type ClientStreamCall<Request, Response, Metadata = RpcMetadata> = {
-  readonly send: (request: Request) => Promise<void>;
-  readonly finish: () => Promise<RpcResponse<Response, Metadata>>;
-};
+export class ClientStreamCall<Request, Response, Metadata = RpcMetadata>
+implements AsyncDisposable {
+  private finishTask: Promise<RpcResponse<Response, Metadata>> | undefined;
+
+  constructor(
+    private readonly sendRequest: (request: Request) => Promise<void>,
+    private readonly finishRequests: () => Promise<RpcResponse<Response, Metadata>>,
+  ) {}
+
+  async send(request: Request): Promise<void> {
+    if (this.finishTask !== undefined) throw new Error("request stream has finished");
+    await this.sendRequest(request);
+  }
+
+  finish(): Promise<RpcResponse<Response, Metadata>> {
+    return (this.finishTask ??= Promise.resolve().then(() => this.finishRequests()));
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.finish();
+  }
+}
 
 export class DuplexStreamCall<Request, Response, Metadata = RpcMetadata>
 implements AsyncIterable<Response>, AsyncDisposable {
-  private finished = false;
+  private finishTask: Promise<void> | undefined;
 
   constructor(
     private readonly sendRequest: (request: Request) => Promise<void>,
@@ -65,7 +85,7 @@ implements AsyncIterable<Response>, AsyncDisposable {
   }
 
   async send(request: Request): Promise<void> {
-    if (this.finished) throw new Error("request stream has finished");
+    if (this.finishTask !== undefined) throw new Error("request stream has finished");
     await this.sendRequest(request);
   }
 
@@ -76,10 +96,8 @@ implements AsyncIterable<Response>, AsyncDisposable {
     await this.finish();
   }
 
-  async finish(): Promise<void> {
-    if (this.finished) return;
-    this.finished = true;
-    await this.finishRequests();
+  finish(): Promise<void> {
+    return (this.finishTask ??= Promise.resolve().then(() => this.finishRequests()));
   }
 
   [Symbol.asyncIterator](): AsyncIterator<Response> {
@@ -93,7 +111,7 @@ implements AsyncIterable<Response>, AsyncDisposable {
 
 export async function unaryCall<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   request: Request,
   context: RpcContext,
 ): Promise<RpcResponse<Response, Metadata>> {
@@ -103,14 +121,14 @@ export async function unaryCall<Request, Response, Payload, Metadata>(
     context,
   );
   return {
-    value: await channel.payload.decode(method.response, response.value),
+    message: await channel.payload.decode(method.response, response.message),
     metadata: response.metadata,
   };
 }
 
 export async function serverStreamCall<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   request: Request,
   context: RpcContext,
 ): Promise<StreamResponse<Response, Metadata>> {
@@ -123,30 +141,30 @@ export async function serverStreamCall<Request, Response, Payload, Metadata>(
 
 export async function openClientStream<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   context: RpcContext,
 ): Promise<ClientStreamCall<Request, Response, Metadata>> {
   if (channel.clientStream === undefined) {
     throw new BebopRpcError(StatusCode.UNIMPLEMENTED, "channel does not support client streaming");
   }
   const stream = await channel.clientStream(method.id, context);
-  return {
-    send: (request) => stream.send(
+  return new ClientStreamCall(
+    (request) => stream.send(
       channel.payload.encode(method.request, request),
     ),
-    finish: async () => {
+    async () => {
       const response = await stream.finish();
       return {
-        value: await channel.payload.decode(method.response, response.value),
+        message: await channel.payload.decode(method.response, response.message),
         metadata: response.metadata,
       };
     },
-  };
+  );
 }
 
 export async function clientStreamCall<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   requests: StreamSource<Request>,
   context: RpcContext,
 ): Promise<RpcResponse<Response, Metadata>> {
@@ -165,7 +183,7 @@ export async function clientStreamCall<Request, Response, Payload, Metadata>(
 
 export async function openDuplexStream<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   context: RpcContext,
 ): Promise<DuplexStreamCall<Request, Response, Metadata>> {
   if (channel.duplexStream === undefined) {
@@ -184,14 +202,14 @@ export async function openDuplexStream<Request, Response, Payload, Metadata>(
 
 export async function duplexStreamCall<Request, Response, Payload, Metadata>(
   channel: BebopChannel<Payload, Metadata>,
-  method: BebopServiceMethod<Request, Response>,
+  method: BebopServiceMethod<Request, Response, unknown>,
   requests: StreamSource<Request>,
   context: RpcContext,
 ): Promise<StreamResponse<Response, Metadata>> {
   const call = await openDuplexStream(channel, method, context);
   const sending = sendDuplexRequests(call, requests, context);
   const metadata = Promise.all([call.metadata, sending]).then(([value]) => value);
-  return new StreamResponse(completeWith(call, sending), metadata);
+  return new StreamResponse(completeWith(call, sending, context), metadata);
 }
 
 async function sendDuplexRequests<Request, Response, Metadata>(
@@ -214,7 +232,14 @@ async function sendDuplexRequests<Request, Response, Metadata>(
 async function* completeWith<Value>(
   source: AsyncIterable<Value>,
   completion: Promise<void>,
+  context: RpcContext,
 ): AsyncGenerator<Value> {
-  for await (const value of source) yield value;
-  await completion;
+  let completed = false;
+  try {
+    for await (const value of source) yield value;
+    await completion;
+    completed = true;
+  } finally {
+    if (!completed) context.cancel();
+  }
 }

@@ -9,6 +9,7 @@ const statusNames = new Map<number, string>(
 
 export class BebopRpcError extends Error {
   readonly code: StatusCode;
+  readonly detail: string;
   readonly metadata: RpcMetadata;
 
   constructor(
@@ -18,15 +19,12 @@ export class BebopRpcError extends Error {
     options?: ErrorOptions,
   ) {
     const name = statusNames.get(code) ?? `STATUS_${code}`;
-    super(detail === undefined || detail.length === 0 ? name : `${name}: ${detail}`, options);
+    const resolvedDetail = detail ?? "";
+    super(resolvedDetail.length === 0 ? name : `${name}: ${resolvedDetail}`, options);
     this.name = "BebopRpcError";
     this.code = code;
+    this.detail = resolvedDetail;
     this.metadata = metadata;
-  }
-
-  get detail(): string {
-    const separator = this.message.indexOf(": ");
-    return separator < 0 ? "" : this.message.slice(separator + 2);
   }
 
   toWire(): WireRpcError {

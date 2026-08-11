@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { IndentedStringBuilder } from "../src/indented-string-builder";
+import { IndentedStringBuilder } from "../src/indented-string-builder.js";
 
 describe("IndentedStringBuilder", () => {
   test("writes TypeScript with closures for blocks", () => {
@@ -51,23 +51,12 @@ export const Song = {
 `);
   });
 
-  test("supports mid-line and end-line appends", () => {
+  test("trims trailing generated whitespace", () => {
     const builder = new IndentedStringBuilder();
 
-    builder.append("const answer =");
-    builder.appendMid(" 42");
-    builder.appendEnd(";");
-
-    expect(builder.toString()).toBe("const answer = 42;\n");
-  });
-
-  test("trims accumulated content", () => {
-    const builder = new IndentedStringBuilder();
-
-    builder.line();
     builder.line("value");
     builder.line();
-    builder.trim();
+    builder.trimEnd();
 
     expect(builder.toString()).toBe("value");
   });

@@ -9,11 +9,11 @@
   ],
   "scripts": {
     "build": "bun run clean && bun run --cwd packages/runtime build && bun run --cwd packages/plugin build && bun run --cwd packages/generator build",
-    "check": "bun run check:version && bun run build && tsc -p packages/runtime --pretty false --noEmit && tsc -p packages/plugin --pretty false --noEmit && tsc -p packages/generator --pretty false --noEmit",
+    "check": "bun run check:version && bun run build && tsc -p packages/runtime --pretty false --noEmit && tsc -p packages/plugin --pretty false --noEmit && tsc -p packages/generator --pretty false --noEmit && tsc -p tsconfig.test.json --pretty false",
     "check:version": "node scripts/check-version.mjs",
     "clean": "rm -rf packages/*/dist",
     "package": "bun run build && node scripts/pack-packages.mjs",
-    "test": "vitest run",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
     "test:packages": "bun run build && node scripts/test-packages.mjs"
   },
   "devDependencies": {
@@ -21,11 +21,5 @@
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
-  },
-  "version": "1.0.0",
-  "description": "To install dependencies:",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }

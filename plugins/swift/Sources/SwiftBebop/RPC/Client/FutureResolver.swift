@@ -99,9 +99,9 @@ public final class FutureResolver: Sendable {
 
     func resolve(result: FutureResult) {
         let entries = _state.withLock { state -> [PendingEntry] in
-            if state.completed.updateValue(result.outcome, forKey: result.id) == nil {
-                state.completedOrder.append(result.id)
-            }
+            guard state.completed[result.id] == nil else { return [] }
+            state.completed[result.id] = result.outcome
+            state.completedOrder.append(result.id)
             evict(&state)
             return state.pending.removeValue(forKey: result.id) ?? []
         }
@@ -113,26 +113,33 @@ public final class FutureResolver: Sendable {
     func cancel(id: BebopUUID) async throws {
         let req = FutureCancelRequest(id: id)
         try await _sendCancel(req.encode())
+        let entries = _state.withLock { state in
+            state.pending.removeValue(forKey: id) ?? []
+        }
+        for entry in entries {
+            entry.continuation.resume(throwing: CancellationError())
+        }
     }
 
     private func ensureResolveStream() {
         _state.withLock { state in
             guard state.streamTask == nil else { return }
             state.streamTask = Task { [weak self] in
-                guard let self else { return }
+                guard let consumeResolveStream = self?._consumeResolveStream else { return }
                 var streamError: (any Error)?
                 do {
                     let req = FutureResolveRequest()
-                    try await _consumeResolveStream(req.encode()) { bytes in
+                    try await consumeResolveStream(req.encode()) { [weak self] bytes in
                         let result = try FutureResult.decode(from: bytes)
-                        self.resolve(result: result)
+                        self?.resolve(result: result)
                     }
                 } catch is CancellationError {
                     streamError = CancellationError()
                 } catch {
                     streamError = error
                 }
-                let orphaned = _state.withLock { state -> [PendingEntry] in
+                guard let self else { return }
+                let orphaned = self._state.withLock { state -> [PendingEntry] in
                     state.streamTask = nil
                     let all = state.pending.values.flatMap(\.self)
                     state.pending.removeAll()

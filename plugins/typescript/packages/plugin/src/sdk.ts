@@ -97,9 +97,13 @@ export class ResponseBuilder {
   addFile(file: GeneratedFile): this;
   addFile(name: string, content: string): this;
   addFile(fileOrName: GeneratedFile | string, content?: string): this {
-    const file = typeof fileOrName === "string"
-      ? { name: fileOrName, content: content ?? "" }
-      : fileOrName;
+    let file: GeneratedFile;
+    if (typeof fileOrName === "string") {
+      if (content === undefined) throw new TypeError("generated file content is required");
+      file = { name: fileOrName, content };
+    } else {
+      file = fileOrName;
+    }
     if (file.insertionPoint !== undefined && file.name === undefined) {
       throw new TypeError("an insertion-point contribution must name its target file");
     }
@@ -178,7 +182,9 @@ function orderContributors(contributors: readonly BebopContributor[]): readonly 
   }
   const addEdge = (before: string, after: string): void => {
     if (before === after) throw new Error(`contributor '${before}' cannot depend on itself`);
-    dependencies.get(after)?.add(before);
+    const edges = dependencies.get(after);
+    if (edges === undefined) throw new Error(`unknown contributor '${after}'`);
+    edges.add(before);
   };
 
   for (const contributor of contributors) {
@@ -208,7 +214,9 @@ function orderContributors(contributors: readonly BebopContributor[]): readonly 
   const visits: Visit[] = [];
   for (const root of contributors) {
     if (state.get(root.name) === "done") continue;
-    visits.push({ name: root.name, dependencies: [...dependencies.get(root.name) ?? []], index: 0 });
+    const rootDependencies = dependencies.get(root.name);
+    if (rootDependencies === undefined) throw new Error(`unknown contributor '${root.name}'`);
+    visits.push({ name: root.name, dependencies: [...rootDependencies], index: 0 });
     while (visits.length !== 0) {
       const visit = visits[visits.length - 1]!;
       if (state.get(visit.name) === undefined) {
@@ -221,14 +229,13 @@ function orderContributors(contributors: readonly BebopContributor[]): readonly 
         const dependencyState = state.get(dependency);
         if (dependencyState === "done") continue;
         if (dependencyState === "visiting") {
-          const cycleStart = stackIndexes.get(dependency) ?? 0;
+          const cycleStart = stackIndexes.get(dependency);
+          if (cycleStart === undefined) throw new Error("invalid contributor traversal state");
           throw new Error(`contributor dependency cycle: ${stack.slice(cycleStart).join(", ")}`);
         }
-        visits.push({
-          name: dependency,
-          dependencies: [...dependencies.get(dependency) ?? []],
-          index: 0,
-        });
+        const nestedDependencies = dependencies.get(dependency);
+        if (nestedDependencies === undefined) throw new Error(`unknown contributor '${dependency}'`);
+        visits.push({ name: dependency, dependencies: [...nestedDependencies], index: 0 });
         continue;
       }
       visits.pop();

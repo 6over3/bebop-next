@@ -1,5 +1,6 @@
 import type { BebopCodec } from "./codec.js";
 import type { BebopReaderOptions } from "./wire.js";
+import type { BebopViewReader } from "./view.js";
 
 export type BebopDefinitionKind =
   | "struct"
@@ -53,7 +54,15 @@ export type BebopReflectableCodec<T> = BebopCodec<T> & {
 };
 
 /** The self-contained codec surface exposed by generated Bebop types. */
-export type BebopGeneratedCodec<T> = BebopReflectableCodec<T> & {
+export type BebopGeneratedCodec<T, View = never> = BebopReflectableCodec<T> & {
   encode(value: T): Uint8Array;
   decode(bytes: Uint8Array, options?: BebopReaderOptions): T;
+} & ([View] extends [never] ? object : {
+  view(bytes: Uint8Array, options?: BebopReaderOptions): View;
+  readView(reader: BebopViewReader): View;
+});
+
+export type BebopViewCodec<T, View> = BebopCodec<T> & {
+  view(bytes: Uint8Array, options?: BebopReaderOptions): View;
+  readView(reader: BebopViewReader): View;
 };

@@ -2,6 +2,7 @@ import { decode, encode, type BebopCodec } from "../codec.js";
 import {
   BatchRequest,
   BatchResponse,
+  MethodType,
   StatusCode,
   type BatchCall,
   type BatchResult,
@@ -13,14 +14,17 @@ import { BebopReservedMethod } from "./router.js";
 import type { BebopServiceMethod } from "./service.js";
 
 const emptyPayload = new Uint8Array();
+const callReference = Symbol("Bebop batch call reference");
 
 export type CallRef<Response> = {
+  readonly [callReference]: object;
   readonly kind: "unary";
   readonly callId: number;
   readonly response: BebopCodec<Response>;
 };
 
 export type StreamRef<Response> = {
+  readonly [callReference]: object;
   readonly kind: "serverStream";
   readonly callId: number;
   readonly response: BebopCodec<Response>;
@@ -31,7 +35,15 @@ export class BatchResults {
 
   constructor(response: BatchResponse) {
     const results = new Map<number, BatchResult>();
-    for (const result of response.results) results.set(result.callId, result);
+    for (const result of response.results) {
+      if (results.has(result.callId)) {
+        throw new BebopRpcError(
+          StatusCode.INVALID_ARGUMENT,
+          `duplicate batch result for call ${result.callId}`,
+        );
+      }
+      results.set(result.callId, result);
+    }
     this.results = results;
   }
 
@@ -81,11 +93,15 @@ export class Batch<Metadata = RpcMetadata> {
   ) {}
 
   addUnary<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+    method: BebopServiceMethod<Request, Response, unknown>,
     request: Request | CallRef<Request>,
   ): CallRef<Response> {
+    if (method.methodType !== MethodType.UNARY) {
+      throw new TypeError(`method '${method.name}' is not unary`);
+    }
     const callId = this.add(method, request);
     return {
+      [callReference]: this,
       kind: "unary",
       callId,
       response: method.response,
@@ -93,11 +109,15 @@ export class Batch<Metadata = RpcMetadata> {
   }
 
   addServerStream<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+    method: BebopServiceMethod<Request, Response, unknown>,
     request: Request | CallRef<Request>,
   ): StreamRef<Response> {
+    if (method.methodType !== MethodType.SERVER_STREAM) {
+      throw new TypeError(`method '${method.name}' is not server-streaming`);
+    }
     const callId = this.add(method, request);
     return {
+      [callReference]: this,
       kind: "serverStream",
       callId,
       response: method.response,
@@ -112,16 +132,19 @@ export class Batch<Metadata = RpcMetadata> {
       encode(BatchRequest, { calls: this.calls, metadata: this.metadata }),
       context,
     );
-    return new BatchResults(decode(BatchResponse, response.value));
+    return new BatchResults(decode(BatchResponse, response.message));
   }
 
   private add<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+    method: BebopServiceMethod<Request, Response, unknown>,
     request: Request | CallRef<Request>,
   ): number {
     if (this.state === "executed") throw new Error("batch has already executed");
-    const callId = this.nextId++;
     const forwarding = isCallRef(request);
+    if (forwarding && request[callReference] !== this) {
+      throw new RangeError("batch dependencies must come from the same batch");
+    }
+    const callId = this.nextId++;
     this.calls.push({
       callId,
       methodId: method.id,
@@ -140,5 +163,5 @@ export function createBatch<Metadata>(
 }
 
 function isCallRef<Value>(value: Value | CallRef<Value>): value is CallRef<Value> {
-  return typeof value === "object" && value !== null && "kind" in value && value.kind === "unary";
+  return typeof value === "object" && value !== null && callReference in value;
 }

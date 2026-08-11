@@ -1,18 +1,19 @@
 import type { BebopCodec } from "../codec.js";
+import type { BebopViewCodec } from "../reflection.js";
 import type { MethodInfo, MethodType, ServiceInfo } from "../rpc.bb.js";
 import type { BebopRouterBuilder } from "./router.js";
 
-export type BebopServiceMethod<Request, Response> = {
+export type BebopServiceMethod<Request, Response, RequestView = Request> = {
   readonly id: number;
   readonly name: string;
   readonly methodType: MethodType;
-  readonly request: BebopCodec<Request>;
+  readonly request: BebopViewCodec<Request, RequestView>;
   readonly response: BebopCodec<Response>;
   readonly requestTypeUrl: string;
   readonly responseTypeUrl: string;
 };
 
-export type AnyBebopServiceMethod = BebopServiceMethod<unknown, unknown>;
+export type AnyBebopServiceMethod = BebopServiceMethod<unknown, unknown, unknown>;
 
 export type Awaitable<Value> = Value | PromiseLike<Value>;
 
@@ -52,7 +53,11 @@ export function defineService<
 >(
   serviceName: string,
   methods: Methods,
-  registerMethods: (builder: BebopRouterBuilder, handler: Handler) => BebopRouterBuilder,
+  registerMethods: (
+    builder: BebopRouterBuilder,
+    handler: Handler,
+    methods: Methods,
+  ) => BebopRouterBuilder,
 ): BebopServiceDefinition<Methods, Handler> {
   const serviceInfo: ServiceInfo = {
     name: serviceName,
@@ -76,7 +81,7 @@ export function defineService<
     },
     register(builder, handler) {
       builder.addService(definition);
-      return registerMethods(builder, handler);
+      return registerMethods(builder, handler, methods);
     },
   };
   return definition;

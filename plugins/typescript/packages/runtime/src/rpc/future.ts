@@ -26,18 +26,31 @@ export type DispatchOptions = {
 
 type PendingResult = PromiseWithResolvers<FutureOutcome>;
 
-export class FutureResolver<Metadata = RpcMetadata> {
+export class FutureResolver<Metadata = RpcMetadata> implements AsyncDisposable {
   private readonly pending = new Map<BebopUUID, Set<PendingResult>>();
   private readonly completed = new Map<BebopUUID, FutureOutcome>();
   private readonly completedOrder = new FifoQueue<BebopUUID>();
   private resolveTask: Promise<void> | undefined;
+  private resolveContext: RpcContext | undefined;
+  private closed = false;
 
   constructor(
     private readonly channel: BebopChannel<Uint8Array, Metadata>,
     private readonly maxCompletedResults = 10_000,
-  ) {}
+  ) {
+    if (
+      maxCompletedResults !== Number.POSITIVE_INFINITY
+      && (!Number.isSafeInteger(maxCompletedResults) || maxCompletedResults < 0)
+    ) {
+      throw new RangeError(
+        `maxCompletedResults must be a non-negative safe integer or Infinity: ${maxCompletedResults}`,
+      );
+    }
+  }
 
   async resolve(id: BebopUUID, signal?: AbortSignal): Promise<FutureOutcome> {
+    if (this.closed) throw new BebopRpcError(StatusCode.CANCELLED, "future resolver is closed");
+    signal?.throwIfAborted();
     const cached = this.completed.get(id);
     if (cached !== undefined) return cached;
     const pending = Promise.withResolvers<FutureOutcome>();
@@ -71,9 +84,26 @@ export class FutureResolver<Metadata = RpcMetadata> {
       encode(FutureCancelRequest, { id }),
       context,
     );
+    const entries = this.pending.get(id);
+    if (entries === undefined) return;
+    this.pending.delete(id);
+    const error = new BebopRpcError(StatusCode.CANCELLED, `future ${id} was cancelled`);
+    for (const entry of entries) entry.reject(error);
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    this.resolveContext?.cancel();
+    await this.resolveTask;
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
   }
 
   private ensureStream(): void {
+    if (this.closed) throw new BebopRpcError(StatusCode.CANCELLED, "future resolver is closed");
     if (this.resolveTask !== undefined) return;
     this.resolveTask = this.consumeResolveStream().finally(() => {
       this.resolveTask = undefined;
@@ -82,6 +112,7 @@ export class FutureResolver<Metadata = RpcMetadata> {
 
   private async consumeResolveStream(): Promise<void> {
     using context = new RpcContext();
+    this.resolveContext = context;
     try {
       const response = await this.channel.serverStream(
         BebopReservedMethod.resolve,
@@ -96,10 +127,13 @@ export class FutureResolver<Metadata = RpcMetadata> {
         for (const entry of entries) entry.reject(failure);
       }
       this.pending.clear();
+    } finally {
+      if (this.resolveContext === context) this.resolveContext = undefined;
     }
   }
 
   private complete(result: FutureResult): void {
+    if (this.completed.has(result.id)) return;
     this.completed.set(result.id, result.outcome);
     this.completedOrder.push(result.id);
     while (this.completedOrder.length > this.maxCompletedResults) {
@@ -124,7 +158,7 @@ export class BebopFuture<Value, Metadata = RpcMetadata> {
     const outcome = await this.resolver.resolve(this.id, signal);
     switch (outcome.kind) {
       case "success": return {
-        value: decode(this.codec, outcome.value.payload),
+        message: decode(this.codec, outcome.value.payload),
         metadata: outcome.value.metadata,
       };
       case "error": throw BebopRpcError.fromWire(outcome.value);
@@ -136,7 +170,7 @@ export class BebopFuture<Value, Metadata = RpcMetadata> {
   }
 
   async value(signal?: AbortSignal): Promise<Value> {
-    return (await this.response(signal)).value;
+    return (await this.response(signal)).message;
   }
 
   async cancel(context = new RpcContext()): Promise<void> {
@@ -144,7 +178,7 @@ export class BebopFuture<Value, Metadata = RpcMetadata> {
   }
 }
 
-export class FutureDispatcher<Metadata = RpcMetadata> {
+export class FutureDispatcher<Metadata = RpcMetadata> implements AsyncDisposable {
   readonly resolver: FutureResolver<Metadata>;
 
   constructor(
@@ -155,7 +189,7 @@ export class FutureDispatcher<Metadata = RpcMetadata> {
   }
 
   async dispatch<Request, Response>(
-    method: BebopServiceMethod<Request, Response>,
+    method: BebopServiceMethod<Request, Response, unknown>,
     request: Request,
     options: DispatchOptions = {},
     context = new RpcContext(),
@@ -171,6 +205,14 @@ export class FutureDispatcher<Metadata = RpcMetadata> {
 
   rehydrate<Value>(id: BebopUUID, codec: BebopCodec<Value>): BebopFuture<Value, Metadata> {
     return new BebopFuture(id, codec, this.resolver);
+  }
+
+  async close(): Promise<void> {
+    await this.resolver.close();
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
   }
 
   async dispatchEncoded<Value>(
@@ -191,12 +233,16 @@ export class FutureDispatcher<Metadata = RpcMetadata> {
       ...(options.discardResult === undefined ? {} : { discardResult: options.discardResult }),
       ...(deadline === undefined ? {} : { deadline }),
     };
+    using dispatchContext = new RpcContext({
+      metadata: context.metadata,
+      signal: context.signal,
+    });
     const result = await this.channel.unary(
       BebopReservedMethod.dispatch,
       encode(FutureDispatchRequest, request),
-      new RpcContext({ metadata: context.metadata }),
+      dispatchContext,
     );
-    const handle = decode(FutureHandle, result.value);
+    const handle = decode(FutureHandle, result.message);
     return new BebopFuture(handle.id, responseCodec, this.resolver);
   }
 }
@@ -211,5 +257,5 @@ export async function cancelFuture<Metadata>(
     encode(FutureCancelRequest, { id }),
     context,
   );
-  decode(BebopEmpty, response.value);
+  decode(BebopEmpty, response.message);
 }

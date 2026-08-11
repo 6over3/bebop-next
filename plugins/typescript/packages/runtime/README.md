@@ -1,48 +1,81 @@
 # @bebop/runtime
 
-Tree-shakeable runtime primitives for Bebop-generated TypeScript.
+Runtime types for generated Bebop code.
 
-The runtime is plain browser-safe ESM. It does not use Bun, Node, `Buffer`,
-`process`, or `require`. The generator executable may use Bun; this package
-must not.
+## Codecs and views
 
-## Requirements
+Generated records can encode, decode, or create a view:
 
-This is a modern JavaScript runtime package. Missing platform features are hard
-errors rather than polyfilled behavior.
+```ts
+const encoded = Widget.encode({ id: 42, name: "guide" });
+const decoded = Widget.decode(encoded);
+const view = Widget.view(encoded);
 
-- `DataView.getFloat16` / `DataView.setFloat16` are required for scalar
-  `float16`.
-- `Float16Array` is required for `float16[]`.
-- Bulk typed-array paths assume a little-endian host, matching Bebop's wire
-  format and target platforms.
+console.log(view.id);
+console.log(view.name.string);
+```
+
+Views are immutable and use the input bytes as backing storage. Do not change those bytes while a view is in use. Call `view.decoded()` when you need a normal object.
+
+Use `encodeInto` to reuse a writer:
+
+```ts
+import { BebopWriter, encodeInto } from "@bebop/runtime";
+
+const writer = new BebopWriter();
+const byteCount = encodeInto(Widget, decoded, writer);
+```
 
 ## Arrays
 
-Bebop scalar arrays use typed arrays where JavaScript has a native type:
+Generated scalar arrays use native typed arrays:
 
-- `byte[]` -> `Uint8Array`
-- `int32[]` -> `Int32Array`
-- `uint64[]` -> `BigUint64Array`
-- `float16[]` -> `Float16Array`
-- `float32[]` -> `Float32Array`
-- `bfloat16[]` -> `BFloat16Array`
+| Bebop | TypeScript |
+| --- | --- |
+| `byte[]` | `Uint8Array` |
+| `int32[]` | `Int32Array` |
+| `uint64[]` | `BigUint64Array` |
+| `float16[]` | `Float16Array` |
+| `float32[]` | `Float32Array` |
+| `bfloat16[]` | `BFloat16Array` |
 
-`BFloat16Array` follows native typed-array constructor behavior:
+## RPC
 
-```ts
-new BFloat16Array(8);              // allocate 8 values
-new BFloat16Array(buffer);         // live view over ArrayBuffer
-new BFloat16Array([1, 2, 3]);      // copy and convert numeric values
-BFloat16Array.from(values);        // copy and convert values
-```
-
-Raw bfloat16 bit patterns are explicit:
+Generated clients accept a `BebopChannel`:
 
 ```ts
-BFloat16Array.from(bits, { as: "bit-patterns" });              // copy bits
-BFloat16Array.from(bits, { as: "bit-patterns", copy: false }); // live view
+const client = new WidgetServiceClient(channel);
+const { message, metadata } = await client.getWidget({ value: "hello" });
 ```
 
-Use `values()` or `getBitPattern()` in hot loops. `get()` and the default
-iterator allocate `BFloat16` wrapper objects.
+Generated handlers receive request views and return normal response values:
+
+```ts
+import { BebopRouterBuilder, RpcContext } from "@bebop/runtime/rpc";
+
+@WidgetService.handler
+class Widgets implements WidgetServiceHandler {
+  getWidget(request: EchoRequestView, context: RpcContext): EchoResponse {
+    context.responseMetadata.set("request-id", "42");
+    return { value: request.value.string };
+  }
+}
+
+const router = new BebopRouterBuilder({ maxDepth: 64 })
+  .registerService(new Widgets())
+  .build();
+```
+
+The runtime does not include a transport. Implement `BebopChannel` for clients and adapt requests to `BebopRpcRouter` for servers. Both APIs route calls by method ID.
+
+Duplex methods send from an iterable, async iterable, or `ReadableStream` while responses are received:
+
+```ts
+const responses = await client.syncWidgets(outgoingUpdates());
+
+for await (const response of responses) {
+  console.log(response);
+}
+
+const trailers = await responses.metadata;
+```

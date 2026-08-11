@@ -1,15 +1,37 @@
-# generator
+# @bebop/generator-typescript
 
-To install dependencies:
+This package generates TypeScript codecs, views, reflection data, RPC clients, and RPC handler contracts from Bebop schemas.
 
-```bash
-bun install
-```
+## Use with bebopc
 
-To run:
+Place `bebopc-gen-typescript` on `PATH`, then run:
 
 ```bash
-bun run index.ts
+bebopc build schema.bop --typescript_out=./generated
 ```
 
-This project was created using `bun init` in bun v1.3.14. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Generated files use the `.bb.ts` suffix and import runtime code from `@bebop/runtime`.
+
+## Use as a library
+
+```ts
+import { generate } from "@bebop/generator-typescript";
+
+const response = generate(request);
+if (response.error !== undefined) {
+  throw new Error(response.error);
+}
+```
+
+`generate` accepts a `CodeGeneratorRequest` from `@bebop/plugin` and returns a `CodeGeneratorResponse`. It does not write files.
+
+## Repository build
+
+From `plugins/typescript`, run:
+
+```bash
+bun run --cwd packages/generator build
+bun run --cwd packages/generator build:binary
+```
+
+The first command builds the npm package. The second also builds the standalone `bebopc-gen-typescript` executable.

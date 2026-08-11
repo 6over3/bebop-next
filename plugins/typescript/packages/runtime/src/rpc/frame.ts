@@ -4,6 +4,11 @@ import { FrameFlags, FrameHeader, RpcError, StatusCode, TrailingMetadata } from 
 import { BebopRpcError, type RpcMetadata } from "./error.js";
 
 const cursorSize = 8;
+const knownFrameFlags = FrameFlags.END_STREAM
+  | FrameFlags.ERROR
+  | FrameFlags.COMPRESSED
+  | FrameFlags.TRAILER
+  | FrameFlags.CURSOR;
 const emptyBytes: Uint8Array<ArrayBufferLike> = new Uint8Array();
 export const defaultMaxFramePayloadSize = 16 * 1024 * 1024;
 
@@ -20,6 +25,8 @@ export class Frame {
     }
     const resolvedFlags = cursor === undefined ? flags : flags | FrameFlags.CURSOR;
     Frame.validateFlags(resolvedFlags);
+    validateStreamId(streamId);
+    validateCursor(cursor);
     this.header = { length: payload.length, flags: resolvedFlags, streamId };
     this.payload = payload;
     this.cursor = cursor;
@@ -60,6 +67,9 @@ export class Frame {
   }
 
   static validateFlags(flags: number): void {
+    if (!Number.isInteger(flags) || flags < 0 || flags > 0xff || (flags & ~knownFrameFlags) !== 0) {
+      throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `invalid frame flags: ${flags}`);
+    }
     const endStream = (flags & FrameFlags.END_STREAM) !== 0;
     const error = (flags & FrameFlags.ERROR) !== 0;
     const trailer = (flags & FrameFlags.TRAILER) !== 0;
@@ -80,9 +90,12 @@ export type FrameStreamOptions = {
 };
 
 /** Writes complete frame payloads to a byte stream without joining header and body. */
-export class StreamFrameWriter implements AsyncDisposable {
+export class FrameWriter implements AsyncDisposable {
   private readonly writer: WritableStreamDefaultWriter<Uint8Array>;
   private readonly maxPayloadSize: number;
+  private pending = Promise.resolve();
+  private state: "open" | "released" = "open";
+  private releaseTask: Promise<void> | undefined;
 
   constructor(destination: WritableStream<Uint8Array>, options: FrameStreamOptions = {}) {
     this.writer = destination.getWriter();
@@ -91,6 +104,10 @@ export class StreamFrameWriter implements AsyncDisposable {
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.close();
+  }
+
+  write(frame: Frame): Promise<void> {
+    return this.writeFrame(frame.payload, frame.header.flags, frame.header.streamId, frame.cursor);
   }
 
   data(payload: Uint8Array, streamId = 0, cursor?: bigint): Promise<void> {
@@ -129,59 +146,105 @@ export class StreamFrameWriter implements AsyncDisposable {
     }
   }
 
-  async close(): Promise<void> {
+  async drain(
+    source: AsyncIterable<{ readonly value: Uint8Array; readonly cursor?: bigint }>,
+    metadata: () => RpcMetadata = () => new Map(),
+    streamId = 0,
+  ): Promise<void> {
     try {
-      await this.writer.close();
-    } finally {
-      this.writer.releaseLock();
+      for await (const element of source) await this.data(element.value, streamId, element.cursor);
+      const trailing = metadata();
+      if (trailing.size === 0) await this.endStream(emptyBytes, streamId);
+      else await this.trailer(trailing, streamId);
+    } catch (error) {
+      await this.error(BebopRpcError.from(error), streamId);
     }
   }
 
+  close(): Promise<void> {
+    if (this.releaseTask !== undefined) return this.releaseTask;
+    if (this.state === "released") return Promise.resolve();
+    this.state = "released";
+    this.releaseTask = (async () => {
+      try {
+        await this.pending;
+        await this.writer.close();
+      } finally {
+        this.writer.releaseLock();
+      }
+    })();
+    return this.releaseTask;
+  }
+
   async flush(): Promise<void> {
+    await this.pending;
     await this.writer.ready;
   }
 
   release(): void {
+    if (this.state === "released") return;
+    this.state = "released";
     this.writer.releaseLock();
   }
 
-  async abort(reason?: unknown): Promise<void> {
-    try {
-      await this.writer.abort(reason);
-    } finally {
-      this.writer.releaseLock();
-    }
+  abort(reason?: unknown): Promise<void> {
+    if (this.releaseTask !== undefined) return this.releaseTask;
+    if (this.state === "released") return Promise.resolve();
+    this.state = "released";
+    this.releaseTask = (async () => {
+      try {
+        await this.writer.abort(reason);
+      } finally {
+        this.writer.releaseLock();
+      }
+    })();
+    return this.releaseTask;
   }
 
-  private async writeFrame(
+  private writeFrame(
     payload: Uint8Array,
     flags: number,
     streamId: number,
     cursor?: bigint,
   ): Promise<void> {
+    if (this.state !== "open") {
+      return Promise.reject(new BebopRpcError(StatusCode.INVALID_ARGUMENT, "frame writer is closed"));
+    }
     const byteLength = payload.byteLength;
     if (byteLength > this.maxPayloadSize) {
-      throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload too large");
+      return Promise.reject(new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload too large"));
     }
     if (byteLength > 0xffff_ffff) {
-      throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload exceeds uint32 length");
+      return Promise.reject(new BebopRpcError(
+        StatusCode.RESOURCE_EXHAUSTED,
+        "frame payload exceeds uint32 length",
+      ));
     }
     const resolvedFlags = cursor === undefined ? flags : flags | FrameFlags.CURSOR;
-    Frame.validateFlags(resolvedFlags);
-    const header = new Uint8Array(Frame.headerSize);
-    const view = new DataView(header.buffer);
-    view.setUint32(0, byteLength, true);
-    view.setUint8(4, resolvedFlags);
-    view.setUint32(5, streamId, true);
-    await this.writer.write(header);
-    if (payload.byteLength !== 0) await this.writer.write(payload);
-    if (cursor !== undefined) {
-      const bytes = new Uint8Array(cursorSize);
-      new DataView(bytes.buffer).setBigUint64(0, cursor, true);
-      await this.writer.write(bytes);
+    try {
+      Frame.validateFlags(resolvedFlags);
+      validateStreamId(streamId);
+      validateCursor(cursor);
+    } catch (error) {
+      return Promise.reject(error);
     }
+    const operation = this.pending.then(async () => {
+      const header = new Uint8Array(Frame.headerSize);
+      const view = new DataView(header.buffer);
+      view.setUint32(0, byteLength, true);
+      view.setUint8(4, resolvedFlags);
+      view.setUint32(5, streamId, true);
+      await this.writer.write(header);
+      if (payload.byteLength !== 0) await this.writer.write(payload);
+      if (cursor !== undefined) {
+        const bytes = new Uint8Array(cursorSize);
+        new DataView(bytes.buffer).setBigUint64(0, cursor, true);
+        await this.writer.write(bytes);
+      }
+    });
+    this.pending = operation;
+    return operation;
   }
-
 }
 
 /**
@@ -219,86 +282,6 @@ export function createFrameEncoderStream(): TransformStream<Frame, Uint8Array> {
   });
 }
 
-export class FrameWriter {
-  private readonly writer: WritableStreamDefaultWriter<Uint8Array>;
-  private readonly maxPayloadSize: number;
-
-  constructor(stream: WritableStream<Uint8Array>, options: FrameStreamOptions = {}) {
-    this.writer = stream.getWriter();
-    this.maxPayloadSize = options.maxPayloadSize ?? defaultMaxFramePayloadSize;
-  }
-
-  async data(payload: Uint8Array, streamId = 0, cursor?: bigint): Promise<void> {
-    await this.writeFrame(new Frame(payload, FrameFlags.NONE, streamId, cursor));
-  }
-
-  async endStream(payload: Uint8Array = emptyBytes, streamId = 0): Promise<void> {
-    await this.writeFrame(new Frame(payload, FrameFlags.END_STREAM, streamId));
-  }
-
-  async error(error: BebopRpcError, streamId = 0): Promise<void> {
-    await this.writeFrame(new Frame(
-      encode(RpcError, error.toWire()),
-      FrameFlags.END_STREAM | FrameFlags.ERROR,
-      streamId,
-    ));
-  }
-
-  async trailer(metadata: RpcMetadata, streamId = 0): Promise<void> {
-    await this.writeFrame(new Frame(
-      encode(TrailingMetadata, { metadata }),
-      FrameFlags.END_STREAM | FrameFlags.TRAILER,
-      streamId,
-    ));
-  }
-
-  async writeUnary(payload: Uint8Array, metadata: RpcMetadata = new Map(), streamId = 0): Promise<void> {
-    if (metadata.size === 0) await this.endStream(payload, streamId);
-    else {
-      await this.data(payload, streamId);
-      await this.trailer(metadata, streamId);
-    }
-  }
-
-  async drain(
-    source: AsyncIterable<{ readonly value: Uint8Array; readonly cursor?: bigint }>,
-    metadata: () => RpcMetadata = () => new Map(),
-    streamId = 0,
-  ): Promise<void> {
-    try {
-      for await (const element of source) await this.data(element.value, streamId, element.cursor);
-      const trailing = metadata();
-      if (trailing.size === 0) await this.endStream(emptyBytes, streamId);
-      else await this.trailer(trailing, streamId);
-    } catch (error) {
-      await this.error(BebopRpcError.from(error), streamId);
-    }
-  }
-
-  async close(): Promise<void> {
-    await this.writer.close();
-  }
-
-  async abort(reason?: unknown): Promise<void> {
-    await this.writer.abort(reason);
-  }
-
-  releaseLock(): void {
-    this.writer.releaseLock();
-  }
-
-  [Symbol.dispose](): void {
-    this.releaseLock();
-  }
-
-  private async writeFrame(frame: Frame): Promise<void> {
-    if (frame.payload.length > this.maxPayloadSize) {
-      throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload too large");
-    }
-    await this.writer.write(frame.encode());
-  }
-}
-
 export async function* readFrames(
   stream: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>,
   options: FrameStreamOptions = {},
@@ -320,15 +303,13 @@ export async function writeFrames(
   stream: WritableStream<Uint8Array>,
   frames: AsyncIterable<Frame> | Iterable<Frame>,
 ): Promise<void> {
-  const writer = stream.getWriter();
+  const writer = new FrameWriter(stream);
   try {
-    for await (const frame of frames) await writer.write(frame.encode());
+    for await (const frame of frames) await writer.write(frame);
     await writer.close();
   } catch (error) {
     await writer.abort(error);
     throw error;
-  } finally {
-    writer.releaseLock();
   }
 }
 
@@ -338,6 +319,18 @@ export function decodeFrameError(frame: Frame): BebopRpcError | undefined {
 
 function encodedFrameSize(header: FrameHeader): number {
   return Frame.headerSize + header.length + ((header.flags & FrameFlags.CURSOR) === 0 ? 0 : cursorSize);
+}
+
+function validateStreamId(streamId: number): void {
+  if (!Number.isInteger(streamId) || streamId < 0 || streamId > 0xffff_ffff) {
+    throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `invalid frame stream ID: ${streamId}`);
+  }
+}
+
+function validateCursor(cursor: bigint | undefined): void {
+  if (cursor !== undefined && (cursor < 0n || cursor > 0xffff_ffff_ffff_ffffn)) {
+    throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `invalid frame cursor: ${cursor}`);
+  }
 }
 
 function validMaxPayloadSize(value: number | undefined): number {
@@ -415,6 +408,9 @@ class FrameDecoder {
   constructor(private readonly maxPayloadSize: number) {}
 
   push(chunk: Uint8Array): void {
+    if (!(chunk instanceof Uint8Array)) {
+      throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, "frame source must contain Uint8Array chunks");
+    }
     this.queue.push(chunk);
   }
 
@@ -451,7 +447,7 @@ class FrameDecoder {
     if (this.pendingHeader !== undefined || this.queue.length !== 0) {
       throw new BebopRpcError(
         StatusCode.INVALID_ARGUMENT,
-        `stream ended with an incomplete frame (${this.queue.length} buffered body byte(s))`,
+        `stream ended with an incomplete frame (${this.queue.length} buffered byte(s))`,
       );
     }
   }

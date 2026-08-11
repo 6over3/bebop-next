@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decode, encode } from "@bebop/runtime";
+import { BebopReader, BebopWriter, decode, encode } from "@bebop/runtime";
 import {
   CodeGeneratorRequest,
   CodeGeneratorResponse,
@@ -9,11 +9,12 @@ import {
   DiagnosticSeverity,
   Edition,
   ResponseBuilder,
+  TypeDescriptor,
   TypeKind,
   composePlugin,
   createContributorKey,
   defineContributor,
-} from "../src";
+} from "../src/index.js";
 
 describe("@bebop/plugin bootstrap codecs", () => {
   test("round-trips descriptor sets", () => {
@@ -95,13 +96,50 @@ describe("@bebop/plugin bootstrap codecs", () => {
     const view = new DataView(encoded.buffer, encoded.byteOffset, encoded.byteLength);
 
     expect(encoded.length).toBe(22);
-    expect(encoded[4]).toBe(5);
-    expect(view.getInt32(5, true)).toBe(1);
-    expect(view.getInt32(9, true)).toBe(2);
-    expect(view.getInt32(13, true)).toBe(3);
-    expect(view.getInt32(17, true)).toBe(4);
-    expect(encoded[21]).toBe(0);
+    expect(view.getInt32(4, true)).toBe(1);
+    expect(view.getInt32(8, true)).toBe(2);
+    expect(view.getInt32(12, true)).toBe(3);
+    expect(view.getInt32(16, true)).toBe(4);
+    expect(encoded[20]).toBe(16);
+    expect(encoded[21]).toBe(16);
     expect(decode(Diagnostic, encoded)).toEqual(diagnostic);
+    const diagnosticView = Diagnostic.view(encoded);
+    expect(diagnosticView.span?.toArray()).toEqual([1, 2, 3, 4]);
+    expect(diagnosticView.decoded()).toEqual(diagnostic);
+  });
+
+  test("keeps unknown message fields available without affecting typed access", () => {
+    const writer = new BebopWriter();
+    const message = writer.beginMessage();
+    writer.markMessageField(message, 5);
+    writer.writeInt32Array(new Int32Array([1, 2, 3, 4]), 4);
+    writer.markMessageField(message, 200);
+    writer.writeString("extension data");
+    writer.endMessage(message);
+
+    const view = Diagnostic.view(writer.toArray());
+    expect(view.span?.toArray()).toEqual([1, 2, 3, 4]);
+    const unknown = view.field(200);
+    expect(unknown).toBeDefined();
+    expect(new BebopReader(unknown!).readString()).toBe("extension data");
+  });
+
+  test("enforces nesting limits for buffered decodes and lazy views", () => {
+    const value: TypeDescriptor = {
+      kind: TypeKind.ARRAY,
+      arrayElement: {
+        kind: TypeKind.ARRAY,
+        arrayElement: { kind: TypeKind.STRING },
+      },
+    };
+    const encoded = TypeDescriptor.encode(value);
+
+    expect(() => TypeDescriptor.decode(encoded, { maxDepth: 1 }))
+      .toThrow("nesting exceeds configured limit");
+    const view = TypeDescriptor.view(encoded, { maxDepth: 1 });
+    expect(view.arrayElement).toBeDefined();
+    expect(() => view.arrayElement?.arrayElement)
+      .toThrow("nesting exceeds configured limit");
   });
 });
 
