@@ -7,16 +7,6 @@
 extern "C" {
 #endif
 
-typedef struct {
-  Bebop_View elements;
-  uint32_t count;
-} Bebop_SequenceView;
-
-typedef struct {
-  Bebop_View entries;
-  uint32_t count;
-} Bebop_MapView;
-
 typedef enum {
   BEBOP_MESSAGE_DIRECTORY_EMPTY = 0,
   BEBOP_MESSAGE_DIRECTORY_TINY1 = 1,

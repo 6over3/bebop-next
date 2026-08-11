@@ -211,6 +211,40 @@ void test_response_roundtrip_with_files(void)
   bebop_plugin_response_free(resp);
 }
 
+void test_response_roundtrip_with_large_file(void);
+
+void test_response_roundtrip_with_large_file(void)
+{
+  const size_t content_length = 1048577;
+  char* content = malloc(content_length + 1);
+  TEST_ASSERT_NOT_NULL(content);
+  memset(content, 'x', content_length);
+  content[content_length] = '\0';
+
+  bebop_host_allocator_t alloc = test_allocator();
+  bebop_plugin_response_builder_t* b = bebop_plugin_response_builder_create(&alloc);
+  bebop_plugin_response_builder_add_file(b, "large.c", content);
+  free(content);
+
+  bebop_plugin_response_t* resp = bebop_plugin_response_builder_finish(b);
+  TEST_ASSERT_NOT_NULL(resp);
+
+  const uint8_t* buf = NULL;
+  size_t len = 0;
+  TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_response_encode(ctx, resp, &buf, &len));
+
+  bebop_plugin_response_t* decoded = NULL;
+  TEST_ASSERT_EQUAL_INT(BEBOP_OK, bebop_plugin_response_decode(ctx, buf, len, &decoded));
+  const char* decoded_content = bebop_plugin_response_file_content(decoded, 0);
+  TEST_ASSERT_NOT_NULL(decoded_content);
+  TEST_ASSERT_EQUAL_UINT64(content_length, strlen(decoded_content));
+  TEST_ASSERT_EQUAL_CHAR('x', decoded_content[0]);
+  TEST_ASSERT_EQUAL_CHAR('x', decoded_content[content_length - 1]);
+
+  bebop_plugin_response_free(decoded);
+  bebop_plugin_response_free(resp);
+}
+
 void test_response_roundtrip_with_error(void);
 
 void test_response_roundtrip_with_error(void)
@@ -494,6 +528,7 @@ int main(void)
 
   RUN_TEST(test_response_roundtrip_empty);
   RUN_TEST(test_response_roundtrip_with_files);
+  RUN_TEST(test_response_roundtrip_with_large_file);
   RUN_TEST(test_response_roundtrip_with_error);
   RUN_TEST(test_response_roundtrip_with_diagnostics);
 

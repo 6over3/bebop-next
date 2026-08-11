@@ -3987,11 +3987,12 @@ static void gen_decode_type_ex(
 
         emit(ctx, "{");
         ctx->indent++;
-        emit(ctx, "uint32_t _len;");
+        emit(ctx, "uint32_t _len%d;", w->loop_var);
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len)) != BEBOP_RESULT_OK)) "
+            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len%d)) != BEBOP_RESULT_OK)) "
             "%s;",
+            w->loop_var,
             ret
         );
         // The count comes from the wire; cap it by the bytes actually left so
@@ -3999,21 +4000,25 @@ static void gen_decode_type_ex(
         if (zero_copy) {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd) / %s)) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((size_t)_len%d > bebop_reader_remaining(rd) / %s)) %s;",
+              w->loop_var,
               guard_eti->size_macro,
               ret_malformed
           );
         } else {
           emit(
               ctx,
-              "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd))) %s;",
+              "if (BEBOP_WIRE_UNLIKELY((size_t)_len%d > bebop_reader_remaining(rd))) %s;",
+              w->loop_var,
               ret_malformed
           );
         }
         if (ctx->is_mutable) {
-          emit(ctx, "%s.length = _len;", w->access);
+          emit(ctx, "%s.length = _len%d;", w->access, w->loop_var);
         } else {
-          emit(ctx, "BEBOP_WIRE_MUTPTR(%s, &%s)->length = _len;", arr_type, w->access);
+          emit(
+              ctx, "BEBOP_WIRE_MUTPTR(%s, &%s)->length = _len%d;", arr_type, w->access, w->loop_var
+          );
         }
 
         const type_info_t* eti = type_info(ek);
@@ -4034,7 +4039,7 @@ static void gen_decode_type_ex(
                             arr_type, w->access, eti->ctype);
             emit(ctx, "BEBOP_WIRE_MUTPTR(%s, &%s)->capacity = 0;", arr_type, w->access);
           }
-          emit(ctx, "bebop_reader_skip(rd, (size_t)_len * %s);", eti->size_macro);
+          emit(ctx, "bebop_reader_skip(rd, (size_t)_len%d * %s);", w->loop_var, eti->size_macro);
           ctx->indent--;
           emit(ctx, "}");
           top--;
@@ -4054,18 +4059,26 @@ static void gen_decode_type_ex(
 
           emit(
               ctx,
-              "%s (*_d%d)%s = bebop_context_alloc_array(ctx, _len, sizeof(*_d%d));",
+              "%s (*_d%d)%s = bebop_context_alloc_array(ctx, _len%d, sizeof(*_d%d));",
               inner_type,
               w->loop_var,
               dims.data ? dims.data : "",
+              w->loop_var,
               w->loop_var
           );
           sb_free(&dims);
-          emit(ctx, "if (BEBOP_WIRE_UNLIKELY(!_d%d && _len > 0)) %s;", w->loop_var, ret_oom);
+          emit(
+              ctx,
+              "if (BEBOP_WIRE_UNLIKELY(!_d%d && _len%d > 0)) %s;",
+              w->loop_var,
+              w->loop_var,
+              ret_oom
+          );
           uint32_t pf_dist = calc_prefetch_dist(elem);
           emit(
               ctx,
-              "for (size_t _i%d = 0; _i%d < _len; _i%d++) {",
+              "for (size_t _i%d = 0; _i%d < _len%d; _i%d++) {",
+              w->loop_var,
               w->loop_var,
               w->loop_var,
               w->loop_var
@@ -4073,9 +4086,10 @@ static void gen_decode_type_ex(
           ctx->indent++;
           emit(
               ctx,
-              "if (_i%d + %u < _len) BEBOP_WIRE_PREFETCH_W(&_d%d[_i%d + %u]);",
+              "if (_i%d + %u < _len%d) BEBOP_WIRE_PREFETCH_W(&_d%d[_i%d + %u]);",
               w->loop_var,
               pf_dist,
+              w->loop_var,
               w->loop_var,
               w->loop_var,
               pf_dist
@@ -4095,16 +4109,24 @@ static void gen_decode_type_ex(
 
         emit(
             ctx,
-            "%s *_d%d = bebop_context_alloc_array(ctx, _len, sizeof(*_d%d));",
+            "%s *_d%d = bebop_context_alloc_array(ctx, _len%d, sizeof(*_d%d));",
             elem_type,
+            w->loop_var,
             w->loop_var,
             w->loop_var
         );
-        emit(ctx, "if (BEBOP_WIRE_UNLIKELY(!_d%d && _len > 0)) %s;", w->loop_var, ret_oom);
+        emit(
+            ctx,
+            "if (BEBOP_WIRE_UNLIKELY(!_d%d && _len%d > 0)) %s;",
+            w->loop_var,
+            w->loop_var,
+            ret_oom
+        );
         uint32_t pf_dist2 = calc_prefetch_dist(elem);
         emit(
             ctx,
-            "for (size_t _i%d = 0; _i%d < _len; _i%d++) {",
+            "for (size_t _i%d = 0; _i%d < _len%d; _i%d++) {",
+            w->loop_var,
             w->loop_var,
             w->loop_var,
             w->loop_var
@@ -4112,9 +4134,10 @@ static void gen_decode_type_ex(
         ctx->indent++;
         emit(
             ctx,
-            "if (_i%d + %u < _len) BEBOP_WIRE_PREFETCH_W(&_d%d[_i%d + %u]);",
+            "if (_i%d + %u < _len%d) BEBOP_WIRE_PREFETCH_W(&_d%d[_i%d + %u]);",
             w->loop_var,
             pf_dist2,
+            w->loop_var,
             w->loop_var,
             w->loop_var,
             pf_dist2
@@ -4203,16 +4226,18 @@ static void gen_decode_type_ex(
 
         emit(ctx, "{");
         ctx->indent++;
-        emit(ctx, "uint32_t _len;");
+        emit(ctx, "uint32_t _len%d;", w->loop_var);
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len)) != BEBOP_RESULT_OK)) "
+            "if (BEBOP_WIRE_UNLIKELY((r = bebop_reader_read_u32(rd, &_len%d)) != BEBOP_RESULT_OK)) "
             "%s;",
+            w->loop_var,
             ret
         );
         emit(
             ctx,
-            "if (BEBOP_WIRE_UNLIKELY((size_t)_len > bebop_reader_remaining(rd))) %s;",
+            "if (BEBOP_WIRE_UNLIKELY((size_t)_len%d > bebop_reader_remaining(rd))) %s;",
+            w->loop_var,
             ret_malformed
         );
         if (ctx->is_mutable) {
@@ -4227,7 +4252,8 @@ static void gen_decode_type_ex(
         }
         emit(
             ctx,
-            "for (size_t _i%d = 0; _i%d < _len; _i%d++) {",
+            "for (size_t _i%d = 0; _i%d < _len%d; _i%d++) {",
+            w->loop_var,
             w->loop_var,
             w->loop_var,
             w->loop_var
@@ -5187,8 +5213,8 @@ static void gen_view_read_value(
     if (is_byte_sequence(type)) {
       emit(ctx, "if (bebop_reader_remaining(rd) < count%d) return BEBOP_RESULT_MALFORMED;", id);
       emit(ctx, "bebop_reader_skip(rd, count%d);", id);
-      emit(ctx, "%s->data = start%d;", out, id);
-      emit(ctx, "%s->length = count%d;", out, id);
+      emit(ctx, "(%s)->data = start%d;", out, id);
+      emit(ctx, "(%s)->length = count%d;", out, id);
       return;
     }
     emit(ctx, "for (uint32_t i%d = 0; i%d < count%d; i%d++) {", id, id, id, id);
@@ -5198,12 +5224,12 @@ static void gen_view_read_value(
     emit(ctx, "}");
     emit(
         ctx,
-        "%s->elements = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
+        "(%s)->elements = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
         out,
         id,
         id
     );
-    emit(ctx, "%s->count = count%d;", out, id);
+    emit(ctx, "(%s)->count = count%d;", out, id);
     return;
   }
   if (kind == BEBOP_TYPE_MAP) {
@@ -5219,12 +5245,12 @@ static void gen_view_read_value(
     emit(ctx, "}");
     emit(
         ctx,
-        "%s->entries = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
+        "(%s)->entries = (Bebop_View) {start%d, (size_t)(bebop_reader_data(rd) - start%d)};",
         out,
         id,
         id
     );
-    emit(ctx, "%s->count = count%d;", out, id);
+    emit(ctx, "(%s)->count = count%d;", out, id);
     return;
   }
 

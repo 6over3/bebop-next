@@ -18,4 +18,5 @@ message Envelope {
     children(33): Child[];
     child(129): Child;
     lookup(200): map[string, Child];
+    sequences(201): map[string, int32[]];
 }

@@ -320,6 +320,16 @@ typedef struct {
   size_t length;
 } Bebop_View;
 
+typedef struct {
+  Bebop_View elements;
+  uint32_t count;
+} Bebop_SequenceView;
+
+typedef struct {
+  Bebop_View entries;
+  uint32_t count;
+} Bebop_MapView;
+
 // Allocation-free cursor over an encoded array or map. Generated next()
 // functions advance remaining and decrement remaining_count. A non-OK result
 // ends iteration and records malformed input without requiring error plumbing

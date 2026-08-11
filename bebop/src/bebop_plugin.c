@@ -34,6 +34,7 @@ struct bebop_plugin_request_builder {
 static Bebop_Context* bebop__parser_make_ctx(bebop_host_allocator_t* a)
 {
   Bebop_ContextOptions opts = bebop_context_options();
+  opts.arena_options.max_block_size = SIZE_MAX / 2;
   opts.arena_options.allocator =
       (Bebop_Allocator) {.alloc = (Bebop_AllocFn)a->alloc, .ctx = a->ctx};
   return bebop_context_new(&opts);
