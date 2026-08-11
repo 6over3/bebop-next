@@ -1,6 +1,6 @@
 {
   "name": "@bebop/runtime",
-  "version": "2026.0.0-alpha.4",
+  "version": "2026.0.0-alpha.5",
   "description": "Tree-shakeable runtime primitives for Bebop-generated TypeScript.",
   "type": "module",
   "sideEffects": false,

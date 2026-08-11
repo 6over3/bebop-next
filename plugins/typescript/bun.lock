@@ -13,7 +13,7 @@
     },
     "packages/generator": {
       "name": "@bebop/generator-typescript",
-      "version": "2026.0.0-alpha.4",
+      "version": "2026.0.0-alpha.5",
       "bin": {
         "bebopc-gen-typescript": "./dist/bebopc-gen-typescript",
       },
@@ -24,14 +24,14 @@
     },
     "packages/plugin": {
       "name": "@bebop/plugin",
-      "version": "2026.0.0-alpha.4",
+      "version": "2026.0.0-alpha.5",
       "dependencies": {
         "@bebop/runtime": "workspace:*",
       },
     },
     "packages/runtime": {
       "name": "@bebop/runtime",
-      "version": "2026.0.0-alpha.4",
+      "version": "2026.0.0-alpha.5",
     },
   },
   "packages": {
