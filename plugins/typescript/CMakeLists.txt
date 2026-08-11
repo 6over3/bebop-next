@@ -19,6 +19,8 @@ file(GLOB_RECURSE TYPESCRIPT_PLUGIN_SOURCES CONFIGURE_DEPENDS
 add_custom_command(
     OUTPUT "${TYPESCRIPT_GENERATOR}"
     COMMAND "${BUN_EXECUTABLE}" install --frozen-lockfile
+    COMMAND "${BUN_EXECUTABLE}" run --cwd packages/runtime build
+    COMMAND "${BUN_EXECUTABLE}" run --cwd packages/plugin build
     COMMAND "${BUN_EXECUTABLE}" run --cwd packages/generator build:binary
     WORKING_DIRECTORY "${TYPESCRIPT_PLUGIN_DIR}"
     DEPENDS ${TYPESCRIPT_PLUGIN_SOURCES}
