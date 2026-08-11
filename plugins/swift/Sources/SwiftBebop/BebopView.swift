@@ -77,10 +77,22 @@ public struct BebopStringView: Sendable, Hashable, CustomStringConvertible {
         self.rawBytes = rawBytes
     }
 
-    /// Materializes the string value.
+    /// Borrows the validated contents as a native UTF-8 span without copying
+    /// or repeating UTF-8 validation.
+    @inlinable
+    public borrowing func withUTF8Span<Result>(
+        _ body: (borrowing UTF8Span) throws -> Result
+    ) rethrows -> Result {
+        try rawBytes.withUnsafeBytes { bytes in
+            let codeUnits = bytes.bindMemory(to: UInt8.self)
+            return try body(UTF8Span(unchecked: codeUnits.span))
+        }
+    }
+
+    /// Materializes the string value without repeating UTF-8 validation.
     @inlinable
     public var value: String {
-        rawBytes.withUnsafeBytes { String(decoding: $0, as: UTF8.self) }
+        withUTF8Span { String(copying: $0) }
     }
 
     @inlinable

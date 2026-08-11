@@ -10,6 +10,27 @@ import Testing
     }
 }
 
+@Test func stringViewBorrowsANativeUTF8Span() throws {
+    var writer = BebopWriter()
+    writer.writeString("héllo 🌍")
+    let encoded = writer.toBytes()
+    var reader = BebopViewReader(BebopView(encoded))
+    let view = try reader.readStringView()
+
+    let inspection = view.withUTF8Span { span in
+        (
+            matchesBytes: span.bytesEqual(to: "héllo 🌍".utf8),
+            copiedValue: String(copying: span),
+            byteCount: span.count
+        )
+    }
+
+    #expect(inspection.matchesBytes)
+    #expect(inspection.copiedValue == "héllo 🌍")
+    #expect(inspection.byteCount == "héllo 🌍".utf8.count)
+    #expect(view.value == "héllo 🌍")
+}
+
 @Test func structViewUsesNaturalProperties() throws {
     let value = BatchSuccess(payloads: [[1, 2, 3], [4]], metadata: ["trace": "abc"])
     let view = try BatchSuccess.View(value.serializedData())
