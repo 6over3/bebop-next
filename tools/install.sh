@@ -316,6 +316,16 @@ info "Installing Bebop ${VERSION} for ${target}..."
     fi
     ok
 
+    if [[ ! -f "${stagedir}/bin/bebopc" ]]; then
+        abort "bebopc not found in ${archive}."
+    fi
+    shopt -s nullglob
+    generators=("${stagedir}"/bin/bebopc-gen-*)
+    shopt -u nullglob
+    if (( ${#generators[@]} == 0 )); then
+        abort "No code generators found in ${archive}."
+    fi
+
     step "Installing to ${PREFIX}"
     execute mkdir -p "${PREFIX}"
     # Merge into prefix without overwriting existing directory permissions
@@ -326,7 +336,7 @@ info "Installing Bebop ${VERSION} for ${target}..."
     ok
 
     if ! execute test -f "${PREFIX}/bin/bebopc"; then
-        abort "bebopc binary not found after installation."
+        abort "bebopc not found after installation."
     fi
     # shellcheck disable=SC2016
     if ! execute sh -c 'chmod +x "$1"/bin/bebopc*' _ "${PREFIX}"; then

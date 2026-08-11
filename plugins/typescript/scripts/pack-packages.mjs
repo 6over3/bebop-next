@@ -3,7 +3,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const workspace = fileURLToPath(new URL("../", import.meta.url));
-const output = fileURLToPath(new URL("../dist/npm/", import.meta.url));
+const output = fileURLToPath(new URL("../dist/packages/", import.meta.url));
 const packages = ["runtime", "plugin", "generator"];
 
 rmSync(output, { recursive: true, force: true });

@@ -3,6 +3,9 @@ name: Reusable TypeScript Build
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-          registry-url: https://registry.npmjs.org
 
       - uses: oven-sh/setup-bun@v2
 
@@ -28,17 +30,13 @@ jobs:
           bun run test
           bun run test:packages
 
-      - name: Build standalone generator
-        working-directory: plugins/typescript
-        run: bun run --cwd packages/generator build:binary
-
-      - name: Pack npm packages
+      - name: Create package tarballs
         working-directory: plugins/typescript
         run: bun run package
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bebop-typescript
-          path: plugins/typescript/dist/npm/*.tgz
+          name: bebop-typescript-packages
+          path: plugins/typescript/dist/packages/*.tgz
           if-no-files-found: error
           retention-days: 7
