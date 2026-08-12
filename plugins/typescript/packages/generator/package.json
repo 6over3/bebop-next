@@ -1,6 +1,6 @@
 {
   "name": "@bebop/generator-typescript",
-  "version": "2026.0.0-alpha.5",
+  "version": "2026.0.0-alpha.6",
   "description": "Bebop TypeScript code generator plugin.",
   "type": "module",
   "sideEffects": false,
@@ -24,8 +24,8 @@
     "test": "bun test test"
   },
   "dependencies": {
-    "@bebop/plugin": "^2026.0.0-alpha.5",
-    "@bebop/runtime": "^2026.0.0-alpha.5"
+    "@bebop/plugin": "^2026.0.0-alpha.6",
+    "@bebop/runtime": "^2026.0.0-alpha.6"
   },
   "engines": {
     "node": ">=26"

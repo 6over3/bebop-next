@@ -1,6 +1,6 @@
 {
   "name": "@bebop/plugin",
-  "version": "2026.0.0-alpha.5",
+  "version": "2026.0.0-alpha.6",
   "description": "TypeScript helpers and schema codecs for Bebop compiler plugins.",
   "type": "module",
   "sideEffects": false,
@@ -27,7 +27,7 @@
     "test": "bun test test"
   },
   "dependencies": {
-    "@bebop/runtime": "^2026.0.0-alpha.5"
+    "@bebop/runtime": "^2026.0.0-alpha.6"
   },
   "engines": {
     "node": ">=26"
