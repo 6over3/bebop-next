@@ -74,25 +74,25 @@ enum GenerateMessage {
             let storageLines = storageFields
                 + ["init(\(initParams)) {"]
                 + storageAssignments.map { "    " + $0 }
-                + ["}", "func copy() -> Storage { Storage(\(copyArguments)) }"]
+                + ["}", "func copy() -> _BebopStorage { _BebopStorage(\(copyArguments)) }"]
             let storageBody = storageLines.map { indent($0) }.joined(separator: "\n")
-            body.append("private final class Storage: @unchecked Sendable {\n\(storageBody)\n}")
-            body.append("private var storage: Storage")
+            body.append("private final class _BebopStorage: @unchecked Sendable {\n\(storageBody)\n}")
+            body.append("private var _bebopStorage: _BebopStorage")
 
             for f in fieldDecls {
                 body.append(
                     """
                     \(f.prefix)\(vis)var \(f.swiftName): \(f.swiftType)? {
-                        get { storage.\(f.swiftName) }
+                        get { _bebopStorage.\(f.swiftName) }
                         set {
-                            if !isKnownUniquelyReferenced(&storage) { storage = storage.copy() }
-                            storage.\(f.swiftName) = newValue
+                            if !isKnownUniquelyReferenced(&_bebopStorage) { _bebopStorage = _bebopStorage.copy() }
+                            _bebopStorage.\(f.swiftName) = newValue
                         }
                     }
                     """)
             }
 
-            body.append("\(vis)init(\(initParams)) { storage = Storage(\(copyArguments)) }")
+            body.append("\(vis)init(\(initParams)) { _bebopStorage = _BebopStorage(\(copyArguments)) }")
         }
 
         // ==

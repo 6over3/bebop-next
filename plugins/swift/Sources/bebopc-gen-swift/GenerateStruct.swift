@@ -235,7 +235,7 @@ enum GenerateStruct {
         let viewBodyString = viewBody.map { indent($0) }.joined(separator: "\n\n")
         body.append("\(vis)struct View: BebopRecordView {\n\(viewBodyString)\n}")
 
-        var readViewBody = ["let start = reader.position"]
+        var readViewBody = ["let _bebopRecordStart = reader.position"]
         for field in fieldDecls {
             let read = try TypeMapper.viewReadExpression(for: field.type)
             readViewBody.append("let \(field.swiftName) = \(read)")
@@ -243,7 +243,7 @@ enum GenerateStruct {
         let viewArguments = fieldDecls.map { "\($0.swiftName): \($0.swiftName)" }.joined(separator: ", ")
         let argumentSuffix = viewArguments.isEmpty ? "" : ", " + viewArguments
         readViewBody.append(
-            "return View(validated: reader.view(from: start), limits: reader.limits\(argumentSuffix))"
+            "return View(validated: reader.view(from: _bebopRecordStart), limits: reader.limits\(argumentSuffix))"
         )
         let readViewBodyString = readViewBody.map { indent($0) }.joined(separator: "\n")
         body.append(
