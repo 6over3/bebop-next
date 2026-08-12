@@ -492,6 +492,23 @@ struct SwiftGeneratorTests {
         #expect(code.contains("kind: .struct"))
     }
 
+    @Test func structFieldNamedStartDoesNotCollideWithViewBookkeeping() throws {
+        let code = try generate(
+            DefinitionDescriptor(
+                kind: .struct, name: "Interval", fqn: "test.Interval",
+                structDef: StructDef(
+                    fields: [
+                        FieldDescriptor(name: "start", type: TypeDescriptor(kind: .uint64)),
+                        FieldDescriptor(name: "end", type: TypeDescriptor(kind: .uint64)),
+                    ],
+                    isMutable: false
+                )
+            ))
+        #expect(code.contains("let _bebopRecordStart = reader.position"))
+        #expect(code.contains("let start = try reader.readUInt64()"))
+        #expect(code.contains("reader.view(from: _bebopRecordStart)"))
+    }
+
     @Test func generatorRejectsSwiftFieldNameCollisions() {
         #expect(throws: CodegenError.self) {
             try generate(
@@ -523,7 +540,7 @@ struct SwiftGeneratorTests {
                 ])
             ))
         #expect(code.contains("public struct Request: BebopRecord"))
-        #expect(code.contains("private final class Storage: @unchecked Sendable"))
+        #expect(code.contains("private final class _BebopStorage: @unchecked Sendable"))
         #expect(code.contains("public var url: String?"))
         #expect(code.contains("public var timeout: UInt32?"))
         #expect(code.contains("return try reader.readMessage { withField in"))
@@ -535,6 +552,21 @@ struct SwiftGeneratorTests {
         #expect(code.contains("public struct View: BebopRecordView"))
         #expect(code.contains("public var url: BebopStringView?"))
         #expect(code.contains("get throws"))
+    }
+
+    @Test func messageFieldNamedStorageDoesNotCollideWithCopyOnWriteStorage() throws {
+        let code = try generate(
+            DefinitionDescriptor(
+                kind: .message, name: "Attachment", fqn: "test.Attachment",
+                messageDef: MessageDef(fields: [
+                    FieldDescriptor(
+                        name: "storage", type: TypeDescriptor(kind: .string), index: 1),
+                ])
+            ))
+        #expect(code.contains("private var _bebopStorage: _BebopStorage"))
+        #expect(code.contains("public var storage: String?"))
+        #expect(code.contains("get { _bebopStorage.storage }"))
+        #expect(code.contains("_bebopStorage.storage = newValue"))
     }
 
     @Test func messageEmpty() throws {
