@@ -1,0 +1,29 @@
+# Generated extension libraries
+*.so
+*.dylib
+*.dll
+*.bundle
+
+# Object files and local compiler output
+*.o
+*.obj
+*.a
+*.lib
+*.exp
+*.pdb
+
+# Local build directories
+build/
+out/
+dist/
+
+# Generated test/runtime data
+fixtures/*.bbd
+fixtures/*.spec
+fixtures/*.value
+
+# Platform and editor files
+.DS_Store
+*.dSYM/
+*.swp
+*~
