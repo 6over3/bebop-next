@@ -962,6 +962,44 @@ void test_decode_null(void)
   TEST_ASSERT_EQUAL_INT(BEBOP_FATAL, bebop_descriptor_decode(ctx, NULL, 0, &desc));
 }
 
+void test_roundtrip_embedded_nul(void);
+
+void test_roundtrip_embedded_nul(void)
+{
+  bebop_parse_result_t* result = parse_ok("const string TEXT = \"A\\0B\";");
+  bebop_descriptor_t* descriptor = NULL;
+  TEST_ASSERT_EQUAL(BEBOP_OK, bebop_descriptor_build(result, BEBOP_DESC_FLAG_NONE, &descriptor));
+  const uint8_t* encoded = NULL;
+  size_t encoded_len = 0;
+  TEST_ASSERT_EQUAL(BEBOP_OK, bebop_descriptor_encode(descriptor, &encoded, &encoded_len));
+  bebop_descriptor_t* decoded = NULL;
+  TEST_ASSERT_EQUAL(BEBOP_OK, bebop_descriptor_decode(ctx, encoded, encoded_len, &decoded));
+  const bebop_descriptor_def_t* def = bebop_descriptor_schema_def_at(
+      bebop_descriptor_schema_at(decoded, 0), 0
+  );
+  size_t length = 0;
+  const char* value = bebop_descriptor_literal_as_string_n(
+      bebop_descriptor_def_const_value(def), &length
+  );
+  TEST_ASSERT_EQUAL_UINT32(3, length);
+  TEST_ASSERT_EQUAL_MEMORY("A\0B", value, 3);
+  length = 99;
+  TEST_ASSERT_NULL(bebop_descriptor_literal_as_string_n(NULL, &length));
+  TEST_ASSERT_EQUAL_UINT32(0, length);
+  bebop_descriptor_free(decoded);
+  bebop_descriptor_free(descriptor);
+}
+
+void test_timestamp_wire_size(void);
+
+void test_timestamp_wire_size(void)
+{
+  bebop_parse_result_t* result = parse_ok("mut struct Time { value: timestamp; items: timestamp[2]; }");
+  const bebop_def_t* def = bebop_result_find(result, "Time");
+  TEST_ASSERT_EQUAL_UINT32(16, bebop_type_fixed_size(bebop_field_type(bebop_def_field_at(def, 0))));
+  TEST_ASSERT_EQUAL_UINT32(48, bebop_def_fixed_size(def));
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -987,6 +1025,8 @@ int main(void)
   RUN_TEST(test_roundtrip_const);
   RUN_TEST(test_roundtrip_map_type);
   RUN_TEST(test_roundtrip_array_type);
+  RUN_TEST(test_roundtrip_embedded_nul);
+  RUN_TEST(test_timestamp_wire_size);
 
   RUN_TEST(test_accessor_schema);
   RUN_TEST(test_accessor_struct_def);

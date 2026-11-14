@@ -1,0 +1,27 @@
+{
+  "frames": [
+    {"name": "empty data", "hex": "000000000000000000", "valid": true, "flags": 0},
+    {"name": "empty end", "hex": "000000000100000000", "valid": true, "flags": 1},
+    {"name": "unknown flags", "hex": "000000008000000000", "valid": true, "flags": 0},
+    {"name": "unknown flags with end", "hex": "00000000a100000000", "valid": true, "flags": 1},
+    {"name": "error requires end", "hex": "000000000200000000", "valid": false, "flags": 0},
+    {"name": "trailer requires end", "hex": "000000000800000000", "valid": false, "flags": 0},
+    {"name": "error excludes trailer", "hex": "000000000b00000000", "valid": false, "flags": 0},
+    {"name": "truncated header", "hex": "0000000000000000", "valid": false, "flags": 0},
+    {"name": "truncated body", "hex": "010000000100000000", "valid": false, "flags": 0},
+    {"name": "truncated cursor", "hex": "00000000100000000000000000000000", "valid": false, "flags": 0},
+    {"name": "cursor", "hex": "0100000010000000002a0700000000000000", "valid": true, "flags": 16}
+  ],
+  "batches": [
+    {"name": "empty", "calls": [], "valid": true},
+    {"name": "independent", "calls": [{"id": 0, "inputFrom": -1}, {"id": 1, "inputFrom": -1}], "valid": true},
+    {"name": "dependent", "calls": [{"id": 0, "inputFrom": -1}, {"id": 1, "inputFrom": 0}], "valid": true},
+    {"name": "non-monotonic IDs", "calls": [{"id": 9, "inputFrom": -1}, {"id": 2, "inputFrom": 9}], "valid": true},
+    {"name": "negative ID", "calls": [{"id": -1, "inputFrom": -1}], "valid": false},
+    {"name": "duplicate ID", "calls": [{"id": 0, "inputFrom": -1}, {"id": 0, "inputFrom": -1}], "valid": false},
+    {"name": "forward dependency", "calls": [{"id": 0, "inputFrom": 1}, {"id": 1, "inputFrom": -1}], "valid": false},
+    {"name": "missing dependency", "calls": [{"id": 0, "inputFrom": 8}], "valid": false},
+    {"name": "self dependency", "calls": [{"id": 0, "inputFrom": 0}], "valid": false},
+    {"name": "invalid sentinel", "calls": [{"id": 0, "inputFrom": -2}], "valid": false}
+  ]
+}

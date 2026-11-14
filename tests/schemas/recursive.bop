@@ -1,0 +1,47 @@
+package recursion;
+
+import "bebop/cpp.bop";
+
+message Node {
+    value(1): uint32;
+    next(2): Node;
+    children(3): Node[];
+    @cpp.map(kind: "map")
+    branches(4): map[string, Node];
+    @cpp.map(kind: "flat_map")
+    sorted(5): map[uint32, Node];
+    lookup(6): map[uint32, Node];
+    layers(7): Node[][];
+    pair(8): Node[2];
+}
+
+message Link {
+    value(1): uint32;
+    next(2): Link;
+}
+
+struct Container {
+    link: Link;
+}
+
+message Envelope {
+    next(1): Envelope;
+    container(2): Container;
+}
+
+union Expression {
+    Number(1): {
+        value: int32;
+    };
+    List(2): message {
+        items(1): Expression[];
+        next(2): Expression;
+    };
+    Wrapped(3): message {
+        entry(1): ExpressionWrapper;
+    };
+}
+
+struct ExpressionWrapper {
+    expression: Expression;
+}

@@ -94,11 +94,21 @@ export class RpcContext {
   }
 
   fork(overrides: RpcContextOptions = {}): RpcContext {
-    const deadline = overrides.deadline ?? this.deadline;
+    let deadline = overrides.deadline ?? this.deadline;
+    if (
+      deadline !== undefined && this.deadline !== undefined &&
+      deadline.epochNanoseconds > this.deadline.epochNanoseconds
+    ) {
+      deadline = this.deadline;
+    }
+    let signal = this.signal;
+    if (overrides.signal !== undefined) {
+      signal = AbortSignal.any([signal, overrides.signal]);
+    }
     return new RpcContext({
       metadata: overrides.metadata ?? this.metadata,
       ...(deadline === undefined ? {} : { deadline }),
-      signal: overrides.signal ?? this.signal,
+      signal,
     });
   }
 
@@ -133,10 +143,13 @@ export async function withDeadline<T>(
   operation: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   using context = new RpcContext({ deadline });
-  return Promise.race([
-    operation(context.signal),
-    new Promise<never>((_, reject) => {
-      context.signal.addEventListener("abort", () => reject(context.signal.reason), { once: true });
-    }),
-  ]);
+  context.throwIfCancelled();
+  const cancelled = new Promise<never>((_, reject) => {
+    context.signal.addEventListener("abort", () => reject(context.signal.reason), { once: true });
+  });
+  const pending = Promise.resolve().then(() => {
+    context.throwIfCancelled();
+    return operation(context.signal);
+  });
+  return await Promise.race([pending, cancelled]);
 }

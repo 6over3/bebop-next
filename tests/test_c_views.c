@@ -137,9 +137,53 @@ static void test_composed_aggregate_views(void)
   bebop_context_free(ctx);
 }
 
+static void test_fixed_collection_views(void)
+{
+  Bebop_Context* ctx = bebop_context_new(NULL);
+  TEST_ASSERT_NOT_NULL(ctx);
+  FixedRecord records[2] = {
+      {.id = 1, .samples = {1, 2, 3}, .enabled = true, .state = STATE_ACTIVE},
+      {.id = 2, .samples = {4, 5, 6}, .enabled = false, .state = STATE_IDLE},
+  };
+  uint32_t values[3] = {7, 8, 9};
+  const FixedCollections source = {
+      .records = {.data = records, .length = 2},
+      .samples = {10, 11, 12, 13},
+      .values = {.data = values, .length = 3},
+  };
+  Bebop_Writer* writer = bebop_context_writer(ctx, 0);
+  TEST_ASSERT_NOT_NULL(writer);
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, FixedCollections_encode(writer, &source));
+  const Bebop_View encoded = bebop_writer_view(writer);
+  TEST_ASSERT_EQUAL(BEBOP_RESULT_OK, FixedCollections_verify(encoded));
+  const FixedCollections_View view = FixedCollections_view(encoded);
+  const FixedRecord_View record = FixedCollections_records_at(view, 1);
+  TEST_ASSERT_EQUAL_UINT64(2, FixedRecord_id(record));
+  TEST_ASSERT_EQUAL_FLOAT(6, FixedRecord_samples_at(record, 2));
+  TEST_ASSERT_FALSE(FixedRecord_enabled(record));
+  TEST_ASSERT_EQUAL(STATE_IDLE, FixedRecord_state(record));
+  TEST_ASSERT_EQUAL_FLOAT(13, FixedCollections_samples_at(view, 3));
+  TEST_ASSERT_EQUAL_UINT32(9, FixedCollections_values_at(view, 2));
+  for (size_t length = 0; length < encoded.length; ++length) {
+    TEST_ASSERT_EQUAL(
+        BEBOP_RESULT_MALFORMED, FixedCollections_verify(bebop_view(encoded.data, length))
+    );
+  }
+
+  uint8_t invalid[256];
+  TEST_ASSERT_LESS_OR_EQUAL(sizeof(invalid), encoded.length);
+  memcpy(invalid, encoded.data, encoded.length);
+  memset(invalid, 0xff, 4);
+  TEST_ASSERT_EQUAL(
+      BEBOP_RESULT_MALFORMED, FixedCollections_verify(bebop_view(invalid, encoded.length))
+  );
+  bebop_context_free(ctx);
+}
+
 int main(void)
 {
   UNITY_BEGIN();
   RUN_TEST(test_composed_aggregate_views);
+  RUN_TEST(test_fixed_collection_views);
   return UNITY_END();
 }

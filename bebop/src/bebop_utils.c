@@ -312,148 +312,248 @@ uint32_t bebop_util_hash_method_id(const char* input, const size_t length)
   return hash;
 }
 
-static uint64_t bebop__util_parse_decimal(const char** s, const char* end, bool* overflow)
+static bebop__integer_t bebop__integer_from_int64(int64_t value)
 {
-  uint64_t acc = 0, prev;
-  bool of = false;
-  const char* p = *s;
-  uint8_t d;
-
-  while (p < end && (d = bebop__digit_val[(unsigned char)*p]) < 10) {
-    prev = acc;
-    acc = acc * 10 + d;
-    if (acc < prev) {
-      of = true;
-    }
-    p++;
+  bebop__integer_t integer = {.low = (uint64_t)value, .negative = value < 0};
+  if (integer.negative) {
+    integer.low = UINT64_C(0) - (uint64_t)value;
   }
-
-  *s = p;
-  if (overflow) {
-    *overflow = of;
-  }
-  return of ? UINT64_MAX : acc;
+  return integer;
 }
 
-static uint64_t bebop__util_parse_hex(const char** s, const char* end, bool* overflow)
+static bool bebop__integer_to_int64(bebop__integer_t value, int64_t* out)
 {
-  uint64_t acc = 0, prev;
-  bool of = false;
-  const char* p = *s;
-  uint8_t d;
-
-  while (p < end && (d = bebop__digit_val[(unsigned char)*p]) < 16) {
-    prev = acc;
-    acc = acc << 4 | d;
-    if (acc < prev) {
-      of = true;
-    }
-    p++;
+  uint64_t limit = (uint64_t)INT64_MAX;
+  if (value.negative) {
+    ++limit;
   }
-
-  *s = p;
-  if (overflow) {
-    *overflow = of;
-  }
-  return of ? UINT64_MAX : acc;
-}
-
-bool bebop_util_parse_int(const char* str, const size_t len, int64_t* out)
-{
-  if (!str || len == 0 || !out) {
+  if (value.high != 0 || value.low > limit) {
     return false;
   }
-
-  const char* p = str;
-  const char* end = str + len;
-  bool neg = false;
-  bool overflow = false;
-
-  if (*p == '-') {
-    neg = true;
-    p++;
-  } else if (*p == '+') {
-    p++;
+  if (value.negative && value.low == (uint64_t)INT64_MAX + 1u) {
+    *out = INT64_MIN;
+    return true;
   }
-
-  if (p >= end) {
-    return false;
-  }
-
-  uint64_t uval;
-
-  if (p + 2 <= end && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-    p += 2;
-    if (p >= end || bebop__digit_val[(unsigned char)*p] >= 16) {
-      return false;
-    }
-    uval = bebop__util_parse_hex(&p, end, &overflow);
-  } else {
-    if (bebop__digit_val[(unsigned char)*p] >= 10) {
-      return false;
-    }
-    uval = bebop__util_parse_decimal(&p, end, &overflow);
-  }
-
-  if (p != end || overflow) {
-    return false;
-  }
-
-  if (neg) {
-    if (uval > (uint64_t)INT64_MAX + 1) {
-      return false;
-    }
-    *out = -(int64_t)uval;
-  } else {
-    if (uval > (uint64_t)INT64_MAX) {
-      return false;
-    }
-    *out = (int64_t)uval;
+  *out = (int64_t)value.low;
+  if (value.negative) {
+    *out = -*out;
   }
   return true;
 }
 
-bool bebop_util_parse_uint(const char* str, const size_t len, uint64_t* out)
+static bool bebop__integer_equal(bebop__integer_t a, bebop__integer_t b)
+{
+  return a.low == b.low && a.high == b.high && a.negative == b.negative;
+}
+
+static bool bebop__literal_equal(const bebop_literal_t* left, const bebop_literal_t* right)
+{
+  if (left->kind != right->kind) {
+    return false;
+  }
+  switch (left->kind) {
+    case BEBOP_LITERAL_BOOL:
+      return left->bool_val == right->bool_val;
+    case BEBOP_LITERAL_INT:
+      return bebop__integer_equal(left->int_val, right->int_val);
+    case BEBOP_LITERAL_FLOAT:
+      return left->float_val == right->float_val;
+    case BEBOP_LITERAL_STRING: {
+      size_t left_size;
+      size_t right_size;
+      const char* left_text = bebop_literal_as_string(left, &left_size);
+      const char* right_text = bebop_literal_as_string(right, &right_size);
+      if (left_size != right_size) {
+        return false;
+      }
+      return left_size == 0 || memcmp(left_text, right_text, left_size) == 0;
+    }
+    case BEBOP_LITERAL_UUID:
+      return memcmp(left->uuid_val, right->uuid_val, sizeof(left->uuid_val)) == 0;
+    case BEBOP_LITERAL_BYTES:
+      if (left->bytes_val.len != right->bytes_val.len) {
+        return false;
+      }
+      return left->bytes_val.len == 0
+          || memcmp(left->bytes_val.data, right->bytes_val.data, left->bytes_val.len) == 0;
+    case BEBOP_LITERAL_TIMESTAMP:
+      return left->timestamp_val.seconds == right->timestamp_val.seconds
+          && left->timestamp_val.nanos == right->timestamp_val.nanos
+          && left->timestamp_val.offset_ms == right->timestamp_val.offset_ms;
+    case BEBOP_LITERAL_DURATION:
+      return left->duration_val.seconds == right->duration_val.seconds
+          && left->duration_val.nanos == right->duration_val.nanos;
+    case BEBOP_LITERAL_UNKNOWN:
+      return false;
+  }
+  return false;
+}
+
+static int bebop__integer_compare(bebop__integer_t a, bebop__integer_t b)
+{
+  if (a.negative != b.negative) {
+    if (a.negative) {
+      return -1;
+    }
+    return 1;
+  }
+  int order = 0;
+  if (a.high < b.high) {
+    order = -1;
+  } else if (a.high > b.high) {
+    order = 1;
+  } else if (a.low < b.low) {
+    order = -1;
+  } else if (a.low > b.low) {
+    order = 1;
+  }
+  if (a.negative) {
+    order = -order;
+  }
+  return order;
+}
+
+static bool bebop__integer_parse(const char* str, size_t len, bebop__integer_t* out)
 {
   if (!str || len == 0 || !out) {
     return false;
   }
-
-  const char* p = str;
-  const char* end = str + len;
-  bool overflow = false;
-
-  if (*p == '-') {
+  size_t index = 0;
+  bool negative = false;
+  if (str[index] == '-' || str[index] == '+') {
+    negative = str[index] == '-';
+    ++index;
+  }
+  unsigned base = 10;
+  if (len - index >= 2 && str[index] == '0' && (str[index + 1] == 'x' || str[index + 1] == 'X')) {
+    base = 16;
+    index += 2;
+  }
+  if (index == len) {
     return false;
   }
-  if (*p == '+') {
-    p++;
-  }
-
-  if (p >= end) {
-    return false;
-  }
-
-  uint64_t val;
-
-  if (p + 2 <= end && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-    p += 2;
-    if (p >= end || bebop__digit_val[(unsigned char)*p] >= 16) {
+  uint32_t limbs[4] = {0};
+  for (; index < len; ++index) {
+    const unsigned digit = bebop__digit_val[(unsigned char)str[index]];
+    if (digit >= base) {
       return false;
     }
-    val = bebop__util_parse_hex(&p, end, &overflow);
-  } else {
-    if (bebop__digit_val[(unsigned char)*p] >= 10) {
+    uint64_t carry = digit;
+    for (unsigned limb = 0; limb < 4; ++limb) {
+      const uint64_t product = (uint64_t)limbs[limb] * base + carry;
+      limbs[limb] = (uint32_t)product;
+      carry = product >> 32;
+    }
+    if (carry != 0) {
       return false;
     }
-    val = bebop__util_parse_decimal(&p, end, &overflow);
   }
+  out->low = (uint64_t)limbs[0] | ((uint64_t)limbs[1] << 32);
+  out->high = (uint64_t)limbs[2] | ((uint64_t)limbs[3] << 32);
+  out->negative = negative && (out->low != 0 || out->high != 0);
+  return true;
+}
 
-  if (p != end || overflow) {
+static size_t bebop__integer_format(bebop__integer_t value, char out[41])
+{
+  uint32_t limbs[4] = {
+      (uint32_t)value.low,
+      (uint32_t)(value.low >> 32),
+      (uint32_t)value.high,
+      (uint32_t)(value.high >> 32),
+  };
+  char digits[39];
+  size_t count = 0;
+  do {
+    uint64_t remainder = 0;
+    for (unsigned limb = 4; limb > 0; --limb) {
+      const uint64_t dividend = (remainder << 32) | limbs[limb - 1];
+      limbs[limb - 1] = (uint32_t)(dividend / 10);
+      remainder = dividend % 10;
+    }
+    digits[count++] = (char)('0' + remainder);
+  } while ((limbs[0] | limbs[1] | limbs[2] | limbs[3]) != 0);
+  size_t length = 0;
+  if (value.negative) {
+    out[length++] = '-';
+  }
+  while (count > 0) {
+    out[length++] = digits[--count];
+  }
+  out[length] = '\0';
+  return length;
+}
+
+static bool bebop__integer_fits(bebop__integer_t value, bebop_type_kind_t type)
+{
+  unsigned bits;
+  bool is_signed = false;
+  switch (type) {
+    case BEBOP_TYPE_INT8:
+      is_signed = true; /* fallthrough */
+    case BEBOP_TYPE_BYTE:
+      bits = 8;
+      break;
+    case BEBOP_TYPE_INT16:
+      is_signed = true; /* fallthrough */
+    case BEBOP_TYPE_UINT16:
+      bits = 16;
+      break;
+    case BEBOP_TYPE_INT32:
+      is_signed = true; /* fallthrough */
+    case BEBOP_TYPE_UINT32:
+      bits = 32;
+      break;
+    case BEBOP_TYPE_INT64:
+      is_signed = true; /* fallthrough */
+    case BEBOP_TYPE_UINT64:
+      bits = 64;
+      break;
+    case BEBOP_TYPE_INT128:
+      is_signed = true; /* fallthrough */
+    case BEBOP_TYPE_UINT128:
+      bits = 128;
+      break;
+    default:
+      return true;
+  }
+  if (value.negative && !is_signed) {
     return false;
   }
+  if (bits == 128) {
+    if (!is_signed) {
+      return true;
+    }
+    const uint64_t limit = UINT64_C(1) << 63;
+    return value.high < limit || (value.negative && value.high == limit && value.low == 0);
+  }
+  unsigned magnitude_bits = bits;
+  if (is_signed) {
+    --magnitude_bits;
+  }
+  uint64_t limit = UINT64_MAX;
+  if (magnitude_bits < 64) {
+    limit = (UINT64_C(1) << magnitude_bits) - 1u;
+    if (value.negative) {
+      ++limit;
+    }
+  }
+  return value.high == 0 && value.low <= limit;
+}
 
-  *out = val;
+bool bebop_util_parse_int(const char* str, const size_t len, int64_t* out)
+{
+  bebop__integer_t value;
+  return out && bebop__integer_parse(str, len, &value) && bebop__integer_to_int64(value, out);
+}
+
+bool bebop_util_parse_uint(const char* str, const size_t len, uint64_t* out)
+{
+  bebop__integer_t value;
+  if (!out || !bebop__integer_parse(str, len, &value) || value.negative || value.high != 0) {
+    return false;
+  }
+  *out = value.low;
   return true;
 }
 

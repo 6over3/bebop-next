@@ -165,7 +165,7 @@ Scalars (1-19) have fixed wire sizes:
 | BFLOAT16 | 15 | 2 bytes |
 | STRING | 16 | variable |
 | UUID | 17 | 16 bytes |
-| TIMESTAMP | 18 | 12 bytes |
+| TIMESTAMP | 18 | 16 bytes |
 | DURATION | 19 | 12 bytes |
 
 Compound types (20-23) carry additional structure:
@@ -379,6 +379,11 @@ message DecoratorDef {
 Concrete value for constants, decorator arguments, and decorator parameter defaults.
 
 ```bebop
+struct IntegerValue {
+    magnitude: uint128;
+    negative: bool;
+}
+
 message LiteralValue {
     kind(1): LiteralKind;
     bool_value(2): bool;
@@ -387,10 +392,16 @@ message LiteralValue {
     string_value(5): string;
     uuid_value(6): uuid;
     raw_value(7): string;
+    bytes_value(8): byte[];
+    timestamp_value(9): timestamp;
+    duration_value(10): duration;
+    integer_value(11): IntegerValue;
 }
 ```
 
 **kind** - Discriminates which value field is set.
+
+Integer values that fit `int64` use `int_value`. Larger values use `integer_value`, which holds an unsigned 128-bit magnitude and its sign. The C accessor `bebop_descriptor_literal_as_integer` handles both representations.
 
 | LiteralKind | Value |
 |-------------|-------|
@@ -399,6 +410,9 @@ message LiteralValue {
 | FLOAT | 3 |
 | STRING | 4 |
 | UUID | 5 |
+| BYTES | 6 |
+| TIMESTAMP | 7 |
+| DURATION | 8 |
 
 **raw_value** - Original text before `$(...)` expansion. Only set for string literals containing environment variable references.
 

@@ -588,6 +588,12 @@ struct bebop_diagnostic {
   uint32_t label_count;
 };
 
+typedef struct {
+  uint64_t low;
+  uint64_t high;
+  bool negative;
+} bebop__integer_t;
+
 struct bebop_literal {
   bebop_literal_kind_t kind;
   bebop_span_t span;
@@ -597,7 +603,7 @@ struct bebop_literal {
 
   union {
     bool bool_val;
-    int64_t int_val;
+    bebop__integer_t int_val;
     double float_val;
     bebop_str_t string_val;
     uint8_t uuid_val[16];
@@ -964,7 +970,10 @@ bebop_status_t bebop__lua_run_validate(
 );
 
 bebop_status_t bebop__lua_run_export(
-    bebop_lua_state_t* state, bebop_def_t* decorator_def, bebop_decorator_t* usage
+    bebop_lua_state_t* state,
+    bebop_def_t* decorator_def,
+    bebop_decorator_t* usage,
+    const bebop_decorated_t* target
 );
 
 void bebop__schema_register_def(bebop_schema_t* schema, bebop_def_t* def);
@@ -2654,7 +2663,30 @@ int64_t bebop_literal_as_int(const bebop_literal_t* lit)
   if (!lit || lit->kind != BEBOP_LITERAL_INT) {
     return 0;
   }
-  return lit->int_val;
+  int64_t value = 0;
+  if (!bebop__integer_to_int64(lit->int_val, &value)) {
+    return 0;
+  }
+  return value;
+}
+
+bool bebop_literal_as_integer(
+    const bebop_literal_t* lit, uint64_t* low, uint64_t* high, bool* negative
+)
+{
+  if (!lit || lit->kind != BEBOP_LITERAL_INT) {
+    return false;
+  }
+  if (low) {
+    *low = lit->int_val.low;
+  }
+  if (high) {
+    *high = lit->int_val.high;
+  }
+  if (negative) {
+    *negative = lit->int_val.negative;
+  }
+  return true;
 }
 
 double bebop_literal_as_float(const bebop_literal_t* lit)
@@ -2689,7 +2721,10 @@ const char* bebop_literal_as_string(const bebop_literal_t* lit, size_t* out_len)
   }
   const char* str = BEBOP_STR(lit->ctx, lit->string_val);
   if (out_len) {
-    *out_len = str ? strlen(str) : 0;
+    *out_len = 0;
+    if (str) {
+      *out_len = BEBOP_STR_LEN(lit->ctx, lit->string_val);
+    }
   }
   return str;
 }

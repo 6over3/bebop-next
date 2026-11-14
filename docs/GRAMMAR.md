@@ -103,7 +103,7 @@ Use `///` for documentation comments. Comments immediately before a definition a
 | `bfloat16` | 2 bytes | Brain floating point |
 | `string` | variable | UTF-8 text, length-prefixed |
 | `uuid` | 16 bytes | UUID/GUID identifier |
-| `timestamp` | 12 bytes | Point in time (seconds + nanoseconds since Unix epoch) |
+| `timestamp` | 16 bytes | Point in time (seconds, nanoseconds, and timezone offset) |
 | `duration` | 12 bytes | Time span (seconds + nanoseconds) |
 
 ### Type aliases
@@ -222,6 +222,11 @@ enum Permissions : uint32 {
 ```
 
 Supported operators: `|` (or), `&` (and), `~` (not), `<<` (left shift), `>>` (right shift), `+`, `-`.
+
+Precedence, highest first: unary `~` and `-`, then `+` and `-`, shifts, `&`, and `|`.
+Binary operators at the same precedence are evaluated left to right. Parentheses override precedence.
+Bitwise `~` uses the enum's base width. Right shifts of signed enums preserve the sign.
+Addition and subtraction retain intermediate values; the final result must fit the enum's base type.
 
 ### Zero requirement
 
@@ -860,6 +865,18 @@ Validate and export blocks receive these arguments:
 2. `target` - information about what the decorator is applied to
 3. Parameter values directly by name (`min`, `max`, etc.)
 
+Integer parameters retain their full declared range. Values that fit `int64` are Lua integers. Larger values are exact integer userdata supporting `==`, `<`, `<=`, `>`, `>=`, and `tostring`. They can be returned directly from export blocks. Arithmetic on these wider values is not supported; convert to text with `tostring` when passing them to string functions.
+
+UUID, timestamp, and duration parameters are read-only userdata. They support equality and can be returned directly from export blocks without losing their type.
+
+| Parameter type | Lua fields |
+| --- | --- |
+| `uuid` | `kind`, `text` (canonical UUID), `bytes` (16-byte string in wire order) |
+| `timestamp` | `kind`, `seconds`, `nanoseconds`, `offset_ms` |
+| `duration` | `kind`, `seconds`, `nanoseconds` |
+
+`kind` is the schema type name. Constraints such as `param delay!: duration in ["1.5s"]` compare parsed values, so `"1500ms"` also matches.
+
 **Target fields**:
 
 - `target.kind` - `"field"`, `"struct"`, `"enum"`, `"message"`, `"union"`, `"service"`, `"method"`, `"member"`, `"branch"`
@@ -867,6 +884,15 @@ Validate and export blocks receive these arguments:
 - `target.parent_kind` - containing definition kind (for fields, members, branches)
 - `target.fqn` - fully qualified name (for definitions)
 - `target.def_kind` - definition kind (for definitions)
+- `target.index` - message field tag, or zero for a struct field
+- `target.type` - resolved field type, with `kind` and the following children:
+  - Arrays: `element`
+  - Fixed arrays: `element` and `length`
+  - Maps: `key` and `value`
+  - Named types: `fqn`, `def_kind`, and `is_mutable` for structs
+
+Named types are references; their fields are not expanded into `target.type`.
+Scalar kind names use the canonical schema spelling, such as `byte` and `float16`.
 
 **Span table fields**: `off` (byte offset), `len` (length), `start_line`, `start_col`
 

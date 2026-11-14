@@ -154,7 +154,7 @@ func docComment(_ doc: String?) -> String {
 }
 
 func deprecatedAttribute(_ decorators: [DecoratorUsage]?) -> String? {
-    guard let dep = decorators?.first(where: { $0.fqn == "deprecated" }) else {
+    guard let dep = decorators?.first(where: { $0.fqn == "deprecated" || $0.fqn == "bebop.deprecated" }) else {
         return nil
     }
     if let arg = dep.args?.first, arg.value.kind == .string,

@@ -16,6 +16,7 @@ export type FutureRegistration = {
 export interface FutureStorage {
   /** Takes ownership of `registration.context` when registration succeeds. */
   register(registration: FutureRegistration): Promise<BebopUUID>;
+  /** Returns false for an unknown ID; rejects cancellation by another owner. */
   cancel(id: BebopUUID, owner: string): Promise<boolean>;
   subscribe(ids: readonly BebopUUID[] | undefined, owner: string): Promise<{
     readonly immediate: readonly FutureResult[];
@@ -45,7 +46,7 @@ export type InMemoryFutureStorageOptions = {
 
 export class InMemoryFutureStorage implements FutureStorage {
   private readonly entries = new Map<BebopUUID, FutureEntry>();
-  private readonly idempotency = new Map<BebopUUID, BebopUUID>();
+  private readonly idempotency = new Map<string, Map<BebopUUID, BebopUUID>>();
   private readonly subscribers = new Set<Subscriber>();
   private readonly completedOrder = new FifoQueue<BebopUUID>();
   private readonly maxPending: number;
@@ -66,12 +67,8 @@ export class InMemoryFutureStorage implements FutureStorage {
 
   async register(registration: FutureRegistration): Promise<BebopUUID> {
     if (registration.idempotencyKey !== undefined) {
-      const existingId = this.idempotency.get(registration.idempotencyKey);
+      const existingId = this.idempotency.get(registration.owner)?.get(registration.idempotencyKey);
       if (existingId !== undefined) {
-        const existing = this.entries.get(existingId);
-        if (existing?.owner !== registration.owner) {
-          throw new BebopRpcError(StatusCode.PERMISSION_DENIED);
-        }
         registration.context[Symbol.dispose]();
         return existingId;
       }
@@ -90,7 +87,14 @@ export class InMemoryFutureStorage implements FutureStorage {
         : { idempotencyKey: registration.idempotencyKey }),
     };
     this.entries.set(id, entry);
-    if (registration.idempotencyKey !== undefined) this.idempotency.set(registration.idempotencyKey, id);
+    if (registration.idempotencyKey !== undefined) {
+      let ownerKeys = this.idempotency.get(registration.owner);
+      if (ownerKeys === undefined) {
+        ownerKeys = new Map();
+        this.idempotency.set(registration.owner, ownerKeys);
+      }
+      ownerKeys.set(registration.idempotencyKey, id);
+    }
     this.pendingCount++;
 
     void Promise.resolve().then(() => registration.execute(id)).then(
@@ -105,14 +109,15 @@ export class InMemoryFutureStorage implements FutureStorage {
 
   async cancel(id: BebopUUID, owner: string): Promise<boolean> {
     const entry = this.entries.get(id);
-    if (entry === undefined || entry.owner !== owner) {
+    if (entry === undefined) return false;
+    if (entry.owner !== owner) {
       throw new BebopRpcError(StatusCode.PERMISSION_DENIED);
     }
-    if (entry.state.kind === "completed") return false;
-    entry.context.cancel();
+    if (entry.state.kind === "completed") return true;
     this.entries.delete(id);
     this.pendingCount--;
-    if (entry.idempotencyKey !== undefined) this.idempotency.delete(entry.idempotencyKey);
+    this.releaseIdempotency(entry);
+    entry.context.cancel();
     return true;
   }
 
@@ -155,6 +160,15 @@ export class InMemoryFutureStorage implements FutureStorage {
     return this.entries.has(id);
   }
 
+  private releaseIdempotency(entry: FutureEntry): void {
+    if (entry.idempotencyKey === undefined) return;
+    const ownerKeys = this.idempotency.get(entry.owner);
+    ownerKeys?.delete(entry.idempotencyKey);
+    if (ownerKeys?.size === 0) {
+      this.idempotency.delete(entry.owner);
+    }
+  }
+
   private complete(id: BebopUUID, result: FutureResult, discard: boolean): void {
     const entry = this.entries.get(id);
     if (entry === undefined || entry.state.kind !== "pending") return;
@@ -181,7 +195,7 @@ export class InMemoryFutureStorage implements FutureStorage {
     }
     if (discard) {
       this.entries.delete(id);
-      if (entry.idempotencyKey !== undefined) this.idempotency.delete(entry.idempotencyKey);
+      this.releaseIdempotency(entry);
       return;
     }
     entry.state = { kind: "completed", result };
@@ -191,7 +205,7 @@ export class InMemoryFutureStorage implements FutureStorage {
       if (evicted === undefined) break;
       const removed = this.entries.get(evicted);
       this.entries.delete(evicted);
-      if (removed?.idempotencyKey !== undefined) this.idempotency.delete(removed.idempotencyKey);
+      if (removed !== undefined) this.releaseIdempotency(removed);
     }
   }
 }

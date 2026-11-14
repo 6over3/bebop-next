@@ -1,6 +1,6 @@
 # Bebop RPC
 
-Wire protocol for Bebop service methods. Every byte on the wire is Bebop-encoded: the call header, frame header, error payload, batch protocol, futures, and discovery response are all defined in `bebop/rpc.bop`. An implementation that can decode Bebop messages can decode every part of the RPC protocol. No separate IDL, no schema negotiation, no special-case parsing.
+Wire protocol for Bebop service methods. RPC control records and application payloads use Bebop encoding. The call header, frame header, errors, batches, futures, and discovery records are defined in `bebop/rpc.bop`. Connection envelopes and I/O belong to the transport binding. No separate IDL or schema negotiation is required.
 
 The key words "MUST", "MUST NOT", "SHOULD", "SHOULD NOT", and "MAY" in this document are to be interpreted as described in RFC 2119.
 
@@ -230,7 +230,7 @@ HTTP unary calls skip framing entirely because HTTP already provides request/res
 | 0x08 | TRAILER | Payload is a `TrailingMetadata`. MUST combine with END_STREAM. |
 | 0x10 | CURSOR | 8 bytes of little-endian uint64 follow the payload. `length` counts payload bytes only. See section 11. |
 
-Remaining bits (0x20 and above) are reserved. Senders MUST set them to 0. Receivers MUST ignore them.
+Remaining bits (0x20 and above) are reserved. Senders MUST set them to 0. Receivers MUST ignore them. Decoders discard unknown bits from the exposed flags. Reserved bits never change the header size, payload length, or cursor layout.
 
 Invalid combinations:
 
@@ -242,13 +242,19 @@ Receivers SHOULD treat these as protocol errors and close the connection.
 
 Flags combine with bitwise OR. A frame ending a stream with an error: `END_STREAM | ERROR` = `0x03`. A frame with trailing metadata: `END_STREAM | TRAILER` = `0x09`.
 
-### 5.2. Stream identifiers
+### 5.2. Empty payloads
+
+In a streaming direction, a data frame with an empty payload is one application message. An empty END_STREAM frame is only a completion marker. To send an empty record as the final stream element, send an empty data frame followed by END_STREAM or TRAILER. ERROR and TRAILER frames never count as application messages.
+
+Unary directions have fixed cardinality: an empty END_STREAM payload represents the one empty request or response.
+
+### 5.3. Stream identifiers
 
 Stream IDs exist for transports that multiplex calls over one connection. Most transports provide their own multiplexing (HTTP/2 streams, separate WebSocket connections) and should use stream ID 0.
 
 Non-zero values identify a call within a multiplexed connection. Each call gets a unique stream ID for its lifetime. Assignment rules depend on the transport binding.
 
-### 5.3. Error frames
+### 5.4. Error frames
 
 When ERROR is set, the payload is a Bebop-encoded `RpcError` message. The `metadata` field carries any response metadata the handler set before the error. Omit it when there is none.
 
@@ -429,17 +435,17 @@ Servers MUST propagate deadlines to downstream calls. When making a downstream c
 
 ### 10.1. Client behavior
 
-To cancel an in-flight call, the client closes its send direction for that call:
+To cancel an in-flight call, the client aborts the call through its transport binding:
 
 | Transport | How to cancel |
 |-----------|---------------|
-| Binary (TCP, IPC) | Close the connection, or send END_STREAM on the request stream without waiting for the response. |
+| Binary (TCP, IPC) | Close the call-isolated connection, or use a reset defined by the transport binding. |
 | WebSocket | Send a close frame, or close the connection. |
 | HTTP/1.1 | Abort the request (close the TCP connection). |
 | HTTP/2 | Send RST_STREAM on the HTTP/2 stream. |
-| Multiplexed binary | Send END_STREAM on the call's stream ID. Other calls on the same connection are unaffected. |
+| Multiplexed binary | Reset the call using the transport binding. Other calls on the same connection are unaffected. |
 
-Clients SHOULD NOT expect a response after cancelling.
+END_STREAM is a normal request half-close and MUST NOT be interpreted as cancellation. Cancellation requires a transport close or an explicit reset mechanism. Clients SHOULD NOT expect a response after cancelling.
 
 ### 10.2. Server behavior
 
@@ -575,15 +581,15 @@ Three calls, one round trip. The dependent call runs automatically once its depe
 
 The server MUST:
 
-1. **Validate** all calls before executing any. Reject the entire batch with INVALID_ARGUMENT if any `call_id` is negative, if there are duplicate `call_id` values, or if `input_from` references a `call_id` that doesn't appear earlier in the list.
+1. **Validate** all calls before executing any. Reject the entire batch with INVALID_ARGUMENT if any `call_id` is negative, if there are duplicate `call_id` values, or if `input_from` is less than -1, or if it references a `call_id` that does not appear earlier in the list. IDs need not increase numerically.
 
 2. **Build a dependency graph** from `input_from` references. Calls with `input_from = -1` have no dependencies and form the first execution layer.
 
-3. **Execute each layer in parallel**. All calls within a layer MUST run concurrently. Calls in later layers wait for their dependencies to complete. Sequential execution of independent batch calls is a conformance violation.
+3. **Execute ready calls concurrently**. A dependent call becomes ready as soon as its dependency completes; unrelated calls do not form a barrier. Implementations MAY bound active work with a configurable concurrency limit. Independent calls MUST NOT be serialized when capacity is available.
 
 4. **Propagate failures**. If a call fails, all calls that depend on it via `input_from` also fail with INVALID_ARGUMENT and the detail `"dependency {call_id} failed"`.
 
-5. **Respect the deadline**. If the batch's deadline expires mid-execution, remaining calls SHOULD fail with DEADLINE_EXCEEDED. Completed calls keep their results.
+5. **Respect the deadline**. If the batch's deadline expires mid-execution, remaining calls SHOULD fail with DEADLINE_EXCEEDED. Completed calls keep their per-call outcomes. If the outer RPC is cancelled or expires, its response may no longer be deliverable.
 
 ### 13.3. Server-stream calls in batches
 
@@ -662,7 +668,7 @@ On reconnection, the client opens a new resolve stream. If the client passes IDs
 
 Method ID 4. Send a `FutureCancelRequest` with the future's UUID. The server verifies the caller owns the future, then signals cancellation to the running task via the call context's cancellation mechanism (`RpcContext.isCancelled`). Returns `bebop.Empty`. If the caller does not own the future, the server returns PERMISSION_DENIED.
 
-Cancellation is best-effort. The inner call may have already completed. The server does not guarantee the future is cancelled on return; it only guarantees the signal was delivered.
+Cancellation is best-effort. A completed future owned by the caller returns `bebop.Empty` without changing its result. An unknown ID returns NOT_FOUND. A known ID owned by another caller returns PERMISSION_DENIED. A successful cancellation request does not guarantee that running application code has stopped.
 
 ### 14.5. Batch dispatch
 
@@ -677,7 +683,7 @@ Future IDs are server-generated v4 UUIDs using a cryptographically secure random
 The server resolves caller identity in order:
 
 1. **Authenticated identity** from peer information (section 12.1). If the transport or an interceptor has verified credentials and set an identity string, that string is the owner.
-2. **Remote address** from peer information. If no auth is configured, the connection's remote address is the owner. Futures are then scoped per connection rather than per peer.
+2. **Remote address**, only when the server explicitly enables unauthenticated future ownership. Futures are then scoped to the transport's address identity rather than an authenticated principal. This fallback MUST be disabled by default.
 3. **UNAUTHENTICATED**. If peer information has neither an identity nor a remote address, the server rejects the call.
 
 The dispatch call records this identity as the future's owner. Resolve streams only push results for futures the caller owns. Cancel calls reject with PERMISSION_DENIED if the caller doesn't own the target future.
@@ -793,11 +799,11 @@ Three derivation methods:
 - `context.deriving(appending: [...])` — copy metadata, deadline, and cursor, then merge extra keys. New keys override existing ones.
 - `RpcContext(metadata: [...])` — start clean. Nothing from the incoming call propagates.
 
-Deadlines propagate with `forwarding()` and `deriving(appending:)`. Servers MUST use the earlier of the propagated deadline and any locally configured timeout. See section 9.
+Deadlines and cancellation propagate with derived contexts. Cancelling a child MUST NOT cancel its parent or siblings. A child MUST NOT extend its parent's deadline or replace its parent's cancellation signal. Deadlines propagate with `forwarding()` and `deriving(appending:)`. Servers MUST use the earlier of the propagated deadline and any locally configured timeout. See section 9.
 
 ### 16.4. Batch context
 
-In a batch, all calls share the batch-level metadata from `BatchRequest.metadata`. Each call gets its own `RpcContext` so handlers can set response metadata independently. Cursors are not propagated to batch calls; each starts at 0.
+In a batch, all calls share the batch-level metadata from `BatchRequest.metadata`. Each call gets its own `RpcContext` so handlers can set response metadata independently. The verified peer identity and parent cancellation state are preserved. Cursors are not propagated to batch calls; each starts at 0.
 
 When a call depends on another via `input_from`, the upstream call's response metadata merges into the downstream call's request metadata:
 
@@ -851,13 +857,17 @@ Handlers that use only core `RpcContext` APIs work on every transport. Handlers 
 
 ### 16.6. Interceptors
 
-Interceptors wrap handler dispatch. They receive the method ID and `RpcContext`, and decide whether to proceed or reject the call.
+Interceptors wrap handler invocation and preserve its return value. For unary calls, `proceed` completes when the handler returns. For streaming calls, it completes when the handler returns its stream or request sink; consuming the stream and observing its terminal status are separate operations. Stream-iteration errors are surfaced to the consumer, not to an interceptor that has already returned. They receive the method ID and `RpcContext`, and decide whether to proceed or reject the call.
 
 ```
-func intercept(methodId: UInt32, ctx: RpcContext, proceed: () async throws -> Void) async throws {
+func intercept<Value: Sendable>(
+    methodId: UInt32,
+    ctx: RpcContext,
+    proceed: @Sendable () async throws -> Value
+) async throws -> Value {
     let traceId = ctx.metadata["x-trace-id"] ?? generateTraceId()
     ctx.setResponseMetadata("x-trace-id", traceId)
-    try await proceed()
+    return try await proceed()
 }
 ```
 
@@ -865,7 +875,7 @@ Interceptors run in registration order. The first registered interceptor is the 
 
 Interceptors read and write the same `RpcContext` the handler receives. Response metadata set by an interceptor is visible to the transport alongside metadata set by the handler.
 
-Interceptors run on reserved methods too: dispatch (2), resolve (3), and cancel (4) all pass through the interceptor chain before reaching the built-in handler. This lets you add auth, logging, or rate limiting to future operations.
+Interceptors run on all reserved methods too. Authentication interceptors run before future ownership checks. Dispatch (2), resolve (3), and cancel (4) all pass through the interceptor chain before reaching the built-in handler. This lets you add auth, logging, or rate limiting to future operations.
 
 ## 17. Transport: HTTP
 
@@ -1022,7 +1032,9 @@ Stream IDs SHOULD be 0. Each WebSocket connection handles one call. Multiplex by
 
 Byte stream layout: `CallHeader`, then frames concatenated end-to-end. The receiver reads each frame by parsing the 9-byte header, then reading `length` bytes of payload.
 
-For multiplexing over a single connection, use non-zero stream IDs. Client-initiated streams use odd IDs; server-initiated streams use even IDs.
+A call-isolated byte stream uses stream ID 0. A multiplexed binding uses non-zero stream IDs: client-initiated streams use odd IDs and server-initiated streams use even IDs.
+
+A multiplexed binding MUST define how a new `CallHeader` is associated with its stream ID, how calls are reset, and how it applies flow control. The 9-byte frame header alone does not define those operations. A binding MUST NOT interleave unframed call headers with frame bytes without an unambiguous envelope. These connection-control mechanisms belong to the transport binding.
 
 ### 18.6. IPC and shared memory
 
@@ -1042,17 +1054,17 @@ When a call arrives:
 
 1. Parse the `CallHeader` (binary) or extract routing from HTTP path and headers.
 2. Check the deadline. If already passed, return DEADLINE_EXCEEDED without invoking the handler.
-3. Look up the method ID. If not found, return NOT_FOUND.
-4. Verify the method type matches the calling convention. A unary method invoked as server-stream SHOULD return UNIMPLEMENTED.
-5. Run interceptors, if any.
-6. Invoke the handler.
+3. Enter the interceptor chain, if any. Authentication and admission checks may reject the call before method lookup.
+4. Inside `proceed`, look up the method ID. If not found, return NOT_FOUND.
+5. Verify the method type matches the calling convention. A unary method invoked as server-stream SHOULD return UNIMPLEMENTED.
+6. Invoke the handler. Return its value through the interceptor chain.
 
 ### 19.3. Server: deadline enforcement
 
 The server MUST track deadlines for every call that has one. When a deadline expires:
 
 1. Set the cancellation flag on the call context.
-2. Cancel the handler's task/coroutine if it hasn't returned.
+2. Request cooperative cancellation of the handler through the binding's task or cancellation mechanism. Keep its state alive until outstanding application work and I/O have stopped.
 3. Send DEADLINE_EXCEEDED if the response stream is still writable.
 4. Clean up resources.
 
@@ -1063,7 +1075,7 @@ If the handler throws an error:
 - If the error is a `BebopRpcError` (or the language-specific equivalent), use its status code and detail.
 - Otherwise, wrap it as INTERNAL with the error description as the detail. Do not leak stack traces to the client in production.
 
-If the handler panics, return INTERNAL. One bad call MUST NOT crash the process.
+Recoverable language errors MUST be isolated to the call and surfaced as INTERNAL. Process aborts, memory faults, and undefined behavior require application-level isolation; the RPC runtime does not guarantee recovery from them.
 
 ### 19.5. Server: streaming
 
@@ -1090,8 +1102,8 @@ When futures are enabled, the server MUST:
 - Run dispatched work in background tasks independent of the dispatch call's connection.
 - Push results on active resolve streams only when the subscriber owns the completed future.
 - Enforce `FutureDispatchRequest.deadline` on the inner call, not on the dispatch call itself.
-- Respect idempotency keys: if a pending or completed future has the same key for the same owner, return the existing handle. Return PERMISSION_DENIED if the key matches a future owned by a different caller.
-- On cancel, verify the caller owns the future before signaling cancellation. Return PERMISSION_DENIED otherwise. Do not block waiting for the task to finish.
+- Respect idempotency keys: index them by `(owner, key)`. If a pending or completed future has the same key for the same owner, return the existing handle. Different owners may independently use the same key.
+- On cancel, return NOT_FOUND for an unknown ID and PERMISSION_DENIED for another caller's future. Owned completed futures succeed without changing their result. Signal running work without waiting for it to finish.
 
 When futures are not enabled, the server MUST return UNIMPLEMENTED for method IDs 2, 3, and 4.
 

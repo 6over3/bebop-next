@@ -106,6 +106,13 @@ void test_emit_enum(void)
         "}\n");
 
   roundtrip("enum Flags : uint16 {\n" "    None = 0;\n" "    Read = 1;\n" "    Write = 2;\n" "}\n");
+
+  roundtrip(
+      "import \"bebop/decorators.bop\";\n"
+      "@flags enum Bits : byte { NONE = 0; ALL = ~0; LEGACY = ~0 - 1; "
+      "SHIFT = 1 << 1 + 2; RIGHT = SHIFT >> 1; }\n"
+      "@flags enum Signed : int64 { ZERO = 0; NEGATIVE = -8; "
+      "HALF = NEGATIVE >> 1; GROUP = -(-5 + 2); }\n");
 }
 
 void test_emit_union(void)

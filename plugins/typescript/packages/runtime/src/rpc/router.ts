@@ -36,7 +36,7 @@ export const BebopReservedMethod = {
   cancel: 4,
 } as const;
 
-const reservedMethodIds = new Set<number>(Object.values(BebopReservedMethod));
+
 
 export type RpcStreamElement<Payload> = {
   readonly value: Payload;
@@ -292,7 +292,7 @@ export class BebopRouterBuilder {
     if (!Number.isInteger(id) || id < 0 || id > 0xffff_ffff) {
       throw new RangeError(`method ID must be a uint32: ${id}`);
     }
-    if (reservedMethodIds.has(id)) throw new Error(`method ID ${id} is reserved`);
+    if (id <= 255) throw new Error(`method ID ${id} is reserved`);
     if (this.methods.has(id)) throw new Error(`duplicate method ID 0x${id.toString(16).toUpperCase()}`);
     this.methods.set(id, registration);
     return this;
@@ -465,6 +465,10 @@ class DefaultBebopRouter implements BebopRouter {
               ? batchMetadata
               : mergeMetadata(batchMetadata, upstreamMetadata),
           });
+          const peer = parentContext.getAttachment<PeerInfo>(peerInfoKey);
+          if (peer !== undefined) {
+            context.setAttachment(peerInfoKey, peer);
+          }
           const type = this.methodType(call.methodId);
           let payloads: readonly Uint8Array[];
           if (type === MethodType.UNARY) payloads = [await this.unary(call.methodId, callPayload, context)];
@@ -616,7 +620,9 @@ class DefaultBebopRouter implements BebopRouter {
     const storage = this.requireFutureStorage();
     const owner = this.requireOwner(context);
     const request = decode(FutureCancelRequest, payload, this.readerOptions);
-    await storage.cancel(request.id, owner);
+    if (!await storage.cancel(request.id, owner)) {
+      throw new BebopRpcError(StatusCode.NOT_FOUND, "future not found");
+    }
     return encode(BebopEmpty, {});
   }
 
@@ -640,38 +646,17 @@ class DefaultBebopRouter implements BebopRouter {
 function orderBatchDependencies(
   calls: ReadonlyMap<number, { readonly inputFrom: number }>,
 ): readonly number[] {
-  const visited = new Set<number>();
-  const order: number[] = [];
-  for (const start of calls.keys()) {
-    if (visited.has(start)) continue;
-    const path: number[] = [];
-    const pathIndexes = new Map<number, number>();
-    let id = start;
-    while (!visited.has(id)) {
-      if (pathIndexes.has(id)) {
-        throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, "batch dependency cycle");
-      }
-      pathIndexes.set(id, path.length);
-      path.push(id);
-      const call = calls.get(id);
-      if (call === undefined) {
-        throw new BebopRpcError(StatusCode.INTERNAL, `batch call ${id} disappeared during ordering`);
-      }
-      const dependency = call.inputFrom;
-      if (dependency < 0) break;
-      if (!calls.has(dependency)) {
-        throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `unknown batch dependency ${dependency}`);
-      }
-      id = dependency;
+  const earlier = new Set<number>();
+  for (const [id, call] of calls) {
+    if (id < 0) {
+      throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, "batch call IDs must be non-negative");
     }
-    for (let index = path.length - 1; index >= 0; index--) {
-      const value = path[index]!;
-      if (visited.has(value)) continue;
-      visited.add(value);
-      order.push(value);
+    if (call.inputFrom < -1 || (call.inputFrom >= 0 && !earlier.has(call.inputFrom))) {
+      throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `invalid batch dependency ${call.inputFrom}`);
     }
+    earlier.add(id);
   }
-  return order;
+  return [...calls.keys()];
 }
 
 async function* mapStream<Input, Output>(

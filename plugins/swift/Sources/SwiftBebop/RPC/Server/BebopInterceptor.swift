@@ -1,8 +1,8 @@
 /// Server-side middleware. Call `proceed` to continue, throw to reject.
 public protocol BebopInterceptor: Sendable {
-    func intercept(
+    func intercept<Value: Sendable>(
         methodId: UInt32,
         ctx: RpcContext,
-        proceed: @Sendable () async throws -> Void
-    ) async throws
+        proceed: @Sendable () async throws -> Value
+    ) async throws -> Value
 }

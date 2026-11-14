@@ -949,6 +949,10 @@ function serviceMethodInfo(
 ): ServiceMethodInfo {
   const originalName = required(method.name, `service ${serviceName} method missing name`);
   const methodType = required(method.methodType, `service ${serviceName} method ${originalName} missing type`);
+  const id = required(method.id, `service ${serviceName} method ${originalName} missing id`);
+  if (id <= 255) {
+    throw new CodegenError(`service ${serviceName} method ${originalName} uses reserved method ID ${id}`);
+  }
   const request = serviceTypeInfo(
     required(method.requestType, `service ${serviceName} method ${originalName} missing request`),
     state,
@@ -962,7 +966,7 @@ function serviceMethodInfo(
   return {
     originalName,
     name: serviceMethodName(originalName),
-    id: required(method.id, `service ${serviceName} method ${originalName} missing id`),
+    id,
     methodType,
     runtimeMethodType: runtimeMethodType(methodType),
     requestType: request.type,
@@ -1837,8 +1841,16 @@ function literalExpression(value: LiteralValue, type: TypeDescriptor): string {
   switch (value.kind) {
     case LiteralKind.BOOL:
       return value.boolValue === true ? "true" : "false";
-    case LiteralKind.INT:
+    case LiteralKind.INT: {
+      if (value.integerValue !== undefined) {
+        let integer = value.integerValue.magnitude;
+        if (value.integerValue.negative) {
+          integer = -integer;
+        }
+        return integerLiteral(integer, type.kind);
+      }
       return integerLiteral(required(value.intValue, "int literal missing value"), type.kind);
+    }
     case LiteralKind.FLOAT:
       return numberLiteral(required(value.floatValue, "float literal missing value"));
     case LiteralKind.STRING:

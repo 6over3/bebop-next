@@ -8,18 +8,27 @@ static Bebop_Context* _desc_make_ctx(bebop_host_allocator_t* a)
   return bebop_context_new(&opts);
 }
 
-static Bebop_String _desc_dup_str(Bebop_Context* ctx, const char* s)
+static Bebop_String _desc_dup_str_n(Bebop_Context* ctx, const char* s, size_t len)
 {
   if (!s) {
     return (Bebop_String) {0};
   }
-  const size_t len = strlen(s);
   char* p = bebop_context_alloc(ctx, len + 1);
   if (!p) {
     return (Bebop_String) {0};
   }
-  memcpy(p, s, len + 1);
+  memcpy(p, s, len);
+  p[len] = '\0';
   return (Bebop_String) {.data = p, .length = (uint32_t)len};
+}
+
+static Bebop_String _desc_dup_str(Bebop_Context* ctx, const char* s)
+{
+  size_t length = 0;
+  if (s) {
+    length = strlen(s);
+  }
+  return _desc_dup_str_n(ctx, s, length);
 }
 
 #define DESC_SET_OPT_STR(field, str) \
@@ -115,14 +124,31 @@ static void _desc_build_literal(
     case BEBOP_LITERAL_BOOL:
       DESC_SET_OPT(dst->bool_value, src->bool_val);
       break;
-    case BEBOP_LITERAL_INT:
-      DESC_SET_OPT(dst->int_value, src->int_val);
+    case BEBOP_LITERAL_INT: {
+      int64_t value;
+      if (bebop__integer_to_int64(src->int_val, &value)) {
+        DESC_SET_OPT(dst->int_value, value);
+      } else {
+        const uint64_t words[2] = {src->int_val.low, src->int_val.high};
+        Bebop_UInt128 magnitude;
+        memcpy(&magnitude, words, sizeof(magnitude));
+        const Bebop_IntegerValue integer = {
+            .magnitude = magnitude,
+            .negative = src->int_val.negative,
+        };
+        dst->integer_value.has_value = true;
+        memcpy(&dst->integer_value.value, &integer, sizeof(integer));
+      }
       break;
+    }
     case BEBOP_LITERAL_FLOAT:
       DESC_SET_OPT(dst->float_value, src->float_val);
       break;
     case BEBOP_LITERAL_STRING:
-      DESC_SET_OPT_STR(dst->string_value, BEBOP_STR(bctx, src->string_val));
+      dst->string_value.has_value = true;
+      dst->string_value.value = _desc_dup_str_n(
+          wctx, BEBOP_STR(bctx, src->string_val), BEBOP_STR_LEN(bctx, src->string_val)
+      );
       break;
     case BEBOP_LITERAL_UUID:
       dst->uuid_value.has_value = true;
@@ -154,7 +180,9 @@ static void _desc_build_literal(
   }
 
   if (src->has_env_var) {
-    DESC_SET_OPT_STR(dst->raw_value, BEBOP_STR(bctx, src->raw_value));
+    dst->raw_value.has_value = true;
+    dst->raw_value.value =
+        _desc_dup_str_n(wctx, BEBOP_STR(bctx, src->raw_value), BEBOP_STR_LEN(bctx, src->raw_value));
   }
 }
 
@@ -185,7 +213,11 @@ static Bebop_DecoratorUsage_Array _desc_build_decorators(
     Bebop_DecoratorUsage* u = &arr[i];
     memset(u, 0, sizeof(*u));
 
-    DESC_SET_OPT_STR(u->fqn, BEBOP_STR(bctx, d->name));
+    if (d->resolved) {
+      DESC_SET_OPT_STR(u->fqn, BEBOP_STR(bctx, d->resolved->fqn));
+    } else {
+      DESC_SET_OPT_STR(u->fqn, BEBOP_STR(bctx, d->name));
+    }
 
     if (d->arg_count > 0 && d->args) {
       Bebop_DecoratorArg* args = bebop_context_alloc(wctx, d->arg_count * sizeof(*args));
@@ -1742,6 +1774,39 @@ int64_t bebop_descriptor_literal_as_int(const bebop_descriptor_literal_t* l)
   return l && BEBOP_HAS_VALUE(l->int_value) ? l->int_value.value : 0;
 }
 
+bool bebop_descriptor_literal_as_integer(
+    const bebop_descriptor_literal_t* lit, uint64_t* low, uint64_t* high, bool* negative
+)
+{
+  if (!lit || bebop_descriptor_literal_kind(lit) != BEBOP_LITERAL_INT) {
+    return false;
+  }
+  bebop__integer_t value;
+  if (BEBOP_HAS_VALUE(lit->integer_value)) {
+    uint64_t words[2];
+    memcpy(words, &lit->integer_value.value.magnitude, sizeof(words));
+    value = (bebop__integer_t) {
+        .low = words[0],
+        .high = words[1],
+        .negative = lit->integer_value.value.negative,
+    };
+  } else if (BEBOP_HAS_VALUE(lit->int_value)) {
+    value = bebop__integer_from_int64(lit->int_value.value);
+  } else {
+    return false;
+  }
+  if (low) {
+    *low = value.low;
+  }
+  if (high) {
+    *high = value.high;
+  }
+  if (negative) {
+    *negative = value.negative;
+  }
+  return true;
+}
+
 double bebop_descriptor_literal_as_float(const bebop_descriptor_literal_t* l)
 {
   return l && BEBOP_HAS_VALUE(l->float_value) ? l->float_value.value : 0.0;
@@ -1752,6 +1817,19 @@ const char* bebop_descriptor_literal_as_string(const bebop_descriptor_literal_t*
   return l && BEBOP_HAS_VALUE(l->string_value) ? l->string_value.value.data : NULL;
 }
 
+const char* bebop_descriptor_literal_as_string_n(
+    const bebop_descriptor_literal_t* l, size_t* out_len
+)
+{
+  if (out_len) {
+    *out_len = 0;
+    if (l && BEBOP_HAS_VALUE(l->string_value)) {
+      *out_len = l->string_value.value.length;
+    }
+  }
+  return bebop_descriptor_literal_as_string(l);
+}
+
 const uint8_t* bebop_descriptor_literal_as_uuid(const bebop_descriptor_literal_t* l)
 {
   return l && BEBOP_HAS_VALUE(l->uuid_value) ? l->uuid_value.value.bytes : NULL;
@@ -1760,6 +1838,19 @@ const uint8_t* bebop_descriptor_literal_as_uuid(const bebop_descriptor_literal_t
 const char* bebop_descriptor_literal_raw_value(const bebop_descriptor_literal_t* l)
 {
   return l && BEBOP_HAS_VALUE(l->raw_value) ? l->raw_value.value.data : NULL;
+}
+
+const char* bebop_descriptor_literal_raw_value_n(
+    const bebop_descriptor_literal_t* l, size_t* out_len
+)
+{
+  if (out_len) {
+    *out_len = 0;
+    if (l && BEBOP_HAS_VALUE(l->raw_value)) {
+      *out_len = l->raw_value.value.length;
+    }
+  }
+  return bebop_descriptor_literal_raw_value(l);
 }
 
 const uint8_t* bebop_descriptor_literal_as_bytes(

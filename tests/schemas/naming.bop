@@ -1,0 +1,58 @@
+package naming
+
+import "bebop/cpp.bop"
+
+const uint32 FIELDS = 17;
+
+struct Fields {
+    value: uint32;
+}
+
+union Kind {
+    Data(1): Fields;
+}
+
+union Variant {
+    Data(1): Fields;
+}
+
+mut struct MemberNames {
+    HTTPServerID: uint64;
+    healthPoints: uint32;
+    URL: string;
+    isActive: bool;
+    Class: uint32;
+    @cpp.name("ExactName")
+    overridden: uint32;
+}
+
+mut struct WideValue {
+    value: uint128;
+}
+
+union WideChoice {
+    Wide(1): WideValue;
+}
+
+mut struct AlignedLayout {
+    block: uint64[7];
+    choice: WideChoice;
+    tail: uint64;
+}
+
+mut struct AllocatorNames {
+    allocator: string;
+    other: string;
+}
+
+struct ImmutableAllocatorNames {
+    allocator: string;
+    other: string;
+}
+
+mut struct ViewNames {
+    encoded: string;
+    view_index_: string[];
+    @cpp.name("Index")
+    indexing: uint32;
+}

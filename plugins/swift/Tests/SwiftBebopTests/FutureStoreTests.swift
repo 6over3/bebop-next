@@ -23,7 +23,7 @@ private let bob = "bob"
         let (immediate, _) = await store.subscribe(futureIds: [id], owner: alice)
         #expect(immediate.count == 1)
         #expect(immediate[0].id == id)
-        guard case let .success(s) = immediate[0].outcome else {
+        guard case .success(let s) = immediate[0].outcome else {
             Issue.record("expected success")
             return
         }
@@ -45,7 +45,7 @@ private let bob = "bob"
             )
         }
 
-        let cancelled = await store.cancel(id: id, owner: alice)
+        let cancelled = try await store.cancel(id: id, owner: alice)
         #expect(cancelled)
 
         gate.continuation.finish()
@@ -66,14 +66,15 @@ private let bob = "bob"
             )
         }
 
-        let bobCancelled = await store.cancel(id: id, owner: bob)
-        #expect(!bobCancelled)
+        await #expect(throws: BebopRpcError.self) {
+            try await store.cancel(id: id, owner: bob)
+        }
 
-        await store.cancel(id: id, owner: alice)
+        try await store.cancel(id: id, owner: alice)
         gate.continuation.finish()
     }
 
-    @Test func cancelCompletedFutureReturnsFalse() async throws {
+    @Test func cancelCompletedFutureSucceeds() async throws {
         let store = FutureStore()
         let id = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
             futureId in
@@ -85,13 +86,13 @@ private let bob = "bob"
 
         try await Task.sleep(for: .milliseconds(50))
 
-        let completedCancelled = await store.cancel(id: id, owner: alice)
-        #expect(!completedCancelled)
+        let completedCancelled = try await store.cancel(id: id, owner: alice)
+        #expect(completedCancelled)
     }
 
-    @Test func cancelUnknownIdReturnsFalse() async {
+    @Test func cancelUnknownIdReturnsFalse() async throws {
         let store = FutureStore()
-        let unknownCancelled = await store.cancel(id: BebopUUID.random(), owner: alice)
+        let unknownCancelled = try await store.cancel(id: BebopUUID.random(), owner: alice)
         #expect(!unknownCancelled)
     }
 
@@ -111,7 +112,7 @@ private let bob = "bob"
             )
         }
 
-        await store.cancel(id: id1, owner: alice)
+        try await store.cancel(id: id1, owner: alice)
         gate.continuation.finish()
 
         let id2 = try await store.register(ctx: RpcContext(), idempotencyKey: key, owner: alice) {
@@ -145,27 +146,22 @@ private let bob = "bob"
         #expect(id1 == id2)
     }
 
-    @Test func idempotencyKeyFromDifferentOwnerRejects() async throws {
+    @Test func idempotencyKeysAreScopedToOwner() async throws {
         let store = FutureStore()
         let key = BebopUUID.random()
-
-        _ = try await store.register(ctx: RpcContext(), idempotencyKey: key, owner: alice) {
-            futureId in
-            FutureResult(
-                id: futureId,
-                outcome: .success(FutureSuccess(payload: [1], metadata: [:]))
-            )
+        let first = try await store.register(ctx: RpcContext(), idempotencyKey: key, owner: alice) {
+            FutureResult(id: $0, outcome: .success(FutureSuccess(payload: [1], metadata: [:])))
         }
-
-        await #expect(throws: BebopRpcError.self) {
-            _ = try await store.register(ctx: RpcContext(), idempotencyKey: key, owner: bob) {
-                futureId in
-                FutureResult(
-                    id: futureId,
-                    outcome: .success(FutureSuccess(payload: [2], metadata: [:]))
-                )
-            }
+        let second = try await store.register(ctx: RpcContext(), idempotencyKey: key, owner: bob) {
+            FutureResult(id: $0, outcome: .success(FutureSuccess(payload: [2], metadata: [:])))
         }
+        #expect(first != second)
+        let repeated = try await store.register(
+            ctx: RpcContext(), idempotencyKey: key, owner: alice
+        ) {
+            FutureResult(id: $0, outcome: .success(FutureSuccess(payload: [3], metadata: [:])))
+        }
+        #expect(first == repeated)
     }
 
     @Test func nilIdempotencyKeyDoesNotDedup() async throws {
@@ -241,7 +237,8 @@ private let bob = "bob"
                 outcome: .success(FutureSuccess(payload: [1], metadata: [:]))
             )
         }
-        _ = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: bob) { futureId in
+        _ = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: bob) {
+            futureId in
             FutureResult(
                 id: futureId,
                 outcome: .success(FutureSuccess(payload: [2], metadata: [:]))
@@ -315,9 +312,11 @@ private let bob = "bob"
         }
 
         await #expect(throws: BebopRpcError.self) {
-            _ = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) { _ in
+            _ = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
+                _ in
                 FutureResult(
-                    id: BebopUUID.random(), outcome: .success(FutureSuccess(payload: [], metadata: [:]))
+                    id: BebopUUID.random(),
+                    outcome: .success(FutureSuccess(payload: [], metadata: [:]))
                 )
             }
         }
@@ -330,21 +329,24 @@ private let bob = "bob"
 
         let id1 = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
             futureId in
-            FutureResult(id: futureId, outcome: .success(FutureSuccess(payload: [1], metadata: [:])))
+            FutureResult(
+                id: futureId, outcome: .success(FutureSuccess(payload: [1], metadata: [:])))
         }
 
         try await Task.sleep(for: .milliseconds(50))
 
         let id2 = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
             futureId in
-            FutureResult(id: futureId, outcome: .success(FutureSuccess(payload: [2], metadata: [:])))
+            FutureResult(
+                id: futureId, outcome: .success(FutureSuccess(payload: [2], metadata: [:])))
         }
 
         try await Task.sleep(for: .milliseconds(50))
 
         _ = try await store.register(ctx: RpcContext(), idempotencyKey: nil, owner: alice) {
             futureId in
-            FutureResult(id: futureId, outcome: .success(FutureSuccess(payload: [3], metadata: [:])))
+            FutureResult(
+                id: futureId, outcome: .success(FutureSuccess(payload: [3], metadata: [:])))
         }
 
         try await Task.sleep(for: .milliseconds(50))

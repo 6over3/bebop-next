@@ -455,7 +455,9 @@ done_lit:
     char* new_buf = bebop_arena_new(BEBOP_ARENA(s->ctx), char, final_cap);
     if (!new_buf) {
       s->error = BEBOP_ERR_OUT_OF_MEMORY;
-      bebop__context_set_error(s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate literal buffer");
+      bebop__context_set_error(
+          s->ctx, BEBOP_ERR_OUT_OF_MEMORY, "Failed to allocate literal buffer"
+      );
       return (bebop_token_t) {
           .kind = BEBOP_TOKEN_ERROR,
           .span = bebop__scan_make_span(s, start, start_line, start_col),
@@ -670,6 +672,9 @@ static bebop_token_t bebop__scan_token(bebop__scanner_t* s)
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
     case '|':
       return (bebop_token_t) {.kind = BEBOP_TOKEN_PIPE,
+                              .span = bebop__scan_make_span(s, start, start_line, start_col)};
+    case '+':
+      return (bebop_token_t) {.kind = BEBOP_TOKEN_PLUS,
                               .span = bebop__scan_make_span(s, start, start_line, start_col)};
 
     case '-':
@@ -889,6 +894,8 @@ const char* bebop_token_kind_name(const bebop_token_kind_t kind)
       return "|";
     case BEBOP_TOKEN_MINUS:
       return "-";
+    case BEBOP_TOKEN_PLUS:
+      return "+";
     case BEBOP_TOKEN_ARROW:
       return "->";
     case BEBOP_TOKEN_HASH:

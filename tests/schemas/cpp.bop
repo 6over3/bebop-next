@@ -1,0 +1,90 @@
+package game
+
+import "bebop/cpp.bop"
+import "bebop/decorators.bop"
+
+/// The entity's current activity.
+enum Activity : byte {
+    IDLE = 0;
+    MOVING = 1;
+}
+
+/// A simulation entity.
+mut struct EntityState {
+    enabled: bool;
+    id: uint64;
+    position: float32[3];
+    activity: Activity;
+}
+
+/// Immutable scene metadata.
+struct Metadata {
+    label: string;
+    created: timestamp;
+}
+
+struct Empty {}
+message EmptyMessage {}
+
+/// A network snapshot.
+message WorldSnapshot {
+    tick(1): uint32;
+    entities(2): EntityState[];
+    @cpp.name(value: "class_id")
+    class(3): uint64;
+    metadata(9): Metadata;
+    events(99): Event[];
+    @cpp.map(kind: "map")
+    tables(33): map[string, map[uint64, EntityState]];
+    @cpp.map(kind: "flat_map")
+    grids(129): map[uint64, EntityState][];
+    names(200): map[string, string];
+    flags(255): bool[];
+}
+
+mut struct Outer {
+    enum Mode : byte {
+        DEFAULT = 0;
+        SECOND = 1;
+    }
+    struct Inner {
+        value: uint32;
+    }
+    inner: Inner;
+    mode: Mode;
+}
+
+union Event {
+    Moved(1): EntityState;
+    Caption(2): Metadata;
+    MovedAgain(3): EntityState;
+    Bounce(7): mut {
+        velocity: float32[3];
+    };
+    Prompt(8): message {
+        text(1): string;
+    };
+}
+
+union Variant {
+    Entity(1): EntityState;
+}
+
+@flags
+enum Access : uint16 {
+    NONE = 0;
+    READ = 1;
+    WRITE = 2;
+}
+
+mut struct HalfValues {
+    exact: float16;
+    approximate: bfloat16;
+}
+
+mut struct Inventory {
+    description: string;
+    tags: string[];
+    slots: map[uint32, string[]][2];
+    revision: uint64;
+}

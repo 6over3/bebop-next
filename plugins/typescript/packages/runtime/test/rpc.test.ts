@@ -1,3 +1,4 @@
+import conformance from "../../../../../tests/fixtures/rpc/conformance.json" with { type: "json" };
 import { describe, expect, test } from "vitest";
 import { decode, encode, type BebopCodec } from "../src/codec.js";
 import { BatchResults, createBatch } from "../src/rpc/batch.js";
@@ -11,15 +12,16 @@ import {
   type BebopChannel,
   type RpcResponse,
 } from "../src/rpc/channel.js";
-import { peerInfoKey, RpcContext } from "../src/rpc/context.js";
+import { peerInfoKey, RpcContext, withDeadline } from "../src/rpc/context.js";
 import { BebopRouterBuilder } from "../src/rpc/router.js";
 import type { BebopRouter } from "../src/rpc/router.js";
 import { FutureDispatcher } from "../src/rpc/future.js";
 import { InMemoryFutureStorage } from "../src/rpc/future-storage.js";
+import type { BebopUUID } from "../src/uuid.js";
 import type { BebopViewCodec } from "../src/reflection.js";
 import { defineService } from "../src/rpc/service.js";
 import { Frame, FrameWriter, readFrames } from "../src/rpc/frame.js";
-import { BatchOutcome, MethodType, StatusCode } from "../src/rpc.bb.js";
+import { BatchOutcome, BatchRequest, BatchResponse, FrameFlags, FutureCancelRequest, MethodType, StatusCode } from "../src/rpc.bb.js";
 import { BebopViewReader } from "../src/view.js";
 import type { BebopReader, BebopReaderOptions, BebopWriter } from "../src/wire.js";
 
@@ -56,7 +58,7 @@ const DoubleService = defineService(
   "DoubleService",
   {
     double: {
-      id: 102,
+      id: 1102,
       name: "Double",
       methodType: MethodType.UNARY,
       request: Uint32Codec,
@@ -75,7 +77,7 @@ const TripleService = defineService(
   "TripleService",
   {
     triple: {
-      id: 103,
+      id: 1103,
       name: "Triple",
       methodType: MethodType.UNARY,
       request: Uint32Codec,
@@ -134,8 +136,18 @@ describe("Bebop RPC frames", () => {
 
   test("rejects unknown flags and values that would truncate on the wire", () => {
     expect(() => new Frame(new Uint8Array(), 0x80)).toThrow("invalid frame flags");
+    expect(() => new Frame(new Uint8Array(), 0x10)).toThrow("CURSOR flag requires a cursor");
     expect(() => new Frame(new Uint8Array(), 0, 0x1_0000_0000)).toThrow("invalid frame stream ID");
     expect(() => new Frame(new Uint8Array(), 0, 0, -1n)).toThrow("invalid frame cursor");
+  });
+
+  test("rejects invalid frame writes through the returned promise", async () => {
+    const writer = new FrameWriter(new WritableStream());
+    const frame = new Frame(new Uint8Array());
+    Reflect.set(frame.header, "flags", FrameFlags.CURSOR);
+
+    await expect(writer.write(frame)).rejects.toThrow("CURSOR flag requires a cursor");
+    await writer.close();
   });
 
   test("keeps concurrent frame writes atomic", async () => {
@@ -223,7 +235,7 @@ describe("Bebop RPC interceptors", () => {
   test("compose around the handler in registration order", async () => {
     const events: string[] = [];
     const method = {
-      id: 100,
+      id: 1100,
       name: "double",
       methodType: MethodType.UNARY,
       request: Uint32Codec,
@@ -264,7 +276,7 @@ describe("Bebop RPC interceptors", () => {
 
   test("duplex handlers may await their first request without deadlocking setup", async () => {
     const method = {
-      id: 101,
+      id: 1101,
       name: "duplex",
       methodType: MethodType.DUPLEX_STREAM,
       request: Uint32Codec,
@@ -292,7 +304,7 @@ describe("Bebop RPC interceptors", () => {
   });
 
   test("applies backpressure until handlers consume client-streamed requests", async () => {
-    const method = rpcMethod(104, MethodType.CLIENT_STREAM);
+    const method = rpcMethod(1104, MethodType.CLIENT_STREAM);
     const consume = Promise.withResolvers<void>();
     const router = new BebopRouterBuilder()
       .registerClientStream(method, async (requests) => {
@@ -343,10 +355,10 @@ describe("Bebop RPC generated service registration", () => {
 
 describe("Bebop RPC typed client foundations", () => {
   test("runs unary and every streaming shape through typed method descriptors", async () => {
-    const unary = rpcMethod(110, MethodType.UNARY);
-    const serverStream = rpcMethod(111, MethodType.SERVER_STREAM);
-    const clientStream = rpcMethod(112, MethodType.CLIENT_STREAM);
-    const duplex = rpcMethod(113, MethodType.DUPLEX_STREAM);
+    const unary = rpcMethod(1110, MethodType.UNARY);
+    const serverStream = rpcMethod(1111, MethodType.SERVER_STREAM);
+    const clientStream = rpcMethod(1112, MethodType.CLIENT_STREAM);
+    const duplex = rpcMethod(1113, MethodType.DUPLEX_STREAM);
     const builder = new BebopRouterBuilder()
       .registerUnary(unary, (value) => value * 2)
       .registerServerStream(serverStream, (value) => new ReadableStream({
@@ -379,7 +391,7 @@ describe("Bebop RPC typed client foundations", () => {
   });
 
   test("executes typed dependent batches and futures", async () => {
-    const method = rpcMethod(114, MethodType.UNARY);
+    const method = rpcMethod(1114, MethodType.UNARY);
     const router = new BebopRouterBuilder({ futuresEnabled: true })
       .registerUnary(method, (value) => value * 2)
       .build();
@@ -405,13 +417,13 @@ describe("Bebop RPC typed client foundations", () => {
 
     await expect(clientStreamCall(
       channel,
-      rpcMethod(115, MethodType.CLIENT_STREAM),
+      rpcMethod(1115, MethodType.CLIENT_STREAM),
       [],
       new RpcContext(),
     )).rejects.toMatchObject({ code: StatusCode.UNIMPLEMENTED });
     await expect(duplexStreamCall(
       channel,
-      rpcMethod(116, MethodType.DUPLEX_STREAM),
+      rpcMethod(1116, MethodType.DUPLEX_STREAM),
       [],
       new RpcContext(),
     )).rejects.toMatchObject({ code: StatusCode.UNIMPLEMENTED });
@@ -419,13 +431,13 @@ describe("Bebop RPC typed client foundations", () => {
 
   test("rejects invalid batch composition before sending it", () => {
     const channel = new InMemoryChannel(new BebopRouterBuilder().build());
-    const unary = rpcMethod(117, MethodType.UNARY);
+    const unary = rpcMethod(1117, MethodType.UNARY);
     const firstBatch = createBatch(channel);
     const dependency = firstBatch.addUnary(unary, 1);
 
     expect(() => createBatch(channel).addUnary(unary, dependency))
       .toThrow("same batch");
-    expect(() => firstBatch.addUnary(rpcMethod(118, MethodType.SERVER_STREAM), 1))
+    expect(() => firstBatch.addUnary(rpcMethod(1118, MethodType.SERVER_STREAM), 1))
       .toThrow("not unary");
     expect(() => new BatchResults({
       results: [
@@ -436,8 +448,8 @@ describe("Bebop RPC typed client foundations", () => {
   });
 
   test("composes transport, batch, and dependency metadata", async () => {
-    const producer = rpcMethod(119, MethodType.UNARY);
-    const consumer = rpcMethod(120, MethodType.UNARY);
+    const producer = rpcMethod(1119, MethodType.UNARY);
+    const consumer = rpcMethod(1120, MethodType.UNARY);
     const channel = new InMemoryChannel(new BebopRouterBuilder()
       .registerUnary(producer, (value, context) => {
         context.responseMetadata.set("source", "dependency");
@@ -615,3 +627,140 @@ async function* mapElements(
     yield element.value;
   }
 }
+
+
+describe("shared RPC conformance", () => {
+  for (const fixture of conformance.frames) {
+    test(fixture.name, async () => {
+      const bytes = new Uint8Array(Buffer.from(fixture.hex, "hex"));
+      if (!fixture.valid) {
+        expect(() => Frame.decode(bytes)).toThrow();
+        await expect(collect(readFrames((async function* () {
+          yield bytes;
+        })()))).rejects.toThrow();
+        return;
+      }
+      expect(Frame.decode(bytes).header.flags).toBe(fixture.flags);
+      const frames = await collect(readFrames((async function* () {
+        for (const byte of bytes) {
+          yield Uint8Array.of(byte);
+        }
+      })()));
+      expect(frames).toHaveLength(1);
+      expect(frames[0]?.header.flags).toBe(fixture.flags);
+    });
+  }
+
+  for (const fixture of conformance.batches) {
+    test(`batch: ${fixture.name}`, async () => {
+      let invoked = 0;
+      const method = {
+        id: 1024, name: "Echo", methodType: MethodType.UNARY,
+        request: Uint32Codec, response: Uint32Codec,
+        requestTypeUrl: "test", responseTypeUrl: "test",
+      } as const;
+      const router = new BebopRouterBuilder().registerUnary(method, (value) => {
+        invoked++;
+        return value;
+      }).build();
+      const request = encode(BatchRequest, {
+        calls: fixture.calls.map((call) => ({
+          callId: call.id, inputFrom: call.inputFrom,
+          methodId: method.id, payload: encode(Uint32Codec, 42),
+        })),
+        metadata: new Map(),
+      });
+      if (!fixture.valid) {
+        await expect(router.unary(1, request)).rejects.toMatchObject({ code: StatusCode.INVALID_ARGUMENT });
+        expect(invoked).toBe(0);
+        return;
+      }
+      const response = decode(BatchResponse, await router.unary(1, request));
+      expect(response.results.map((result) => result.callId)).toEqual(fixture.calls.map((call) => call.id));
+      expect(response.results.every((result) => result.outcome.kind === "success")).toBe(true);
+      expect(invoked).toBe(fixture.calls.length);
+    });
+  }
+
+  test("child contexts retain the earlier deadline and both cancellation sources", () => {
+    using parent = new RpcContext({ deadline: Temporal.Now.instant().add({ seconds: 30 }) });
+    const additional = new AbortController();
+    using child = parent.fork({
+      deadline: Temporal.Now.instant().add({ seconds: 60 }),
+      signal: additional.signal,
+    });
+    expect(child.deadline).toBe(parent.deadline);
+    child.cancel();
+    expect(parent.signal.aborted).toBe(false);
+    using sibling = parent.fork({ signal: additional.signal });
+    parent.cancel();
+    expect(sibling.signal.aborted).toBe(true);
+  });
+});
+
+
+describe("future ownership conformance", () => {
+  const execute = async (id: BebopUUID) => ({
+    id,
+    outcome: { kind: "success", value: { payload: new Uint8Array(), metadata: new Map<string, string>() } } as const,
+  });
+
+  test("idempotency keys are scoped to caller identity", async () => {
+    const storage = new InMemoryFutureStorage();
+    const idempotencyKey = crypto.randomUUID();
+    const first = await storage.register({ context: new RpcContext(), owner: "alice", idempotencyKey, execute });
+    const other = await storage.register({ context: new RpcContext(), owner: "bob", idempotencyKey, execute });
+    const repeated = await storage.register({ context: new RpcContext(), owner: "alice", idempotencyKey, execute });
+    expect(first).not.toBe(other);
+    expect(first).toBe(repeated);
+  });
+
+  test("cancel rejects other owners and succeeds for completed owned calls", async () => {
+    const storage = new InMemoryFutureStorage();
+    const id = await storage.register({ context: new RpcContext(), owner: "alice", execute });
+    await expect(storage.cancel(id, "bob")).rejects.toMatchObject({ code: StatusCode.PERMISSION_DENIED });
+    const subscription = await storage.subscribe([id], "alice");
+    if (subscription.immediate.length === 0) {
+      const reader = subscription.stream.getReader();
+      await reader.read();
+      reader.releaseLock();
+    }
+    expect(await storage.cancel(id, "alice")).toBe(true);
+    expect(await storage.cancel(crypto.randomUUID(), "alice")).toBe(false);
+  });
+
+  test("the cancel RPC reports unknown handles", async () => {
+    const router = new BebopRouterBuilder({ futuresEnabled: true }).build();
+    using context = new RpcContext();
+    context.setAttachment(peerInfoKey, { identity: "alice" });
+    await expect(router.unary(4, encode(FutureCancelRequest, { id: crypto.randomUUID() }), context))
+      .rejects.toMatchObject({ code: StatusCode.NOT_FOUND });
+  });
+});
+
+
+describe("RPC deadline execution", () => {
+  test("keeps the operation alive until it completes", async () => {
+    const result = await withDeadline(Temporal.Now.instant().add({ seconds: 30 }), async (signal) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 1));
+      expect(signal.aborted).toBe(false);
+      return 42;
+    });
+    expect(result).toBe(42);
+  });
+
+  test("expired deadlines do not invoke application code", async () => {
+    let invoked = false;
+    await expect(withDeadline(Temporal.Now.instant().subtract({ seconds: 1 }), async () => {
+      invoked = true;
+    })).rejects.toMatchObject({ code: StatusCode.DEADLINE_EXCEEDED });
+    expect(invoked).toBe(false);
+  });
+
+  test("synchronous application errors preserve their cause", async () => {
+    const failure = new Error("handler failed");
+    await expect(withDeadline(Temporal.Now.instant().add({ seconds: 30 }), () => {
+      throw failure;
+    })).rejects.toBe(failure);
+  });
+});

@@ -72,6 +72,7 @@ void test_optional_performance(void);
 void test_int8(void);
 void test_float16(void);
 void test_bfloat16(void);
+void test_bfloat16_bits(void);
 void test_int128(void);
 void test_uint128(void);
 void test_string_null_terminator(void);
@@ -123,6 +124,36 @@ void test_context_allocations(void)
   void* zero_ptr = bebop_context_alloc(ctx, 0);
   TEST_ASSERT_NULL(zero_ptr);
 
+  bebop_context_free(ctx);
+}
+
+void test_context_allocation_alignment(void);
+
+void test_context_allocation_alignment(void)
+{
+  Bebop_ContextOptions options = _test_default_opts();
+  options.arena_options.initial_block_size = 128;
+  Bebop_Context* ctx = bebop_context_new(&options);
+  TEST_ASSERT_NOT_NULL(ctx);
+  for (size_t size = 1; size < 258; ++size) {
+    void* pointer = bebop_context_alloc(ctx, size);
+    TEST_ASSERT_NOT_NULL(pointer);
+    TEST_ASSERT_EQUAL_UINT64(0, (uintptr_t)pointer % _Alignof(max_align_t));
+    TEST_ASSERT_EQUAL_UINT64(0, (uintptr_t)pointer % _Alignof(Bebop_UInt128));
+    memset(pointer, 0xa5, size);
+  }
+  TEST_ASSERT_NULL(bebop_context_alloc(ctx, SIZE_MAX));
+  const size_t alignment = _Alignof(max_align_t) > _Alignof(Bebop_UInt128)
+      ? _Alignof(max_align_t)
+      : _Alignof(Bebop_UInt128);
+  TEST_ASSERT_NULL(bebop_context_alloc(ctx, SIZE_MAX - (alignment - 1)));
+  uint8_t* small = bebop_context_alloc(ctx, 1);
+  TEST_ASSERT_NOT_NULL(small);
+  *small = 42;
+  uint8_t* grown = bebop_context_realloc(ctx, small, 1, 64);
+  TEST_ASSERT_NOT_NULL(grown);
+  TEST_ASSERT_EQUAL_UINT8(42, *grown);
+  TEST_ASSERT_EQUAL_UINT64(0, (uintptr_t)grown % alignment);
   bebop_context_free(ctx);
 }
 
@@ -1842,6 +1873,41 @@ void test_bfloat16(void)
   bebop_context_free(ctx);
 }
 
+static Bebop_BFloat16 bfloat16_from_bits(uint16_t bits)
+{
+  Bebop_BFloat16 value;
+  memcpy(&value, &bits, sizeof(value));
+  return value;
+}
+
+void test_bfloat16_bits(void)
+{
+  Bebop_Context* ctx = _test_ctx_new();
+  Bebop_Writer* writer = bebop_context_writer(ctx, 2);
+  TEST_ASSERT_NOT_NULL(writer);
+  for (uint32_t pattern = 0; pattern <= UINT16_MAX; ++pattern) {
+    bebop_writer_reset(writer);
+    TEST_ASSERT_EQUAL(BEBOP_RESULT_OK,
+        bebop_writer_write_bf16(writer, bfloat16_from_bits((uint16_t)pattern)));
+    const Bebop_View encoded = bebop_writer_view(writer);
+    uint16_t bits;
+    memcpy(&bits, encoded.data, sizeof(bits));
+    TEST_ASSERT_EQUAL_HEX16((uint16_t)pattern, bits);
+  }
+
+  const uint32_t nan_patterns[] = {UINT32_C(0x7FFFFFFF), UINT32_C(0xFF800001)};
+  for (size_t index = 0; index < sizeof(nan_patterns) / sizeof(nan_patterns[0]); ++index) {
+    float value;
+    memcpy(&value, &nan_patterns[index], sizeof(value));
+    const Bebop_BFloat16 converted = bebop_bfloat16_from_float(value);
+    uint16_t bits;
+    memcpy(&bits, &converted, sizeof(bits));
+    TEST_ASSERT_EQUAL_HEX16(0x7F80, bits & 0x7F80);
+    TEST_ASSERT_NOT_EQUAL(0, bits & 0x007F);
+  }
+  bebop_context_free(ctx);
+}
+
 void test_int128(void)
 {
   Bebop_Context* ctx = _test_ctx_new();
@@ -2115,6 +2181,7 @@ int main(void)
   RUN_TEST(test_context_create_destroy);
   RUN_TEST(test_context_create_with_options);
   RUN_TEST(test_context_allocations);
+  RUN_TEST(test_context_allocation_alignment);
   RUN_TEST(test_context_reset);
   RUN_TEST(test_reader_writer_init);
   RUN_TEST(test_basic_integers);
@@ -2147,6 +2214,7 @@ int main(void)
   RUN_TEST(test_int8);
   RUN_TEST(test_float16);
   RUN_TEST(test_bfloat16);
+  RUN_TEST(test_bfloat16_bits);
   RUN_TEST(test_int128);
   RUN_TEST(test_uint128);
   RUN_TEST(test_string_null_terminator);

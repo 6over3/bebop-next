@@ -20,3 +20,21 @@ message Envelope {
     lookup(200): map[string, Child];
     sequences(201): map[string, int32[]];
 }
+
+enum State : uint16 {
+    IDLE = 0;
+    ACTIVE = 1;
+}
+
+mut struct FixedRecord {
+    id: uint64;
+    samples: float32[3];
+    enabled: bool;
+    state: State;
+}
+
+mut struct FixedCollections {
+    records: FixedRecord[];
+    samples: float32[4];
+    values: uint32[];
+}

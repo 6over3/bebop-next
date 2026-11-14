@@ -977,27 +977,35 @@ static bool bebop__parse_number(
     bebop_literal_t* out
 )
 {
-  if (expected_type == BEBOP_TYPE_FLOAT32 || expected_type == BEBOP_TYPE_FLOAT64) {
-    double val;
-    if (bebop_util_parse_float(str.data, str.len, &val)) {
+  const bool is_float = expected_type == BEBOP_TYPE_FLOAT16 || expected_type == BEBOP_TYPE_BFLOAT16
+      || expected_type == BEBOP_TYPE_FLOAT32 || expected_type == BEBOP_TYPE_FLOAT64;
+  if (is_float) {
+    double value;
+    if (bebop_util_parse_float(str.data, str.len, &value)) {
       out->kind = BEBOP_LITERAL_FLOAT;
-      out->float_val = val;
+      out->float_val = value;
       return true;
     }
   }
 
-  int64_t ival;
-  if (bebop_util_parse_int(str.data, str.len, &ival)) {
+  bebop__integer_t integer;
+  if (bebop__integer_parse(str.data, str.len, &integer)) {
+    if (!bebop__integer_fits(integer, expected_type)) {
+      BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_NUMBER, "Integer literal is out of range");
+      return false;
+    }
     out->kind = BEBOP_LITERAL_INT;
-    out->int_val = ival;
+    out->int_val = integer;
     return true;
   }
 
-  double fval;
-  if (bebop_util_parse_float(str.data, str.len, &fval)) {
-    out->kind = BEBOP_LITERAL_FLOAT;
-    out->float_val = fval;
-    return true;
+  if (expected_type < BEBOP_TYPE_BYTE || expected_type > BEBOP_TYPE_UINT128) {
+    double value;
+    if (bebop_util_parse_float(str.data, str.len, &value)) {
+      out->kind = BEBOP_LITERAL_FLOAT;
+      out->float_val = value;
+      return true;
+    }
   }
 
   BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_NUMBER, "Invalid number literal");
@@ -1251,7 +1259,7 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
 
   while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_AT)) {
     const bebop_token_t* at = BEBOP_PARSE_ADVANCE(p);
-    if (!BEBOP_PARSE_CONSUME(p, BEBOP_TOKEN_IDENTIFIER, "Expected decorator name")) {
+    if (!BEBOP_PARSE_CONSUME_NAME(p, "Expected decorator name")) {
       while (!BEBOP_PARSE_AT_END(p) && !BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_AT)
              && !BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_STRUCT)
              && !BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_MESSAGE)
@@ -1282,8 +1290,7 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
       bool name_ok = true;
       while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_DOT)) {
         BEBOP_PARSE_ADVANCE(p);
-        if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_IDENTIFIER, "Expected identifier after '.'"))
-        {
+        if (!BEBOP_PARSE_CONSUME_NAME(p, "Expected identifier after '.'")) {
           name_ok = false;
           break;
         }
@@ -1345,22 +1352,25 @@ static bebop_decorator_t* bebop__parse_decorators(bebop_parser_t* p)
 
 typedef enum {
   bebop__OP_NONE = 0,
-  bebop__OP_OR = 1,
-  bebop__OP_AND = 2,
-  bebop__OP_SHIFT = 3,
+  bebop__OP_OR,
+  bebop__OP_AND,
+  bebop__OP_SHIFT_LEFT,
+  bebop__OP_SHIFT_RIGHT,
+  bebop__OP_ADD,
+  bebop__OP_SUBTRACT,
 } bebop__op_t;
 
 // Enum value expressions may only reference members of the enum being parsed.
 // Bare references to another enum's member are not allowed (they would be
 // ambiguous when names collide), and qualified references are not supported.
 static bool bebop__parse_lookup_enum_member(
-    const bebop_def_t* enum_def, const bebop_str_t name, int64_t* out_val
+    const bebop_def_t* enum_def, const bebop_str_t name, uint64_t* out_val
 )
 {
   if (enum_def && enum_def->kind == BEBOP_DEF_ENUM) {
     for (uint32_t i = 0; i < enum_def->enum_def.member_count; i++) {
       if (bebop_str_eq(enum_def->enum_def.members[i].name, name)) {
-        *out_val = (int64_t)enum_def->enum_def.members[i].value;
+        *out_val = enum_def->enum_def.members[i].value;
         return true;
       }
     }
@@ -1396,38 +1406,186 @@ typedef enum {
 } bebop__expr_state_t;
 
 typedef struct {
-  int64_t value_stack[bebop__EXPR_STACK_SIZE];
+  bebop__integer_t value_stack[bebop__EXPR_STACK_SIZE];
   bebop__op_t op_stack[bebop__EXPR_STACK_SIZE];
+  bebop_token_kind_t unary_stack[bebop__EXPR_STACK_SIZE];
   int value_top;
   int op_top;
-  bool negate_next;
+  int unary_top;
 } bebop__expr_frame_t;
 
-static int64_t bebop__parse_apply_op(const int64_t a, const int64_t b, const bebop__op_t op)
+static unsigned bebop__parse_op_precedence(const bebop__op_t op)
 {
   switch (op) {
     case bebop__OP_OR:
-      return a | b;
+      return 1;
     case bebop__OP_AND:
-      return a & b;
-    case bebop__OP_SHIFT:
-      if (b < 0 || b >= 64) {
-        return 0;
-      }
-      return a << b;
+      return 2;
+    case bebop__OP_SHIFT_LEFT:
+    case bebop__OP_SHIFT_RIGHT:
+      return 3;
+    case bebop__OP_ADD:
+    case bebop__OP_SUBTRACT:
+      return 4;
     default:
       return 0;
   }
 }
 
-static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
+static uint64_t bebop__parse_enum_mask(const bebop_type_kind_t kind)
+{
+  switch (kind) {
+    case BEBOP_TYPE_BYTE:
+    case BEBOP_TYPE_INT8:
+      return UINT8_MAX;
+    case BEBOP_TYPE_UINT16:
+    case BEBOP_TYPE_INT16:
+      return UINT16_MAX;
+    case BEBOP_TYPE_UINT32:
+    case BEBOP_TYPE_INT32:
+      return UINT32_MAX;
+    default:
+      return UINT64_MAX;
+  }
+}
+
+static uint64_t bebop__parse_expression_bits(bebop__integer_t value)
+{
+  if (value.negative) {
+    return UINT64_C(0) - value.low;
+  }
+  return value.low;
+}
+
+static bebop__integer_t bebop__parse_expression_integer(uint64_t bits, bool is_signed)
+{
+  if (is_signed && bits > INT64_MAX) {
+    return (bebop__integer_t) {.low = UINT64_C(0) - bits, .negative = true};
+  }
+  return (bebop__integer_t) {.low = bits};
+}
+
+static bebop__integer_t bebop__parse_apply_unary(
+    bebop__expr_frame_t* frame, bebop__integer_t value, uint64_t mask, bool is_signed
+)
+{
+  while (frame->unary_top >= 0) {
+    const bebop_token_kind_t op = frame->unary_stack[frame->unary_top--];
+    if (op == BEBOP_TOKEN_MINUS) {
+      if (value.low != 0 || value.high != 0) {
+        value.negative = !value.negative;
+      }
+    } else {
+      uint64_t bits = ~bebop__parse_expression_bits(value) & mask;
+      const uint64_t sign_bit = (mask >> 1) + 1;
+      if (is_signed && (bits & sign_bit) != 0) {
+        bits |= ~mask;
+      }
+      value = bebop__parse_expression_integer(bits, is_signed);
+    }
+  }
+  return value;
+}
+
+static bool bebop__parse_add(
+    bebop_parser_t* p, bebop__integer_t a, bebop__integer_t b, bebop__integer_t* out
+)
+{
+  if (a.negative == b.negative) {
+    const uint64_t low = a.low + b.low;
+    const uint64_t carry = low < a.low;
+    const uint64_t high = a.high + b.high;
+    if (high < a.high || high > UINT64_MAX - carry) {
+      BEBOP_PARSE_ERROR(p, BEBOP_DIAG_ENUM_VALUE_OVERFLOW, "Enum expression exceeds 128 bits");
+      return false;
+    }
+    *out = (bebop__integer_t) {.low = low, .high = high + carry, .negative = a.negative};
+    return true;
+  }
+  if (a.high < b.high || (a.high == b.high && a.low < b.low)) {
+    const bebop__integer_t temporary = a;
+    a = b;
+    b = temporary;
+  }
+  const uint64_t borrow = a.low < b.low;
+  *out = (bebop__integer_t) {
+      .low = a.low - b.low,
+      .high = a.high - b.high - borrow,
+      .negative = a.negative,
+  };
+  if (out->low == 0 && out->high == 0) {
+    out->negative = false;
+  }
+  return true;
+}
+
+static bool bebop__parse_apply_op(
+    bebop_parser_t* p,
+    bebop__integer_t left,
+    bebop__integer_t right,
+    const bebop__op_t op,
+    const bool is_signed,
+    bebop__integer_t* out
+)
+{
+  if (op == bebop__OP_ADD) {
+    return bebop__parse_add(p, left, right, out);
+  }
+  if (op == bebop__OP_SUBTRACT) {
+    if (right.low != 0 || right.high != 0) {
+      right.negative = !right.negative;
+    }
+    return bebop__parse_add(p, left, right, out);
+  }
+  const uint64_t a = bebop__parse_expression_bits(left);
+  const uint64_t b = bebop__parse_expression_bits(right);
+  uint64_t result = 0;
+  switch (op) {
+    case bebop__OP_OR:
+      result = a | b;
+      break;
+    case bebop__OP_AND:
+      result = a & b;
+      break;
+    case bebop__OP_SHIFT_LEFT:
+      if (b < 64 && right.high == 0 && !right.negative) {
+        result = a << b;
+      }
+      break;
+    case bebop__OP_SHIFT_RIGHT: {
+      const bool negative = is_signed && (a & (UINT64_C(1) << 63)) != 0;
+      if (b >= 64 || right.high != 0 || right.negative) {
+        if (negative) {
+          result = UINT64_MAX;
+        }
+        break;
+      }
+      result = a >> b;
+      if (negative && b != 0) {
+        result |= UINT64_MAX << (64 - b);
+      }
+      break;
+    }
+    default:
+      BEBOP_UNREACHABLE();
+  }
+  *out = bebop__parse_expression_integer(result, is_signed);
+  return true;
+}
+
+static uint64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
 {
   bebop__expr_frame_t frames[bebop__EXPR_STACK_SIZE];
   int frame_top = 0;
 
   frames[0].value_top = -1;
   frames[0].op_top = -1;
-  frames[0].negate_next = false;
+  frames[0].unary_top = -1;
+
+  const bebop_type_kind_t base_type = enum_def->enum_def.base_type;
+  const uint64_t mask = bebop__parse_enum_mask(base_type);
+  const bool is_signed = base_type == BEBOP_TYPE_INT8 || base_type == BEBOP_TYPE_INT16
+      || base_type == BEBOP_TYPE_INT32 || base_type == BEBOP_TYPE_INT64;
 
   bebop__expr_state_t state = EXPR_STATE_OPERAND;
 
@@ -1435,11 +1593,12 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
     bebop__expr_frame_t* f = &frames[frame_top];
 
     if (state == EXPR_STATE_OPERAND) {
-      bool negate = f->negate_next;
-      f->negate_next = false;
-
-      if (BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_MINUS)) {
-        negate = !negate;
+      while (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_MINUS) || BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_TILDE)) {
+        if (f->unary_top >= bebop__EXPR_STACK_SIZE - 1) {
+          BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Expression too complex");
+          return 0;
+        }
+        f->unary_stack[++f->unary_top] = BEBOP_PARSE_ADVANCE(p)->kind;
       }
 
       if (BEBOP_PARSE_MATCH(p, BEBOP_TOKEN_LPAREN)) {
@@ -1447,15 +1606,14 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
           BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Expression too deeply nested");
           return 0;
         }
-        f->negate_next = negate;
         frame_top++;
         frames[frame_top].value_top = -1;
         frames[frame_top].op_top = -1;
-        frames[frame_top].negate_next = false;
+        frames[frame_top].unary_top = -1;
         continue;
       }
 
-      int64_t val = 0;
+      bebop__integer_t val = {0};
       if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_NUMBER)) {
         const bebop_token_t* tok = BEBOP_PARSE_ADVANCE(p);
         const char* str = BEBOP_STR(p->ctx, tok->lexeme);
@@ -1464,13 +1622,14 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
           return 0;
         }
         const size_t len = BEBOP_STR_LEN(p->ctx, tok->lexeme);
-        if (!bebop_util_parse_int(str, len, &val)) {
+        if (!bebop_util_parse_uint(str, len, &val.low)) {
           BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_NUMBER, "Invalid integer literal");
           return 0;
         }
       } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_IDENTIFIER)) {
         const bebop_token_t* tok = BEBOP_PARSE_ADVANCE(p);
-        if (!bebop__parse_lookup_enum_member(enum_def, tok->lexeme, &val)) {
+        uint64_t bits;
+        if (!bebop__parse_lookup_enum_member(enum_def, tok->lexeme, &bits)) {
           const char* name = BEBOP_STR(p->ctx, tok->lexeme);
           const bebop_def_t* other = bebop__parse_find_enum_with_member(p, enum_def, tok->lexeme);
           if (other) {
@@ -1491,6 +1650,7 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
           }
           return 0;
         }
+        val = bebop__parse_expression_integer(bits, is_signed);
       } else {
         BEBOP_PARSE_ERROR_CURRENT(
             p, BEBOP_DIAG_INVALID_LITERAL, "Expected number, identifier, or '(' in expression"
@@ -1498,9 +1658,7 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         return 0;
       }
 
-      if (negate) {
-        val = -val;
-      }
+      val = bebop__parse_apply_unary(f, val, mask, is_signed);
 
       if (f->value_top >= bebop__EXPR_STACK_SIZE - 1) {
         BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Expression too complex");
@@ -1515,12 +1673,20 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         op = bebop__OP_OR;
       } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_AMPERSAND)) {
         op = bebop__OP_AND;
+      } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_PLUS)) {
+        op = bebop__OP_ADD;
+      } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_MINUS)) {
+        op = bebop__OP_SUBTRACT;
       } else {
         const bebop_token_t* peek_tok = bebop__parse_peek(p, 1);
         if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_LANGLE) && peek_tok
             && peek_tok->kind == BEBOP_TOKEN_LANGLE)
         {
-          op = bebop__OP_SHIFT;
+          op = bebop__OP_SHIFT_LEFT;
+        } else if (BEBOP_PARSE_CHECK(p, BEBOP_TOKEN_RANGLE) && peek_tok
+                   && peek_tok->kind == BEBOP_TOKEN_RANGLE)
+        {
+          op = bebop__OP_SHIFT_RIGHT;
         }
       }
 
@@ -1530,25 +1696,43 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
             BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Invalid expression: missing operand");
             return 0;
           }
-          const int64_t b = f->value_stack[f->value_top--];
-          const int64_t a = f->value_stack[f->value_top--];
-          f->value_stack[++f->value_top] = bebop__parse_apply_op(a, b, f->op_stack[f->op_top--]);
+          const bebop__integer_t b = f->value_stack[f->value_top--];
+          const bebop__integer_t a = f->value_stack[f->value_top--];
+          if (!bebop__parse_apply_op(
+                  p, a, b, f->op_stack[f->op_top--], is_signed, &f->value_stack[++f->value_top]
+              ))
+          {
+            return 0;
+          }
         }
 
-        int64_t result = f->value_top >= 0 ? f->value_stack[0] : 0;
+        bebop__integer_t result = {0};
+        if (f->value_top >= 0) {
+          result = f->value_stack[0];
+        }
 
         if (frame_top == 0) {
-          return result;
+          if (!bebop__integer_fits(result, base_type)) {
+            char decimal[41];
+            bebop__integer_format(result, decimal);
+            BEBOP_ERROR_FMT(
+                p->schema,
+                BEBOP_DIAG_ENUM_VALUE_OVERFLOW,
+                BEBOP_PARSE_PREVIOUS(p)->span,
+                "Enum value %s is outside the range of the base type %s",
+                decimal,
+                bebop_type_kind_name(base_type)
+            );
+            return 0;
+          }
+          return bebop__parse_expression_bits(result);
         }
 
         BEBOP_PARSE_CONSUME(p, BEBOP_TOKEN_RPAREN, "Expected ')'");
         frame_top--;
         f = &frames[frame_top];
 
-        if (f->negate_next) {
-          result = -result;
-          f->negate_next = false;
-        }
+        result = bebop__parse_apply_unary(f, result, mask, is_signed);
 
         if (f->value_top >= bebop__EXPR_STACK_SIZE - 1) {
           BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Expression too complex");
@@ -1558,14 +1742,22 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
         continue;
       }
 
-      while (f->op_top >= 0 && f->op_stack[f->op_top] >= op) {
+      while (f->op_top >= 0
+             && bebop__parse_op_precedence(f->op_stack[f->op_top])
+                 >= bebop__parse_op_precedence(op))
+      {
         if (f->value_top < 1) {
           BEBOP_PARSE_ERROR(p, BEBOP_DIAG_INVALID_LITERAL, "Invalid expression: missing operand");
           return 0;
         }
-        const int64_t b = f->value_stack[f->value_top--];
-        const int64_t a = f->value_stack[f->value_top--];
-        f->value_stack[++f->value_top] = bebop__parse_apply_op(a, b, f->op_stack[f->op_top--]);
+        const bebop__integer_t b = f->value_stack[f->value_top--];
+        const bebop__integer_t a = f->value_stack[f->value_top--];
+        if (!bebop__parse_apply_op(
+                p, a, b, f->op_stack[f->op_top--], is_signed, &f->value_stack[++f->value_top]
+            ))
+        {
+          return 0;
+        }
       }
 
       if (f->op_top >= bebop__EXPR_STACK_SIZE - 1) {
@@ -1574,7 +1766,7 @@ static int64_t bebop__parse_expression(bebop_parser_t* p, bebop_def_t* enum_def)
       }
       f->op_stack[++f->op_top] = op;
 
-      if (op == bebop__OP_SHIFT) {
+      if (op == bebop__OP_SHIFT_LEFT || op == bebop__OP_SHIFT_RIGHT) {
         BEBOP_PARSE_ADVANCE(p);
         BEBOP_PARSE_ADVANCE(p);
       } else {
@@ -1622,6 +1814,7 @@ typedef struct {
   bebop_def_t* def;
   bebop_token_t* keyword;
   bebop_decorator_t* decorators;
+  bebop_str_t documentation;
   uint32_t count;
   uint32_t capacity;
   bool is_mutable;
@@ -1770,7 +1963,8 @@ static bebop_enum_member_t* bebop__parse_enum_member_inline(
   }
 
   const bebop_token_t* value_start = BEBOP_PARSE_CURRENT(p);
-  const int64_t value = bebop__parse_expression(p, enum_def);
+  const uint32_t errors_before_value = p->schema->error_count;
+  const uint64_t value = bebop__parse_expression(p, enum_def);
   bebop_span_t value_span;
   if (BEBOP_PARSE_PREVIOUS(p) < value_start) {
     value_span = value_start->span;
@@ -1780,6 +1974,9 @@ static bebop_enum_member_t* bebop__parse_enum_member_inline(
 
   if (!BEBOP_PARSE_CONSUME_AFTER(p, BEBOP_TOKEN_SEMICOLON, "Expected ';' after enum member value"))
   {
+    return NULL;
+  }
+  if (p->schema->error_count != errors_before_value) {
     return NULL;
   }
 
@@ -1800,7 +1997,7 @@ static bebop_enum_member_t* bebop__parse_enum_member_inline(
       bebop_intern_n(&p->ctx->intern, p->schema->source + value_span.off, value_span.len);
   member->documentation = doc;
   member->decorators = decorators;
-  member->value = (uint64_t)value;
+  member->value = value;
   member->parent = enum_def;
 
   enum_def->enum_def.member_count = *count;
@@ -2330,10 +2527,7 @@ static void bebop__parse_macro_decorator(bebop_parser_t* p)
     return;
   }
 
-  if (!BEBOP_PARSE_CONSUME(
-          p, BEBOP_TOKEN_IDENTIFIER, "Expected decorator name inside '#decorator(...)'"
-      ))
-  {
+  if (!BEBOP_PARSE_CONSUME_NAME(p, "Expected decorator name inside '#decorator(...)'")) {
     bebop__parse_synchronize(p);
     return;
   }
@@ -2709,7 +2903,11 @@ static void bebop__parse_file(bebop_parser_t* p)
       }
 
       case PARSE_STATE_DEFINITION: {
+        bebop_str_t documentation = bebop__parse_extract_doc(p, &BEBOP_PARSE_CURRENT(p)->leading);
         bebop_decorator_t* decorators = bebop__parse_decorators(p);
+        if (bebop_str_is_null(documentation)) {
+          documentation = bebop__parse_extract_doc(p, &BEBOP_PARSE_CURRENT(p)->leading);
+        }
         bool is_nested = frame->nested_parent != NULL;
 
         bebop_visibility_t visibility = BEBOP_VIS_DEFAULT;
@@ -2765,6 +2963,7 @@ static void bebop__parse_file(bebop_parser_t* p)
         }
 
         frame->decorators = decorators;
+        frame->documentation = documentation;
         frame->is_mutable = is_mutable;
         frame->visibility = visibility;
 
@@ -2815,7 +3014,10 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
         frame->keyword = keyword;
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
         bebop_token_t* name = bebop__parse_def_name(p, "Expected enum name");
         if (!name) {
           frame->state = PARSE_STATE_FILE;
@@ -2923,7 +3125,10 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
         frame->keyword = keyword;
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
         bebop_token_t* name = bebop__parse_def_name(p, "Expected struct name");
         if (!name) {
           frame->state = PARSE_STATE_FILE;
@@ -3022,7 +3227,10 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
         frame->keyword = keyword;
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
         bebop_token_t* name = bebop__parse_def_name(p, "Expected message name");
         if (!name) {
           frame->state = PARSE_STATE_FILE;
@@ -3120,7 +3328,10 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
         frame->keyword = keyword;
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
         bebop_token_t* name = bebop__parse_def_name(p, "Expected union name");
         if (!name) {
           frame->state = PARSE_STATE_FILE;
@@ -3495,7 +3706,10 @@ static void bebop__parse_file(bebop_parser_t* p)
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
         frame->keyword = keyword;
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
         bebop_token_t* name = bebop__parse_def_name(p, "Expected service name");
         if (!name) {
           frame->state = PARSE_STATE_FILE;
@@ -3593,7 +3807,10 @@ static void bebop__parse_file(bebop_parser_t* p)
       case PARSE_STATE_CONST_START: {
         bebop_token_t* keyword = BEBOP_PARSE_ADVANCE(p);
 
-        bebop_str_t doc = bebop__parse_extract_doc(p, &keyword->leading);
+        bebop_str_t doc = frame->documentation;
+        if (bebop_str_is_null(doc)) {
+          doc = bebop__parse_extract_doc(p, &keyword->leading);
+        }
 
         bebop_type_t* type = bebop__parse_type(p);
         if (!type) {

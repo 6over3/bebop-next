@@ -14,8 +14,6 @@ extension BebopRouter {
         }
 
         let owner = try requireOwner(ctx)
-        try await runInterceptors(methodId: BebopReservedMethod.dispatch, ctx: ctx)
-
         let req = try FutureDispatchRequest.decode(from: payload, limits: config.decodeLimits)
 
         guard let methodId = req.methodId else {
@@ -38,7 +36,7 @@ extension BebopRouter {
         case .unary?:
             break
         case nil
-            where methodId == BebopReservedMethod.discovery
+        where methodId == BebopReservedMethod.discovery
             || methodId == BebopReservedMethod.batch:
             break
         case .serverStream?, .clientStream?, .duplexStream?:
@@ -65,16 +63,19 @@ extension BebopRouter {
         ) {
             [self] futureId in
             do {
-                let result: [UInt8] = if let deadline {
-                    try await withDeadline(deadline) {
-                        try await self.unary(methodId: methodId, payload: innerPayload, ctx: innerCtx)
+                let result: [UInt8] =
+                    if let deadline {
+                        try await withDeadline(deadline) {
+                            try await self.unary(
+                                methodId: methodId, payload: innerPayload, ctx: innerCtx)
+                        }
+                    } else {
+                        try await unary(methodId: methodId, payload: innerPayload, ctx: innerCtx)
                     }
-                } else {
-                    try await unary(methodId: methodId, payload: innerPayload, ctx: innerCtx)
-                }
                 return FutureResult(
                     id: futureId,
-                    outcome: .success(FutureSuccess(payload: result, metadata: innerCtx.responseMetadata))
+                    outcome: .success(
+                        FutureSuccess(payload: result, metadata: innerCtx.responseMetadata))
                 )
             } catch is CancellationError {
                 return FutureResult(
@@ -104,8 +105,6 @@ extension BebopRouter {
         }
 
         let owner = try requireOwner(ctx)
-        try await runInterceptors(methodId: BebopReservedMethod.resolve, ctx: ctx)
-
         let req = try FutureResolveRequest.decode(from: payload, limits: config.decodeLimits)
         let requestedIds = req.ids
         let (immediate, stream) = try await store.subscribe(
@@ -126,8 +125,6 @@ extension BebopRouter {
         }
 
         let owner = try requireOwner(ctx)
-        try await runInterceptors(methodId: BebopReservedMethod.cancel, ctx: ctx)
-
         let req = try FutureCancelRequest.decode(from: payload, limits: config.decodeLimits)
         guard try await store.cancel(id: req.id, owner: owner) else {
             throw BebopRpcError(code: .notFound, detail: "future not found")

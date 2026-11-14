@@ -1312,6 +1312,11 @@ static bebop_literal_kind_t bebop__validate_type_to_literal(const bebop_type_kin
       return BEBOP_LITERAL_STRING;
     case BEBOP_TYPE_UUID:
       return BEBOP_LITERAL_UUID;
+    case BEBOP_TYPE_TIMESTAMP:
+      return BEBOP_LITERAL_TIMESTAMP;
+    case BEBOP_TYPE_DURATION:
+      return BEBOP_LITERAL_DURATION;
+    case BEBOP_TYPE_FLOAT16:
     case BEBOP_TYPE_FLOAT32:
     case BEBOP_TYPE_FLOAT64:
     case BEBOP_TYPE_BFLOAT16:
@@ -1321,10 +1326,56 @@ static bebop_literal_kind_t bebop__validate_type_to_literal(const bebop_type_kin
   }
 }
 
+static bool bebop__validate_coerce_literal(
+    bebop_context_t* ctx, const bebop_type_kind_t type, bebop_literal_t* value
+)
+{
+  if (value->kind != BEBOP_LITERAL_STRING) {
+    return true;
+  }
+  const char* text = BEBOP_STR(ctx, value->string_val);
+  const size_t size = BEBOP_STR_LEN(ctx, value->string_val);
+  bebop_literal_t converted = *value;
+  switch (type) {
+    case BEBOP_TYPE_UUID:
+      if (!bebop_util_parse_uuid(text, size, converted.uuid_val)) {
+        return false;
+      }
+      converted.kind = BEBOP_LITERAL_UUID;
+      break;
+    case BEBOP_TYPE_TIMESTAMP:
+      if (!bebop_util_parse_timestamp(
+              text,
+              size,
+              &converted.timestamp_val.seconds,
+              &converted.timestamp_val.nanos,
+              &converted.timestamp_val.offset_ms
+          ))
+      {
+        return false;
+      }
+      converted.kind = BEBOP_LITERAL_TIMESTAMP;
+      break;
+    case BEBOP_TYPE_DURATION:
+      if (!bebop_util_parse_duration(
+              text, size, &converted.duration_val.seconds, &converted.duration_val.nanos
+          ))
+      {
+        return false;
+      }
+      converted.kind = BEBOP_LITERAL_DURATION;
+      break;
+    default:
+      return true;
+  }
+  *value = converted;
+  return true;
+}
+
 static void bebop__validate_decorator_chain(
     const bebop_validator_t* v,
     bebop_lua_state_t* lua,
-    const bebop_decorator_t* chain,
+    bebop_decorator_t* chain,
     const bebop__decor_target_t target
 )
 {
@@ -1333,7 +1384,7 @@ static void bebop__validate_decorator_chain(
   }
   bebop_schema_t* schema = chain->schema;
 
-  for (const bebop_decorator_t* dec = chain; dec; dec = dec->next) {
+  for (bebop_decorator_t* dec = chain; dec; dec = dec->next) {
     bebop_def_t* def = dec->resolved;
     if (!def) {
       continue;
@@ -1341,6 +1392,27 @@ static void bebop__validate_decorator_chain(
 
     const char* name = BEBOP_STR(v->ctx, dec->name);
     if (!name) {
+      continue;
+    }
+
+    bool duplicate = false;
+    if (!def->decorator_def.allow_multiple) {
+      for (const bebop_decorator_t* previous = chain; previous != dec; previous = previous->next) {
+        if (previous->resolved == def) {
+          duplicate = true;
+          break;
+        }
+      }
+    }
+    if (duplicate) {
+      bebop__VALIDATE_ERROR_FMT(
+          v,
+          schema,
+          BEBOP_DIAG_MACRO_VALIDATE_ERROR,
+          dec->span,
+          "Decorator '@%s' cannot be applied more than once",
+          name
+      );
       continue;
     }
 
@@ -1357,7 +1429,7 @@ static void bebop__validate_decorator_chain(
     }
 
     for (uint32_t i = 0; i < dec->arg_count; i++) {
-      const bebop_decorator_arg_t* arg = &dec->args[i];
+      bebop_decorator_arg_t* arg = &dec->args[i];
       bebop_macro_param_def_t* param = NULL;
 
       if (!bebop_str_is_null(arg->name)) {
@@ -1414,6 +1486,18 @@ static void bebop__validate_decorator_chain(
       }
 
       if (param) {
+        if (!bebop__validate_coerce_literal(v->ctx, param->type, &arg->value)) {
+          bebop__VALIDATE_ERROR_FMT(
+              v,
+              schema,
+              BEBOP_DIAG_MACRO_VALIDATE_ERROR,
+              arg->span,
+              "Parameter '%s' has an invalid %s literal",
+              BEBOP_STR(v->ctx, param->name),
+              bebop_type_kind_name(param->type)
+          );
+          continue;
+        }
         const bebop_literal_kind_t expected = bebop__validate_type_to_literal(param->type);
         if (arg->value.kind != expected) {
           const char* param_name = BEBOP_STR(v->ctx, param->name);
@@ -1428,17 +1512,23 @@ static void bebop__validate_decorator_chain(
               bebop_literal_kind_name(arg->value.kind)
           );
         }
+        if (arg->value.kind == BEBOP_LITERAL_INT
+            && !bebop__integer_fits(arg->value.int_val, param->type))
+        {
+          bebop__VALIDATE_ERROR_FMT(
+              v,
+              schema,
+              BEBOP_DIAG_MACRO_VALIDATE_ERROR,
+              arg->span,
+              "Parameter '%s' is out of range for %s",
+              BEBOP_STR(v->ctx, param->name),
+              bebop_type_kind_name(param->type)
+          );
+        }
 
         if (param->allowed_value_count > 0) {
           for (uint32_t av = 0; av < param->allowed_value_count; av++) {
-            if (arg->value.kind == BEBOP_LITERAL_INT
-                && arg->value.int_val == param->allowed_values[av].int_val)
-            {
-              goto value_ok;
-            }
-            if (arg->value.kind == BEBOP_LITERAL_STRING
-                && arg->value.string_val.idx == param->allowed_values[av].string_val.idx)
-            {
+            if (bebop__literal_equal(&arg->value, &param->allowed_values[av])) {
               goto value_ok;
             }
           }
@@ -1492,7 +1582,7 @@ static void bebop__validate_decorator_chain(
         bebop__lua_run_validate(lua, def, dec, target.target);
       }
       if (def->decorator_def.export_ref != BEBOP_LUA_NOREF) {
-        bebop__lua_run_export(lua, def, BEBOP_DISCARD_CONST(bebop_decorator_t*, dec));
+        bebop__lua_run_export(lua, def, dec, &target.target);
       }
     }
   }

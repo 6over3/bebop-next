@@ -4,15 +4,15 @@ import Testing
 
 @Suite struct RouterBatchTests {
     private struct ContextMethodInterceptor: BebopInterceptor {
-        func intercept(
+        func intercept<Value: Sendable>(
             methodId: UInt32,
             ctx: RpcContext,
-            proceed: @Sendable () async throws -> Void
-        ) async throws {
+            proceed: @Sendable () async throws -> Value
+        ) async throws -> Value {
             guard methodId == ctx.methodId else {
                 throw BebopRpcError(code: .internal, detail: "context method ID mismatch")
             }
-            try await proceed()
+            return try await proceed()
         }
     }
 
@@ -48,7 +48,7 @@ import Testing
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
                     payload: EchoRequest(value: "hi").encode(), inputFrom: -1
-                ),
+                )
             ],
             metadata: [:]
         )
@@ -60,7 +60,7 @@ import Testing
         #expect(response.results.count == 1)
         #expect(response.results[0].callId == 0)
 
-        guard case let .success(s) = response.results[0].outcome else {
+        guard case .success(let s) = response.results[0].outcome else {
             Issue.record("expected success")
             return
         }
@@ -97,13 +97,13 @@ import Testing
             uniquingKeysWith: { a, _ in a }
         )
 
-        guard case let .success(s1) = outcomes[0] else {
+        guard case .success(let s1) = outcomes[0] else {
             Issue.record("expected success for call 0")
             return
         }
         #expect(try EchoResponse.decode(from: s1.payloads[0]).value == "a")
 
-        guard case let .success(s2) = outcomes[1] else {
+        guard case .success(let s2) = outcomes[1] else {
             Issue.record("expected success for call 1")
             return
         }
@@ -141,7 +141,7 @@ import Testing
                 BatchCall(
                     callId: 0, methodId: listWidgetsId,
                     payload: CountRequest(n: 3).encode(), inputFrom: -1
-                ),
+                )
             ],
             metadata: [:]
         )
@@ -151,7 +151,7 @@ import Testing
         )
         let response = try BatchResponse.decode(from: responseBytes)
 
-        guard case let .success(s) = response.results[0].outcome else {
+        guard case .success(let s) = response.results[0].outcome else {
             Issue.record("expected success")
             return
         }
@@ -168,7 +168,7 @@ import Testing
 
         let req = BatchRequest(
             calls: [
-                BatchCall(callId: 0, methodId: 0xDEAD, payload: [], inputFrom: -1),
+                BatchCall(callId: 0, methodId: 0xDEAD, payload: [], inputFrom: -1)
             ],
             metadata: [:]
         )
@@ -177,7 +177,7 @@ import Testing
             methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        guard case let .error(e) = response.results[0].outcome else {
+        guard case .error(let e) = response.results[0].outcome else {
             Issue.record("expected error")
             return
         }
@@ -227,7 +227,7 @@ import Testing
 
         let req = BatchRequest(
             calls: [
-                BatchCall(callId: -1, methodId: getWidgetId, payload: [], inputFrom: -1),
+                BatchCall(callId: -1, methodId: getWidgetId, payload: [], inputFrom: -1)
             ],
             metadata: [:]
         )
@@ -245,7 +245,7 @@ import Testing
 
         let req = BatchRequest(
             calls: [
-                BatchCall(callId: 0, methodId: getWidgetId, payload: [], inputFrom: 99),
+                BatchCall(callId: 0, methodId: getWidgetId, payload: [], inputFrom: 99)
             ],
             metadata: [:]
         )
@@ -259,12 +259,14 @@ import Testing
 
     @Test func handlerErrorPreservesCodeAndDetail() async throws {
         struct FailingHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse
+            {
                 throw BebopRpcError(code: .internal, detail: "boom")
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -281,7 +283,7 @@ import Testing
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
                     payload: EchoRequest(value: "fail").encode(), inputFrom: -1
-                ),
+                )
             ],
             metadata: [:]
         )
@@ -290,7 +292,7 @@ import Testing
             methodId: 1, payload: req.encode(), ctx: ctx
         )
         let response = try BatchResponse.decode(from: responseBytes)
-        guard case let .error(e) = response.results[0].outcome else {
+        guard case .error(let e) = response.results[0].outcome else {
             Issue.record("expected error outcome")
             return
         }
@@ -300,12 +302,14 @@ import Testing
 
     @Test func handlerErrorCascadesToDependents() async throws {
         struct FailingHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse
+            {
                 throw BebopRpcError(code: .permissionDenied, detail: "nope")
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -338,7 +342,7 @@ import Testing
             uniquingKeysWith: { a, _ in a }
         )
 
-        guard case let .error(e0) = outcomes[0] else {
+        guard case .error(let e0) = outcomes[0] else {
             Issue.record("call 0 should error")
             return
         }
@@ -387,13 +391,16 @@ import Testing
 
     @Test func singleCallMetadata() async throws {
         struct MetadataHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws
+                -> EchoResponse
+            {
                 context.setResponseMetadata("trace-id", "abc-123")
                 return EchoResponse(value: request.value.string)
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -410,7 +417,7 @@ import Testing
                 BatchCall(
                     callId: 0, methodId: getWidgetId,
                     payload: EchoRequest(value: "hi").encode(), inputFrom: -1
-                ),
+                )
             ],
             metadata: [:]
         )
@@ -428,13 +435,16 @@ import Testing
 
     @Test func concurrentCallMetadataIsolation() async throws {
         struct TaggingHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws
+                -> EchoResponse
+            {
                 context.setResponseMetadata("source", request.value.string)
                 return EchoResponse(value: request.value.string)
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -477,13 +487,16 @@ import Testing
 
     @Test func dependentCallMetadataIsolation() async throws {
         struct TaggingHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws
+                -> EchoResponse
+            {
                 context.setResponseMetadata("step", request.value.string)
                 return EchoResponse(value: request.value.string)
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -525,7 +538,9 @@ import Testing
 
     @Test func inputFromPropagatesUpstreamResponseMetadata() async throws {
         struct MetaPropHandler: WidgetServiceHandler {
-            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws -> EchoResponse {
+            func getWidget(_ request: EchoRequest.View, context: RpcContext) async throws
+                -> EchoResponse
+            {
                 if request.value == "upstream" {
                     context.setResponseMetadata("widget-id", "42")
                 }
@@ -540,7 +555,8 @@ import Testing
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>, context _: RpcContext
             ) async throws -> EchoResponse { fatalError() }
@@ -574,4 +590,77 @@ import Testing
         #expect(meta1["saw-widget-id"] == "42")
         #expect(meta1["saw-batch"] == "present")
     }
+
+    private struct ReadyHandler: WidgetServiceHandler {
+        let gate: AsyncStream<Void>
+        let release: AsyncStream<Void>.Continuation
+
+        func getWidget(_ request: EchoRequest.View, context _: RpcContext) async throws
+            -> EchoResponse
+        {
+            switch request.value.string {
+            case "slow":
+                for await _ in gate {
+                    break
+                }
+                return EchoResponse(value: "done")
+            case "fast":
+                return EchoResponse(value: "dependent")
+            default:
+                release.finish()
+                return EchoResponse(value: "released")
+            }
+        }
+
+        func listWidgets(_ request: CountRequest.View, context: RpcContext) async throws
+            -> AsyncThrowingStream<CountResponse, Error>
+        {
+            try await WidgetHandler().listWidgets(request, context: context)
+        }
+
+        func uploadWidgets(
+            _ requests: AsyncThrowingStream<EchoRequest.View, Error>, context: RpcContext
+        )
+            async throws -> EchoResponse
+        {
+            try await WidgetHandler().uploadWidgets(requests, context: context)
+        }
+
+        func syncWidgets(
+            _ requests: AsyncThrowingStream<EchoRequest.View, Error>, context: RpcContext
+        )
+            async throws -> AsyncThrowingStream<EchoResponse, Error>
+        {
+            try await WidgetHandler().syncWidgets(requests, context: context)
+        }
+    }
+
+    @Test func readyDependenciesDoNotWaitForUnrelatedCalls() async throws {
+        let gate = AsyncStream.makeStream(of: Void.self)
+        let router = buildRouter(
+            handler: ReadyHandler(gate: gate.stream, release: gate.continuation))
+        let request = BatchRequest(calls: [
+            BatchCall(
+                callId: 0, methodId: getWidgetId, payload: EchoRequest(value: "slow").encode(),
+                inputFrom: -1),
+            BatchCall(
+                callId: 9, methodId: getWidgetId, payload: EchoRequest(value: "fast").encode(),
+                inputFrom: -1),
+            BatchCall(callId: 2, methodId: getWidgetId, payload: [], inputFrom: 9),
+        ])
+        let deadline = BebopTimestamp(fromNow: .seconds(2))
+        let context = RpcContext(methodId: 1, metadata: [:], deadline: deadline)
+        let bytes = try await withDeadline(deadline) {
+            try await router.unary(methodId: 1, payload: request.encode(), ctx: context)
+        }
+        let response = try BatchResponse.decode(from: bytes)
+        #expect(response.results.map(\.callId) == [0, 9, 2])
+        for result in response.results {
+            guard case .success = result.outcome else {
+                Issue.record("Ready batch call failed")
+                continue
+            }
+        }
+    }
+
 }

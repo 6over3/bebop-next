@@ -1,22 +1,33 @@
 public struct Frame: Sendable {
     public static let headerSize = 9
+    static let knownFlags: FrameFlags = [.endStream, .error, .compressed, .trailer, .cursor]
 
     public let header: FrameHeader
     public let payload: [UInt8]
     public let cursor: UInt64?
 
     public init(header: FrameHeader, payload: [UInt8], cursor: UInt64? = nil) {
-        assert(header.flags.contains(.cursor) == (cursor != nil))
-        precondition(Int(header.length) == payload.count, "frame header length does not match payload size")
-        self.header = header
+        precondition(
+            header.flags.contains(.cursor) == (cursor != nil), "CURSOR flag requires a cursor")
+        precondition(
+            Int(header.length) == payload.count, "frame header length does not match payload size")
+        self.header = FrameHeader(
+            length: header.length,
+            flags: header.flags.intersection(Self.knownFlags),
+            streamId: header.streamId
+        )
         self.payload = payload
         self.cursor = cursor
     }
 
     public init(payload: [UInt8], flags: FrameFlags, streamId: UInt32 = 0, cursor: UInt64? = nil) {
         precondition(payload.count <= Int(UInt32.max), "frame payload exceeds uint32 length")
-        var resolvedFlags = flags
-        if cursor != nil { resolvedFlags.insert(.cursor) }
+        var resolvedFlags = flags.intersection(Self.knownFlags)
+        if cursor != nil {
+            resolvedFlags.insert(.cursor)
+        } else {
+            resolvedFlags.remove(.cursor)
+        }
         header = FrameHeader(
             length: UInt32(payload.count),
             flags: resolvedFlags,
@@ -33,7 +44,8 @@ public struct Frame: Sendable {
 
     public static func decode(from bytes: [UInt8]) throws -> Frame {
         guard bytes.count >= headerSize else {
-            throw BebopRpcError(code: .invalidArgument, detail: "frame too short: \(bytes.count) bytes")
+            throw BebopRpcError(
+                code: .invalidArgument, detail: "frame too short: \(bytes.count) bytes")
         }
         let header = try bytes.withUnsafeBufferPointer { buf in
             var reader = BebopReader(data: UnsafeRawBufferPointer(buf))
@@ -49,7 +61,7 @@ public struct Frame: Sendable {
                 detail: "frame length mismatch: need \(totalNeeded) bytes, got \(bytes.count)"
             )
         }
-        let payload = Array(bytes[payloadStart ..< payloadEnd])
+        let payload = Array(bytes[payloadStart..<payloadEnd])
         var cursor: UInt64?
         if header.flags.contains(.cursor) {
             cursor = bytes.withUnsafeBufferPointer {
@@ -70,7 +82,8 @@ public struct Frame: Sendable {
             throw BebopRpcError(code: .invalidArgument, detail: "TRAILER frame must end stream")
         }
         if flags.contains(.error) && flags.contains(.trailer) {
-            throw BebopRpcError(code: .invalidArgument, detail: "ERROR and TRAILER cannot both be set")
+            throw BebopRpcError(
+                code: .invalidArgument, detail: "ERROR and TRAILER cannot both be set")
         }
     }
 

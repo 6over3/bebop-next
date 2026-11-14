@@ -1,0 +1,24 @@
+package bench
+
+mut struct BytePayload {
+    values: byte[];
+}
+
+mut struct Entity {
+    id: uint64;
+    position: float32[3];
+    rotation: float32[4];
+    health: uint16;
+    active: bool;
+}
+
+message Snapshot {
+    tick(1): uint64;
+    entities(2): Entity[];
+    scene(3): string;
+}
+
+mut struct StringTable {
+    names: string[];
+    revision: uint32;
+}

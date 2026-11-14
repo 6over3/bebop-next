@@ -253,6 +253,12 @@ message TypeDescriptor {
     defined_fqn(7): string;
 }
 
+/// Magnitude and sign of an integer outside the int64 range.
+struct IntegerValue {
+    magnitude: uint128;
+    negative: bool;
+}
+
 /// Concrete value.
 ///
 /// Used in const definitions, decorator arguments, and decorator parameter
@@ -275,6 +281,8 @@ message LiteralValue {
     timestamp_value(9): timestamp;
     /// When `kind == DURATION`.
     duration_value(10): duration;
+    /// When an integer does not fit int64.
+    integer_value(11): IntegerValue;
 }
 
 /// Named or positional argument in a decorator usage.

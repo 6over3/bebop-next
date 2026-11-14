@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+Standard: c++20
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: None
+AllowShortLoopsOnASingleLine: false
+InsertBraces: true
+AlignAfterOpenBracket: DontAlign
+BinPackArguments: false
+BinPackParameters: false

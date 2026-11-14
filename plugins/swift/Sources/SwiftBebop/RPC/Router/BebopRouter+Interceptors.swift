@@ -13,28 +13,26 @@ extension BebopRouter {
         }
     }
 
-    func runInterceptors(
+    func runInterceptors<Value: Sendable>(
         methodId: UInt32,
-        ctx: RpcContext
-    ) async throws {
+        ctx: RpcContext,
+        operation: @escaping @Sendable () async throws -> Value
+    ) async throws -> Value {
         try checkCallViability(ctx)
-
-        guard !interceptors.isEmpty else { return }
-
-        var next: @Sendable () async throws -> Void = {}
-        for i in stride(from: interceptors.count - 1, through: 0, by: -1) {
-            let interceptor = interceptors[i]
+        var next = operation
+        for interceptor in interceptors.reversed() {
             let proceed = next
-            next = { [methodId] in
-                try Task.checkCancellation()
-                try await interceptor.intercept(
+            next = {
+                try self.checkCallViability(ctx)
+                return try await interceptor.intercept(
                     methodId: methodId,
                     ctx: ctx,
                     proceed: proceed
                 )
             }
         }
-
-        try await next()
+        let result = try await next()
+        try checkCallViability(ctx)
+        return result
     }
 }

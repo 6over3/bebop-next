@@ -596,6 +596,20 @@ struct SwiftGeneratorTests {
         #expect(code.contains("@available(*, deprecated)"))
     }
 
+    @Test func messageQualifiedDeprecatedField() throws {
+        let code = try generate(
+            DefinitionDescriptor(
+                kind: .message, name: "Msg", fqn: "test.Msg",
+                messageDef: MessageDef(fields: [
+                    FieldDescriptor(
+                        name: "old_field", type: TypeDescriptor(kind: .string), index: 1,
+                        decorators: [DecoratorUsage(fqn: "bebop.deprecated")]
+                    )
+                ])
+            ))
+        #expect(code.contains("@available(*, deprecated)"))
+    }
+
     @Test func messageEquality() throws {
         let code = try generate(
             DefinitionDescriptor(
@@ -772,6 +786,30 @@ struct SwiftGeneratorTests {
                 )
             ))
         #expect(code.contains("public let debug: Bool = true"))
+    }
+
+    @Test func constWideIntegers() throws {
+        let cases: [(TypeKind, IntegerValue, String, String)] = [
+            (.uint64, IntegerValue(magnitude: UInt128(UInt64.max), negative: false),
+                "UInt64", "18446744073709551615"),
+            (.int128, IntegerValue(magnitude: (UInt128(1) << 64) + 1, negative: true),
+                "Int128", "-18446744073709551617"),
+            (.int128, IntegerValue(magnitude: UInt128(1) << 127, negative: true),
+                "Int128", "-170141183460469231731687303715884105728"),
+            (.uint128, IntegerValue(magnitude: UInt128.max, negative: false),
+                "UInt128", "340282366920938463463374607431768211455"),
+        ]
+        for (kind, integer, type, literal) in cases {
+            let code = try generate(
+                DefinitionDescriptor(
+                    kind: .const, name: "VALUE", fqn: "test.VALUE",
+                    constDef: ConstDef(
+                        type: TypeDescriptor(kind: kind),
+                        value: LiteralValue(kind: .int, integerValue: integer)
+                    )
+                ))
+            #expect(code.contains("public let value: \(type) = \(literal)"))
+        }
     }
 
     @Test func constFloat() throws {
@@ -1513,25 +1551,25 @@ struct SwiftGeneratorTests {
                         name: "Unary",
                         requestType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
                         responseType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
-                        methodType: .unary, id: 11
+                        methodType: .unary, id: 1011
                     ),
                     MethodDescriptor(
                         name: "ServerStream",
                         requestType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
                         responseType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
-                        methodType: .serverStream, id: 12
+                        methodType: .serverStream, id: 1012
                     ),
                     MethodDescriptor(
                         name: "ClientStream",
                         requestType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
                         responseType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
-                        methodType: .clientStream, id: 13
+                        methodType: .clientStream, id: 1013
                     ),
                     MethodDescriptor(
                         name: "DuplexStream",
                         requestType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
                         responseType: TypeDescriptor(kind: .defined, definedFqn: "test.Msg"),
-                        methodType: .duplexStream, id: 14
+                        methodType: .duplexStream, id: 1014
                     ),
                 ])
             )

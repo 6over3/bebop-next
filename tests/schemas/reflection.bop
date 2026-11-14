@@ -1,0 +1,44 @@
+package inspection;
+
+import "bebop/decorators.bop";
+
+#decorator(metadata) {
+    targets = ALL
+    param magnitude!: uint128
+    param negative!: int128
+    param text!: string
+    param id!: uuid
+    param at!: timestamp
+    param delay!: duration
+    param weight!: float64
+    param enabled!: bool
+    export [[ return { magnitude = magnitude, text = text, id = id, at = at, delay = delay } ]]
+}
+
+/// Values exposed through reflection.
+@metadata(
+    magnitude: 340282366920938463463374607431768211455,
+    negative: -170141183460469231731687303715884105728,
+    text: "left\0right",
+    id: "00112233-4455-6677-8899-aabbccddeeff",
+    at: "1970-01-01T00:00:00Z",
+    delay: "1.5s",
+    weight: -0.0,
+    enabled: true
+)
+message Values {
+    number(1): int32;
+}
+
+enum Signed : int64 {
+    NEGATIVE = -9223372036854775808;
+    ZERO = 0;
+    @deprecated("Use ZERO.")
+    LEGACY = 1;
+}
+
+@flags
+enum Alias : byte {
+    ZERO = 0;
+    ALIAS = 0;
+}

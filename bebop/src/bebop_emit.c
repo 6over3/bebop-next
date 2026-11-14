@@ -196,7 +196,9 @@ static void bebop__emit_literal(bebop__emit_buf_t* buf, const bebop_literal_t* l
       if (raw && raw_len > 0) {
         bebop__emit_str_n(buf, raw, raw_len);
       } else {
-        bebop__emit_i64(buf, lit->int_val);
+        char decimal[41];
+        const size_t length = bebop__integer_format(lit->int_val, decimal);
+        bebop__emit_str_n(buf, decimal, length);
       }
       break;
 

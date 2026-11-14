@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, lsp]
+    branches: [main, lsp, cplusplus]
   pull_request:
     branches: [main]
 
@@ -34,7 +34,7 @@ jobs:
   windows-x64:
     uses: ./.github/workflows/build.yml
     with:
-      os: windows-latest
+      os: windows-2025-vs2026
       arch: x64
 
   windows-arm64:
@@ -62,3 +62,10 @@ jobs:
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: typescript
+
+  codegen-cpp:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: cpp

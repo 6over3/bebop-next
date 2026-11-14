@@ -1,0 +1,13 @@
+package packaging;
+
+import "bebop/cpp.bop";
+
+mut struct Entity {
+    id: uint128;
+    labels: string[];
+}
+
+message Snapshot {
+    @cpp.map(kind: "flat_map")
+    groups(1): map[uint64, Entity[]];
+}

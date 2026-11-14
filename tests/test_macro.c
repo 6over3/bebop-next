@@ -425,7 +425,7 @@ void test_macro_param_default_value(void)
   TEST_ASSERT_FALSE(param->required);
   TEST_ASSERT_EQUAL(BEBOP_TYPE_UINT32, param->type);
   TEST_ASSERT_NOT_NULL(param->default_value);
-  TEST_ASSERT_EQUAL_INT64(5, param->default_value->int_val);
+  TEST_ASSERT_EQUAL_INT64(5, bebop_literal_as_int(param->default_value));
 }
 
 void test_macro_param_in_constraint(void)
@@ -976,8 +976,9 @@ void test_lua_wrap_no_params(void)
 {
   const char* source = "print('hello')";
 
-  const char* result =
-      bebop__lua_wrap_function(&ctx->arena, (bebop__str_view_t) {source, strlen(source)}, NULL, 0, NULL);
+  const char* result = bebop__lua_wrap_function(
+      &ctx->arena, (bebop__str_view_t) {source, strlen(source)}, NULL, 0, NULL
+  );
   TEST_ASSERT_NOT_NULL(result);
   TEST_ASSERT_EQUAL_STRING("return function()\nprint('hello')\nend\n", result);
 }
@@ -1043,7 +1044,11 @@ void test_lua_wrap_decorator_validate(void)
 
   const char* params[] = {"self", "target", "min", "max"};
   const char* wrapped = bebop__lua_wrap_function(
-      &ctx->arena, (bebop__str_view_t) {val_src, def->decorator_def.validate_span.len}, params, 4, NULL
+      &ctx->arena,
+      (bebop__str_view_t) {val_src, def->decorator_def.validate_span.len},
+      params,
+      4,
+      NULL
   );
 
   TEST_ASSERT_NOT_NULL(wrapped);
@@ -1100,7 +1105,7 @@ static bebop_decorator_t make_usage_uint32(
   arg = (bebop_decorator_arg_t) {
       .name = param_name,
       .span = {0},
-      .value = {.kind = BEBOP_LITERAL_INT, .int_val = value},
+      .value = {.kind = BEBOP_LITERAL_INT, .int_val = bebop__integer_from_int64(value)},
   };
   return (bebop_decorator_t) {
       .name = name,
@@ -1263,7 +1268,7 @@ void test_lua_eval_error_with_span(void)
   bebop_decorator_arg_t arg = {
       .name = param_name,
       .span = {.off = 100, .len = 5, .start_line = 10, .start_col = 20},
-      .value = {.kind = BEBOP_LITERAL_INT, .int_val = 42},
+      .value = {.kind = BEBOP_LITERAL_INT, .int_val = {.low = 42}},
   };
   bebop_decorator_t usage = {
       .name = def->name,
@@ -1475,7 +1480,7 @@ void test_lua_eval_export_returns_table(void)
   bebop_str_t param_name = bebop_intern(BEBOP_INTERN(ctx), "value");
   bebop_decorator_t usage = make_usage_uint32(def->name, param_name, 21, schema);
 
-  bebop_status_t status = bebop__lua_run_export(state, def, &usage);
+  bebop_status_t status = bebop__lua_run_export(state, def, &usage, NULL);
   TEST_ASSERT_EQUAL(BEBOP_OK, status);
 
   bebop__lua_state_destroy(state);
@@ -1565,7 +1570,7 @@ void test_lua_eval_export_non_literal_value(void)
                       "}\n";
 
   expected_diag_t expected[] = {
-      {.line = 3, .col = 0, .message_substr = "must be a bool, number, or string"},
+      {.line = 3, .col = 0, .message_substr = "must be a literal"},
   };
   parse_expect_diagnostics(src, expected, 1);
 }
@@ -2226,6 +2231,211 @@ void test_e2e_lua_target_variable(void)
   (void)status;
 }
 
+void test_e2e_field_type_metadata(void);
+
+void test_e2e_field_type_metadata(void)
+{
+  bebop_parse_result_t* result = parse_expect_success(
+      "package typed\n"
+      "#decorator(inspect) {\n"
+      "  targets = FIELD\n"
+      "  validate [[\n"
+      "    assert(target.index == 5 and target.parent_kind == 'message')\n"
+      "    assert(target.type.kind == 'map' and target.type.key.kind == 'string')\n"
+      "    local value = target.type.value\n"
+      "    assert(value.kind == 'array' and value.element.kind == 'fixed_array')\n"
+      "    assert(value.element.length == 2)\n"
+      "    local item = value.element.element\n"
+      "    assert(item.kind == 'defined' and item.fqn == 'typed.Entity')\n"
+      "    assert(item.def_kind == 'struct' and item.is_mutable)\n"
+      "  ]]\n"
+      "  export [[ return { kind = target.type.kind } ]]\n"
+      "}\n"
+      "mut struct Entity { value: int32; }\n"
+      "message Record { @inspect tables(5): map[string, Entity[2][]]; }\n"
+  );
+  const bebop_def_t* record = bebop_result_find(result, "typed.Record");
+  const bebop_field_t* field = bebop_def_field_at(record, 0);
+  const bebop_decorator_t* decorator = bebop_field_decorator_at(field, 0);
+  const bebop_literal_t* kind = bebop_decorator_export(decorator, "kind");
+  TEST_ASSERT_NOT_NULL(kind);
+  TEST_ASSERT_EQUAL_STRING("map", bebop_literal_as_string(kind, NULL));
+}
+
+void test_e2e_cpp_map_decorator(void);
+
+void test_e2e_cpp_map_decorator(void)
+{
+  parse_expect_success(
+      "import \"bebop/cpp.bop\"\n"
+      "mut struct Entity { value: int32; }\n"
+      "message Record {\n"
+      "  @cpp.map(kind: \"flat_map\")\n"
+      "  tables(1): map[string, map[uint64, Entity]][][2];\n"
+      "}\n"
+  );
+  const char* cases[] = {
+      "import \"bebop/cpp.bop\"\n"
+      "message Record { @cpp.map(kind: \"flat_map\") value(1): int32; }\n",
+      "import \"bebop/cpp.bop\"\n"
+      "mut struct Wrapped { value: map[string, int32]; }\n"
+      "message Record { @cpp.map(kind: \"flat_map\") value(1): Wrapped[]; }\n",
+      "import \"bebop/cpp.bop\"\n"
+      "message Record { @cpp.map(kind: \"invalid\") value(1): map[string, int32]; }\n",
+      "import \"bebop/cpp.bop\"\n"
+      "message Record { @cpp.map(kind: \"map\") @cpp.map(kind: \"flat_map\") "
+      "value(1): map[string, int32]; }\n"
+  };
+  for (size_t i = 0; i < BEBOP_COUNTOF(cases); i++) {
+    bebop_parse_result_t* result = NULL;
+    bebop_parse_source(ctx, BEBOP_SOURCE(cases[i], "invalid.bop"), &result);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_GREATER_THAN_UINT32(0, bebop_result_error_count(result));
+  }
+}
+
+void test_e2e_lua_embedded_nul(void);
+
+void test_e2e_lua_embedded_nul(void)
+{
+  bebop_parse_result_t* result = parse_expect_success(
+      "#decorator(text) {\n"
+      "  targets = FIELD\n"
+      "  param value!: string\n"
+      "  validate [[ assert(#value == 3 and string.byte(value, 3) == 66) ]]\n"
+      "  export [[ return { text = value, digits = '123', exponent = '1e300' } ]]\n"
+      "}\n"
+      "message Record { @text(\"A\\0B\") value(1): string; }\n"
+  );
+  const bebop_def_t* record = bebop_result_find(result, "Record");
+  const bebop_field_t* field = bebop_def_field_at(record, 0);
+  const bebop_decorator_t* decorator = bebop_field_decorator_at(field, 0);
+  size_t length = 0;
+  const char* text = bebop_literal_as_string(bebop_decorator_export(decorator, "text"), &length);
+  TEST_ASSERT_EQUAL_UINT32(3, length);
+  TEST_ASSERT_EQUAL_MEMORY("A\0B", text, 3);
+  const char* digits =
+      bebop_literal_as_string(bebop_decorator_export(decorator, "digits"), &length);
+  TEST_ASSERT_EQUAL_UINT32(3, length);
+  TEST_ASSERT_EQUAL_MEMORY("123", digits, 3);
+  const char* exponent =
+      bebop_literal_as_string(bebop_decorator_export(decorator, "exponent"), &length);
+  TEST_ASSERT_EQUAL_UINT32(5, length);
+  TEST_ASSERT_EQUAL_MEMORY("1e300", exponent, 5);
+}
+
+void test_e2e_typed_literal_params(void);
+void test_e2e_invalid_typed_literal_params(void);
+void test_e2e_literal_constraints(void);
+
+void test_e2e_typed_literal_params(void)
+{
+  const char* source =
+      "package sample\n"
+      "#decorator(special) { targets = MESSAGE "
+      "param id!: uuid param at!: timestamp param delay!: duration "
+      "param same?: uuid = \"00112233-4455-6677-8899-aabbccddeeff\" "
+      "validate [[ "
+      "assert(id.kind == 'uuid' and id == same and #id.bytes == 16) "
+      "assert(id.text == '00112233-4455-6677-8899-aabbccddeeff') "
+      "assert(at.kind == 'timestamp' and at.seconds == 0) "
+      "assert(at.nanoseconds == 0 and at.offset_ms == 0) "
+      "assert(delay.kind == 'duration' and delay.seconds == 1) "
+      "assert(delay.nanoseconds == 500000000 and id ~= at and at ~= delay) "
+      "assert(not pcall(function() delay.seconds = 99 end)) "
+      "]] export [[ return { id = id, at = at, delay = delay } ]] }\n"
+      "@special(id: \"00112233-4455-6677-8899-aabbccddeeff\", "
+      "at: \"1970-01-01T00:00:00Z\", delay: \"1.5s\")\n"
+      "message Data {}\n";
+  bebop_parse_result_t* result = parse_expect_success(source);
+  const bebop_def_t* def = bebop_result_find(result, "sample.Data");
+  TEST_ASSERT_NOT_NULL(def);
+  const bebop_decorator_t* decorator = bebop_def_decorator_at(def, 0);
+  TEST_ASSERT_NOT_NULL(decorator);
+  const bebop_literal_t* id = bebop_arg_value(bebop_decorator_arg_at(decorator, 0));
+  const bebop_literal_t* at = bebop_arg_value(bebop_decorator_arg_at(decorator, 1));
+  const bebop_literal_t* delay = bebop_arg_value(bebop_decorator_arg_at(decorator, 2));
+  TEST_ASSERT_EQUAL_INT(BEBOP_LITERAL_UUID, bebop_literal_kind(id));
+  TEST_ASSERT_EQUAL_UINT8(255, bebop_literal_as_uuid(id)[15]);
+  TEST_ASSERT_EQUAL_INT(BEBOP_LITERAL_TIMESTAMP, bebop_literal_kind(at));
+  int64_t seconds;
+  int32_t nanos;
+  int32_t offset;
+  bebop_literal_as_timestamp(at, &seconds, &nanos, &offset);
+  TEST_ASSERT_EQUAL_INT64(0, seconds);
+  TEST_ASSERT_EQUAL_INT32(0, nanos);
+  TEST_ASSERT_EQUAL_INT32(0, offset);
+  TEST_ASSERT_EQUAL_INT(BEBOP_LITERAL_DURATION, bebop_literal_kind(delay));
+  bebop_literal_as_duration(delay, &seconds, &nanos);
+  TEST_ASSERT_EQUAL_INT64(1, seconds);
+  TEST_ASSERT_EQUAL_INT32(500000000, nanos);
+  TEST_ASSERT_TRUE(bebop__literal_equal(id, bebop_decorator_export(decorator, "id")));
+  TEST_ASSERT_TRUE(bebop__literal_equal(at, bebop_decorator_export(decorator, "at")));
+  TEST_ASSERT_TRUE(bebop__literal_equal(delay, bebop_decorator_export(decorator, "delay")));
+
+  bebop_descriptor_t* descriptor = NULL;
+  TEST_ASSERT_EQUAL_INT(
+      BEBOP_OK, bebop_descriptor_build(result, BEBOP_DESC_FLAG_NONE, &descriptor)
+  );
+  const bebop_descriptor_schema_t* schema = bebop_descriptor_schema_at(descriptor, 0);
+  for (uint32_t i = 0; i < bebop_descriptor_schema_def_count(schema); ++i) {
+    const bebop_descriptor_def_t* definition = bebop_descriptor_schema_def_at(schema, i);
+    if (strcmp(bebop_descriptor_def_name(definition), "Data") == 0) {
+      const bebop_descriptor_usage_t* usage = bebop_descriptor_def_decorator_at(definition, 0);
+      TEST_ASSERT_EQUAL_STRING("sample.special", bebop_descriptor_usage_fqn(usage));
+      TEST_ASSERT_EQUAL_INT(
+          BEBOP_LITERAL_UUID,
+          bebop_descriptor_literal_kind(bebop_descriptor_usage_arg_value(usage, 0))
+      );
+      TEST_ASSERT_EQUAL_UINT32(3, bebop_descriptor_usage_export_count(usage));
+      break;
+    }
+  }
+  bebop_descriptor_free(descriptor);
+}
+
+void test_e2e_invalid_typed_literal_params(void)
+{
+  const expected_diag_t expected[] = {{2, 0, "invalid uuid literal"}};
+  parse_expect_diagnostics(
+      "#decorator(special) { targets = MESSAGE param value!: uuid }\n"
+      "@special(\"invalid\") message Data {}\n", expected, 1);
+}
+
+void test_e2e_literal_constraints(void)
+{
+  parse_expect_success(
+      "#decorator(allowed) { targets = MESSAGE\n"
+      "param enabled!: bool in [true]\n"
+      "param weight!: float64 in [1.5, 2.5]\n"
+      "param id!: uuid in [\"00112233-4455-6677-8899-aabbccddeeff\"]\n"
+      "param at!: timestamp in [\"1970-01-01T00:00:00Z\"]\n"
+      "param delay!: duration in [\"1.5s\"]\n"
+      "param number!: uint128 in [340282366920938463463374607431768211455]\n"
+      "}\n"
+      "@allowed(true, 2.5, \"00112233-4455-6677-8899-AABBCCDDEEFF\", "
+      "\"1970-01-01T00:00:00Z\", \"1500ms\", "
+      "340282366920938463463374607431768211455) message Data {}\n"
+  );
+  const char* cases[] = {
+      "#decorator(allowed) { targets = MESSAGE param value!: bool in [true] }\n"
+      "@allowed(false) message Data {}\n",
+      "#decorator(allowed) { targets = MESSAGE param value!: float64 in [1.5] }\n"
+      "@allowed(2.5) message Data {}\n",
+      "#decorator(allowed) { targets = MESSAGE "
+      "param value!: uuid in [\"00112233-4455-6677-8899-aabbccddeeff\"] }\n"
+      "@allowed(\"00112233-4455-6677-8899-aabbccddeef0\") message Data {}\n",
+      "#decorator(allowed) { targets = MESSAGE param value!: duration in [\"1.5s\"] }\n"
+      "@allowed(\"2s\") message Data {}\n",
+      "#decorator(allowed) { targets = MESSAGE param value!: uint128 in [0] }\n"
+      "@allowed(18446744073709551616) message Data {}\n",
+  };
+  const expected_diag_t expected[] = {{2, 0, "Value not allowed"}};
+  for (size_t index = 0; index < BEBOP_COUNTOF(cases); ++index) {
+    parse_expect_diagnostics(cases[index], expected, 1);
+  }
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -2328,6 +2538,12 @@ int main(void)
   RUN_TEST(test_e2e_public_api_decorator_metadata);
   RUN_TEST(test_e2e_lua_target_variable);
   RUN_TEST(test_e2e_lua_target_branch_variable);
+  RUN_TEST(test_e2e_field_type_metadata);
+  RUN_TEST(test_e2e_cpp_map_decorator);
+  RUN_TEST(test_e2e_lua_embedded_nul);
+  RUN_TEST(test_e2e_typed_literal_params);
+  RUN_TEST(test_e2e_invalid_typed_literal_params);
+  RUN_TEST(test_e2e_literal_constraints);
 
   return UNITY_END();
 }

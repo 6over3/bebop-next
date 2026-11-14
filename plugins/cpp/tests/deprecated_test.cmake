@@ -1,0 +1,40 @@
+function(check_diagnostic name source should_fail)
+    set(path "${output_dir}/${name}.cc")
+    file(WRITE "${path}" "#include \"deprecated.bb.hpp\"\n${source}\n")
+    if(msvc)
+        set(flags /std:c++latest /Zs /we4996 "/I${output_dir}" "/I${runtime_dir}")
+    else()
+        set(flags -std=c++23 -fsyntax-only -Werror=deprecated-declarations
+            "-I${output_dir}" "-I${runtime_dir}")
+    endif()
+    execute_process(
+        COMMAND "${compiler}" ${flags} "${path}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+    )
+    if(should_fail)
+        if(result EQUAL 0 OR NOT "${output}${error}" MATCHES "deprecated")
+            message(FATAL_ERROR "${name} did not report deprecation: ${output}${error}")
+        endif()
+    elseif(NOT result EQUAL 0)
+        message(FATAL_ERROR "${name} failed: ${output}${error}")
+    endif()
+endfunction()
+
+check_diagnostic(include_only "int main() {}" FALSE)
+check_diagnostic(active_use "void use() { compatibility::Packet value; value.current = 7; auto bytes = bebop::Encode(value); }" FALSE)
+check_diagnostic(record "compatibility::LegacyRecord value;" TRUE)
+check_diagnostic(reference "compatibility::LegacyRecordRef value;" TRUE)
+check_diagnostic(view "using View = compatibility::LegacyRecordView;" TRUE)
+check_diagnostic(message "compatibility::LegacyMessage value;" TRUE)
+check_diagnostic(union "compatibility::LegacyChoice value;" TRUE)
+check_diagnostic(enum "compatibility::LegacyState value;" TRUE)
+check_diagnostic(member "auto value = compatibility::State::kOld;" TRUE)
+check_diagnostic(field "void use(compatibility::Packet& value) { value.old_text.reset(); }" TRUE)
+check_diagnostic(view_field "void use(compatibility::PacketView value) { value.old_text(); }" TRUE)
+check_diagnostic(branch "using Branch = compatibility::Choice::Old;" TRUE)
+check_diagnostic(inline_branch "using Branch = compatibility::ChoiceView::Inline;" TRUE)
+check_diagnostic(factory "auto value = compatibility::Choice::FromOld({});" TRUE)
+check_diagnostic(kind "auto value = compatibility::Choice::Kind::kOld;" TRUE)
+check_diagnostic(restore "[[deprecated]] void old(); void use() { old(); }" TRUE)

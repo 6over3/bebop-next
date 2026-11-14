@@ -34,6 +34,19 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - name: Setup GCC 15
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v g++-15 >/dev/null; then
+            sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test
+            sudo apt-get update
+            sudo apt-get install --yes gcc-15 g++-15
+          fi
+
+      - name: Select Xcode 26
+        if: runner.os == 'macOS'
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app
+
       - name: Setup Swift
         if: inputs.swift-version != '' && runner.os != 'macOS'
         uses: ./.github/actions/setup-swift
@@ -47,7 +60,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build/cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }}
+        run: cmake -B build/cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_C_COMPILER=gcc-15 -DCMAKE_CXX_COMPILER=g++-15
 
       - name: Configure (Windows x64)
         if: runner.os == 'Windows' && inputs.arch == 'x64'
@@ -55,7 +68,7 @@ jobs:
 
       - name: Configure (Windows ARM64)
         if: runner.os == 'Windows' && inputs.arch == 'arm64'
-        run: cmake -B build/cmake -G "Visual Studio 17 2022" -A ARM64
+        run: cmake -B build/cmake -G "Visual Studio 18 2026" -A ARM64
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
@@ -80,10 +93,35 @@ jobs:
         working-directory: build/cmake
         run: ctest --output-on-failure -C ${{ inputs.build-type }}
 
+      - name: Install release files
+        run: cmake --install build/cmake --prefix "${{ github.workspace }}/build/staging" --config ${{ inputs.build-type }}
+
+      - name: Relocate package
+        run: cmake -E rename build/staging build/package
+
+      - name: Configure package test (Linux)
+        if: runner.os == 'Linux'
+        run: cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -DCMAKE_CXX_COMPILER=g++-15
+
+      - name: Configure package test (macOS)
+        if: runner.os == 'macOS'
+        run: cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -DCMAKE_OSX_ARCHITECTURES=${{ inputs.arch == 'x64' && 'x86_64' || inputs.arch }}
+
+      - name: Configure package test (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -G "Visual Studio 18 2026" -A ${{ inputs.arch == 'x64' && 'x64' || 'ARM64' }}
+
+      - name: Build package test
+        run: cmake --build build/package-test --config Release --parallel
+
+      - name: Test installed package
+        if: runner.os != 'macOS' || inputs.arch == 'x64' || runner.arch == 'ARM64'
+        run: ctest --test-dir build/package-test --output-on-failure -C Release
+
       - name: Upload bebopc
         uses: actions/upload-artifact@v4
         with:
           name: bebopc-${{ inputs.os }}-${{ inputs.arch }}
-          path: build
+          path: build/package
           if-no-files-found: error
           retention-days: 7

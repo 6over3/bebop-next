@@ -1,5 +1,4 @@
-/// Run `operation` with a hard deadline. If the deadline expires, the
-/// operation's task is cancelled and `deadlineExceeded` is thrown.
+/// Run `operation` with a deadline and request cancellation on expiry.
 public func withDeadline<T: Sendable>(
     _ deadline: BebopTimestamp,
     operation: @escaping @Sendable () async throws -> T

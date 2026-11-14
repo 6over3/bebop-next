@@ -1,6 +1,7 @@
 #include <bebop.h>
 #include <bebop_wire.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -463,21 +464,118 @@ static gen_opts_t opts_parse(const bebop_plugin_request_t* req)
   return opts;
 }
 
-static const char* C_KEYWORDS[] = {"auto",       "break",      "case",           "char",
-                                   "const",      "continue",   "default",        "do",
-                                   "double",     "else",       "enum",           "extern",
-                                   "float",      "for",        "goto",           "if",
-                                   "int",        "long",       "register",       "return",
-                                   "short",      "signed",     "sizeof",         "static",
-                                   "struct",     "switch",     "typedef",        "union",
-                                   "unsigned",   "void",       "volatile",       "while",
-                                   "inline",     "restrict",   "_Bool",          "_Complex",
-                                   "_Imaginary", "_Alignas",   "_Alignof",       "_Atomic",
-                                   "_Generic",   "_Noreturn",  "_Static_assert", "_Thread_local",
-                                   "alignas",    "alignof",    "bool",           "constexpr",
-                                   "false",      "nullptr",    "static_assert",  "thread_local",
-                                   "true",       "typeof",     "typeof_unqual",  "_BitInt",
-                                   "_Decimal32", "_Decimal64", "_Decimal128",    NULL};
+static const char* C_KEYWORDS[] = {
+    "auto",
+    "break",
+    "case",
+    "char",
+    "const",
+    "continue",
+    "default",
+    "do",
+    "double",
+    "else",
+    "enum",
+    "extern",
+    "float",
+    "for",
+    "goto",
+    "if",
+    "int",
+    "long",
+    "register",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "struct",
+    "switch",
+    "typedef",
+    "union",
+    "unsigned",
+    "void",
+    "volatile",
+    "while",
+    "inline",
+    "restrict",
+    "_Bool",
+    "_Complex",
+    "_Imaginary",
+    "_Alignas",
+    "_Alignof",
+    "_Atomic",
+    "_Generic",
+    "_Noreturn",
+    "_Static_assert",
+    "_Thread_local",
+    "alignas",
+    "alignof",
+    "bool",
+    "constexpr",
+    "false",
+    "nullptr",
+    "static_assert",
+    "thread_local",
+    "true",
+    "typeof",
+    "typeof_unqual",
+    "_BitInt",
+    "_Decimal32",
+    "_Decimal64",
+    "_Decimal128",
+    "and",
+    "and_eq",
+    "asm",
+    "bitand",
+    "bitor",
+    "catch",
+    "char8_t",
+    "char16_t",
+    "char32_t",
+    "class",
+    "compl",
+    "concept",
+    "const_cast",
+    "consteval",
+    "constinit",
+    "co_await",
+    "co_return",
+    "co_yield",
+    "decltype",
+    "delete",
+    "dynamic_cast",
+    "explicit",
+    "export",
+    "friend",
+    "mutable",
+    "namespace",
+    "new",
+    "noexcept",
+    "not",
+    "not_eq",
+    "operator",
+    "or",
+    "or_eq",
+    "private",
+    "protected",
+    "public",
+    "reinterpret_cast",
+    "requires",
+    "static_cast",
+    "template",
+    "this",
+    "throw",
+    "try",
+    "typeid",
+    "typename",
+    "using",
+    "virtual",
+    "wchar_t",
+    "xor",
+    "xor_eq",
+    NULL
+};
 
 static bool is_keyword(const char* name)
 {
@@ -1533,7 +1631,7 @@ static bool field_is_deprecated(const bebop_descriptor_field_t* f)
   for (uint32_t i = 0; i < n; i++) {
     const bebop_descriptor_usage_t* u = bebop_descriptor_field_decorator_at(f, i);
     const char* fqn = bebop_descriptor_usage_fqn(u);
-    if (fqn && strcmp(fqn, "deprecated") == 0) {
+    if (fqn && (strcmp(fqn, "deprecated") == 0 || strcmp(fqn, "bebop.deprecated") == 0)) {
       return true;
     }
   }
@@ -1546,7 +1644,7 @@ static const char* deprecated_msg(const bebop_descriptor_field_t* f)
   for (uint32_t i = 0; i < n; i++) {
     const bebop_descriptor_usage_t* u = bebop_descriptor_field_decorator_at(f, i);
     const char* fqn = bebop_descriptor_usage_fqn(u);
-    if (fqn && strcmp(fqn, "deprecated") == 0) {
+    if (fqn && (strcmp(fqn, "deprecated") == 0 || strcmp(fqn, "bebop.deprecated") == 0)) {
       if (bebop_descriptor_usage_arg_count(u) > 0) {
         const bebop_descriptor_literal_t* arg = bebop_descriptor_usage_arg_value(u, 0);
         if (arg && bebop_descriptor_literal_kind(arg) == BEBOP_LITERAL_STRING) {
@@ -1706,6 +1804,7 @@ static void emit_file_header(gen_ctx_t* ctx, const bebop_descriptor_schema_t* sc
   sb_printf(&ctx->out, "#ifndef %s\n", guard.data);
   sb_printf(&ctx->out, "#define %s\n\n", guard.data);
   sb_puts(&ctx->out, "#include <bebop_wire.h>\n");
+  sb_puts(&ctx->out, "#include <math.h>\n");
   if (ctx->opts.output_mode == GEN_OUT_UNITY) {
     sb_puts(&ctx->out, "#include <bebop_wire_codegen.h>\n");
     sb_puts(&ctx->out, "#define BEBOP_WIRE_GENERATED_IMPLEMENTATION 1\n");
@@ -1834,6 +1933,95 @@ static void gen_forward_decls(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   }
 }
 
+static void gen_integer_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
+{
+  const char* name = type_name(ctx, bebop_descriptor_def_fqn(def));
+  const bebop_type_kind_t kind = bebop_descriptor_type_kind(bebop_descriptor_def_const_type(def));
+  const type_info_t* info = type_info(kind);
+  uint64_t low, high;
+  bool negative;
+  if (!info
+      || !bebop_descriptor_literal_as_integer(
+          bebop_descriptor_def_const_value(def), &low, &high, &negative
+      ))
+  {
+    ctx->error = "invalid integer constant";
+    return;
+  }
+  if (ctx->emit_mode == GEN_EMIT_DECL) {
+    emit(ctx, "extern const %s %s;", info->ctype, name);
+    return;
+  }
+  if (kind != BEBOP_TYPE_INT128 && kind != BEBOP_TYPE_UINT128) {
+    if (negative) {
+      emit(
+          ctx,
+          "const %s %s = (-INT64_C(%llu) - 1);",
+          info->ctype,
+          name,
+          (unsigned long long)(low - 1)
+      );
+    } else {
+      emit(ctx, "const %s %s = UINT64_C(%llu);", info->ctype, name, (unsigned long long)low);
+    }
+    return;
+  }
+  emit(ctx, "#if BEBOP_WIRE_HAS_I128");
+  if (negative) {
+    const uint64_t preceding_low = low - 1;
+    uint64_t preceding_high = high;
+    if (low == 0) {
+      --preceding_high;
+    }
+    emit(
+        ctx,
+        "const %s %s = -((Bebop_Int128)(((Bebop_UInt128)UINT64_C(%llu) << 64) | UINT64_C(%llu))) - "
+        "1;",
+        info->ctype,
+        name,
+        (unsigned long long)preceding_high,
+        (unsigned long long)preceding_low
+    );
+  } else {
+    emit(
+        ctx,
+        "const %s %s = (%s)(((Bebop_UInt128)UINT64_C(%llu) << 64) | UINT64_C(%llu));",
+        info->ctype,
+        name,
+        info->ctype,
+        (unsigned long long)high,
+        (unsigned long long)low
+    );
+  }
+  emit(ctx, "#else");
+  if (negative) {
+    low = UINT64_C(0) - low;
+    high = ~high;
+    if (low == 0) {
+      ++high;
+    }
+    const uint64_t magnitude = UINT64_C(0) - high;
+    emit(
+        ctx,
+        "const %s %s = {.low = UINT64_C(%llu), .high = (-INT64_C(%llu) - 1)};",
+        info->ctype,
+        name,
+        (unsigned long long)low,
+        (unsigned long long)(magnitude - 1)
+    );
+  } else {
+    emit(
+        ctx,
+        "const %s %s = {.low = UINT64_C(%llu), .high = UINT64_C(%llu)};",
+        info->ctype,
+        name,
+        (unsigned long long)low,
+        (unsigned long long)high
+    );
+  }
+  emit(ctx, "#endif");
+}
+
 static void gen_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 {
   const char* fqn = bebop_descriptor_def_fqn(def);
@@ -1850,7 +2038,7 @@ static void gen_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   if (ctx->emit_mode == GEN_EMIT_DECL) {
     emit_doc(ctx, doc);
     if (lk == BEBOP_LITERAL_INT) {
-      emit(ctx, "extern const int64_t %s;", name);
+      gen_integer_const(ctx, def);
     } else if (lk == BEBOP_LITERAL_FLOAT) {
       emit(ctx, "extern const double %s;", name);
     } else if (lk == BEBOP_LITERAL_BOOL) {
@@ -1872,9 +2060,24 @@ static void gen_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
 
   // Impl: emit definitions
   if (lk == BEBOP_LITERAL_INT) {
-    emit(ctx, "const int64_t %s = %lldLL;", name, (long long)bebop_descriptor_literal_as_int(lit));
+    gen_integer_const(ctx, def);
   } else if (lk == BEBOP_LITERAL_FLOAT) {
-    emit(ctx, "const double %s = %g;", name, bebop_descriptor_literal_as_float(lit));
+    const double value = bebop_descriptor_literal_as_float(lit);
+    if (isnan(value)) {
+      if (signbit(value)) {
+        emit(ctx, "const double %s = -(double)NAN;", name);
+      } else {
+        emit(ctx, "const double %s = (double)NAN;", name);
+      }
+    } else if (isinf(value)) {
+      if (signbit(value)) {
+        emit(ctx, "const double %s = -HUGE_VAL;", name);
+      } else {
+        emit(ctx, "const double %s = HUGE_VAL;", name);
+      }
+    } else {
+      emit(ctx, "const double %s = %a;", name, value);
+    }
   } else if (lk == BEBOP_LITERAL_BOOL) {
     emit(
         ctx, "const bool %s = %s;", name, bebop_descriptor_literal_as_bool(lit) ? "true" : "false"
@@ -1954,12 +2157,48 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   bool is_flags = bebop_descriptor_def_is_flags(def);
   uint32_t member_count = bebop_descriptor_def_member_count(def);
 
-  emit_doc(ctx, doc);
-  emit(ctx, "typedef enum {");
-
   bool is_signed =
       (base == BEBOP_TYPE_INT8 || base == BEBOP_TYPE_INT16 || base == BEBOP_TYPE_INT32
        || base == BEBOP_TYPE_INT64);
+  bool fixed_type = base == BEBOP_TYPE_INT64 || base == BEBOP_TYPE_UINT64;
+  for (uint32_t i = 0; i < member_count; i++) {
+    const uint64_t value = bebop_descriptor_member_value(bebop_descriptor_def_member_at(def, i));
+    if (is_signed) {
+      const int64_t signed_value = (int64_t)value;
+      if (signed_value < INT32_MIN || signed_value > INT32_MAX) {
+        fixed_type = true;
+      }
+    } else if (value > INT32_MAX) {
+      fixed_type = true;
+    }
+  }
+
+  emit_doc(ctx, doc);
+  if (fixed_type) {
+    const type_info_t* info = type_info(base);
+    if (!info) {
+      ctx->error = "invalid enum base type";
+      return;
+    }
+    emit(ctx, "typedef %s %s;", info->ctype, name);
+    for (uint32_t i = 0; i < member_count; i++) {
+      const bebop_descriptor_member_t* member = bebop_descriptor_def_member_at(def, i);
+      const uint64_t value = bebop_descriptor_member_value(member);
+      emit_doc(ctx, bebop_descriptor_member_documentation(member));
+      sb_indent(&ctx->out, ctx->indent);
+      sb_puts(&ctx->out, "#define ");
+      sb_enum_member(&ctx->out, name, bebop_descriptor_member_name(member));
+      if (is_signed && value > INT64_MAX) {
+        sb_printf(&ctx->out, " ((%s)(-INT64_C(%llu) - 1))\n", name, (unsigned long long)~value);
+      } else {
+        sb_printf(&ctx->out, " ((%s)UINT64_C(%llu))\n", name, (unsigned long long)value);
+      }
+    }
+    emit_nl(ctx);
+    return;
+  }
+
+  emit(ctx, "typedef enum {");
 
   ctx->indent++;
   for (uint32_t i = 0; i < member_count; i++) {
@@ -1971,10 +2210,10 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     emit_doc(ctx, mdoc);
     sb_indent(&ctx->out, ctx->indent);
     sb_enum_member(&ctx->out, name, mname);
-    if (is_flags) {
-      sb_printf(&ctx->out, " = 0x%llxu,\n", (unsigned long long)mval);
-    } else if (is_signed) {
+    if (is_signed) {
       sb_printf(&ctx->out, " = %lld,\n", (long long)(int64_t)mval);
+    } else if (is_flags) {
+      sb_printf(&ctx->out, " = 0x%llxu,\n", (unsigned long long)mval);
     } else {
       sb_printf(&ctx->out, " = %llu,\n", (unsigned long long)mval);
     }
@@ -2282,9 +2521,6 @@ static void gen_typedef(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     const bebop_descriptor_def_t* d = f->def;
     bebop_def_kind_t kind = bebop_descriptor_def_kind(d);
     switch (kind) {
-      case BEBOP_DEF_CONST:
-        gen_const(ctx, d);
-        break;
       case BEBOP_DEF_ENUM:
         break;
       case BEBOP_DEF_STRUCT:
@@ -2639,8 +2875,12 @@ static void gen_refl_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     for (uint32_t i = 0; i < member_count; i++) {
       const bebop_descriptor_member_t* m = bebop_descriptor_def_member_at(def, i);
       const char* mname = bebop_descriptor_member_name(m);
-      int64_t mval = (int64_t)bebop_descriptor_member_value(m);
-      emit(ctx, "{\"%s\", %lldLL},", mname, (long long)mval);
+      const uint64_t mval = bebop_descriptor_member_value(m);
+      if (mval > INT64_MAX) {
+        emit(ctx, "{\"%s\", (-INT64_C(%llu) - 1)},", mname, (unsigned long long)~mval);
+      } else {
+        emit(ctx, "{\"%s\", INT64_C(%llu)},", mname, (unsigned long long)mval);
+      }
     }
     ctx->indent--;
     emit(ctx, "};");
@@ -4799,15 +5039,15 @@ static bool is_byte_sequence(const bebop_descriptor_type_t* type)
 static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* type, int* unique)
 {
   const bebop_type_kind_t kind = bebop_descriptor_type_kind(type);
-  const type_info_t* info = type_info(kind);
-  if (info && info->size != 0) {
+  const uint32_t fixed_size = view_fixed_wire_size(ctx, type);
+  if (fixed_size != 0) {
     emit(
         ctx,
         "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < %u)) return "
         "BEBOP_RESULT_MALFORMED;",
-        info->size
+        fixed_size
     );
-    emit(ctx, "bebop_reader_skip(rd, %u);", info->size);
+    emit(ctx, "bebop_reader_skip(rd, %u);", fixed_size);
     return;
   }
   if (kind == BEBOP_TYPE_STRING) {
@@ -4823,18 +5063,8 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
   }
   if (kind == BEBOP_TYPE_DEFINED) {
     if (type_is_enum(ctx, type)) {
-      const uint32_t size = view_fixed_wire_size(ctx, type);
-      if (size == 0) {
-        fprintf(stderr, "bebopc-gen-c: enum has an invalid base type\n");
-        exit(1);
-      }
-      emit(
-          ctx,
-          "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < %u)) return "
-          "BEBOP_RESULT_MALFORMED;",
-          size
-      );
-      emit(ctx, "bebop_reader_skip(rd, %u);", size);
+      fprintf(stderr, "bebopc-gen-c: enum has an invalid base type\n");
+      exit(1);
     } else {
       const int id = (*unique)++;
       emit(ctx, "%s_View ignored%d;", type_name(ctx, bebop_descriptor_type_fqn(type)), id);
@@ -4861,14 +5091,16 @@ static void gen_view_skip_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* ty
     } else {
       emit(ctx, "const uint32_t count%d = %u;", id, bebop_descriptor_type_fixed_size(type));
     }
-    if (is_byte_sequence(type)) {
+    const uint32_t element_size = view_fixed_wire_size(ctx, bebop_descriptor_type_element(type));
+    if (element_size != 0) {
       emit(
           ctx,
-          "if (BEBOP_WIRE_UNLIKELY(bebop_reader_remaining(rd) < count%d)) return "
+          "if (BEBOP_WIRE_UNLIKELY((size_t)count%d > bebop_reader_remaining(rd) / %u)) return "
           "BEBOP_RESULT_MALFORMED;",
-          id
+          id,
+          element_size
       );
-      emit(ctx, "bebop_reader_skip(rd, count%d);", id);
+      emit(ctx, "bebop_reader_skip(rd, (size_t)count%d * %u);", id, element_size);
       return;
     }
     emit(ctx, "for (uint32_t i%d = 0; i%d < count%d; i%d++) {", id, id, id, id);
@@ -5839,6 +6071,9 @@ static void gen_functions(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
         gen_decode_union(ctx, d);
         gen_view(ctx, d);
         gen_type_info(ctx, d);
+        break;
+      case BEBOP_DEF_CONST:
+        gen_const(ctx, d);
         break;
       default:
         break;

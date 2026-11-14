@@ -193,6 +193,26 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
     #expect(decoded.intValue == -42)
 }
 
+@Test func literalValueWideIntegers() throws {
+    let integers = [
+        IntegerValue(magnitude: UInt128(UInt64.max), negative: false),
+        IntegerValue(magnitude: (UInt128(1) << 64) + 1, negative: true),
+        IntegerValue(magnitude: UInt128(1) << 127, negative: true),
+        IntegerValue(magnitude: UInt128.max, negative: false),
+    ]
+    for integer in integers {
+        let literal = LiteralValue(kind: .int, integerValue: integer)
+        let decoded = try roundTrip(literal)
+        #expect(decoded.intValue == nil)
+        #expect(decoded.integerValue == integer)
+        let view = try LiteralValue.View(literal.encode())
+        let viewedInteger = try view.integerValue
+        #expect(viewedInteger?.magnitude == integer.magnitude)
+        #expect(viewedInteger?.negative == integer.negative)
+        #expect(integer.encode().count == 17)
+    }
+}
+
 @Test func literalValueFloat() throws {
     let v = LiteralValue(kind: .float, floatValue: 3.14)
     let decoded = try roundTrip(v)
@@ -541,6 +561,11 @@ private func roundTrip<T: BebopRecord & Equatable>(_ value: T) throws -> T {
     let noDecorators = FieldDescriptor(name: "plain", type: TypeDescriptor(kind: .int32), index: 3)
 
     #expect(deprecated.isDeprecated == true)
+    let qualified = FieldDescriptor(
+        name: "old", type: TypeDescriptor(kind: .string), index: 1,
+        decorators: [DecoratorUsage(fqn: "bebop.deprecated")]
+    )
+    #expect(qualified.isDeprecated == true)
     #expect(notDeprecated.isDeprecated == false)
     #expect(noDecorators.isDeprecated == false)
 }

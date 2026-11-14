@@ -1,13 +1,14 @@
-private extension BatchCall {
+extension BatchCall {
     /// -1 means use own payload, no dependency.
-    var hasDependency: Bool { inputFrom >= 0 }
+    fileprivate var hasDependency: Bool { inputFrom >= 0 }
 }
 
 extension BebopRouter {
     func handleBatch(payload: [UInt8], ctx: RpcContext) async throws -> [UInt8] {
         let request = try BatchRequest.decode(from: payload, limits: config.decodeLimits)
         let calls = request.calls
-        let batchContext = ctx.deriving(appending: request.metadata)
+        let batchContext = ctx.makeBatchContext(
+            methodId: ctx.methodId, upstreamMetadata: request.metadata)
 
         guard !calls.isEmpty else {
             return BatchResponse(results: []).encode()
@@ -17,112 +18,84 @@ extension BebopRouter {
             throw BebopRpcError(code: .resourceExhausted, detail: "batch too large")
         }
 
-        let layers = try buildExecutionLayers(calls)
-        var outcomes: [Int32: BatchOutcome] = [:]
-
-        for layer in layers {
-            if let deadline = ctx.deadline, deadline.isPast {
-                for index in layer {
-                    let call = calls[index]
-                    if outcomes[call.callId] == nil {
-                        outcomes[call.callId] = .error(
-                            RpcError(
-                                code: .deadlineExceeded,
-                                detail: "batch deadline exceeded"
-                            ))
-                    }
+        let dependents = try validateBatch(calls)
+        var outcomes = [BatchOutcome?](repeating: nil, count: calls.count)
+        await withTaskGroup(of: (Int, BatchOutcome).self) { group in
+            for (index, call) in calls.enumerated() where !call.hasDependency {
+                group.addTask {
+                    (index, await self.executeBatchCall(call, dependency: nil, ctx: batchContext))
                 }
-                continue
             }
-
-            let snapshot = outcomes
-            let layerResults = await withTaskGroup(
-                of: (Int32, BatchOutcome).self,
-                returning: [Int32: BatchOutcome].self
-            ) { group in
-                for index in layer {
-                    let call = calls[index]
+            while let (index, outcome) = await group.next() {
+                outcomes[index] = outcome
+                for dependent in dependents[index] {
+                    let call = calls[dependent]
                     group.addTask {
-                        await (
-                            call.callId,
-                            self.executeBatchCall(call, outcomes: snapshot, ctx: batchContext)
+                        (
+                            dependent,
+                            await self.executeBatchCall(
+                                call, dependency: outcome, ctx: batchContext)
                         )
                     }
                 }
-                return await group.reduce(into: [:]) { $0[$1.0] = $1.1 }
             }
-            outcomes.merge(layerResults) { _, new in new }
         }
-
-        var results: [BatchResult] = []
-        results.reserveCapacity(calls.count)
-        for call in calls {
-            guard let outcome = outcomes[call.callId] else {
-                throw BebopRpcError(
-                    code: .internal,
-                    detail: "batch execution did not produce outcome for call \(call.callId)"
-                )
+        let results = try calls.enumerated().map { index, call in
+            guard let outcome = outcomes[index] else {
+                throw BebopRpcError(code: .internal, detail: "missing batch outcome")
             }
-            results.append(BatchResult(callId: call.callId, outcome: outcome))
+            return BatchResult(callId: call.callId, outcome: outcome)
         }
         return BatchResponse(results: results).encode()
     }
 
-    // MARK: - Dependency graph
-
-    private func buildExecutionLayers(_ calls: [BatchCall]) throws -> [[Int]] {
-        var seenIds = Set<Int32>(minimumCapacity: calls.count)
-        var callDepth: [Int32: Int] = [:]
-        var layers: [[Int]] = []
-
+    private func validateBatch(_ calls: [BatchCall]) throws -> [[Int]] {
+        var earlier: [Int32: Int] = [:]
+        var dependents = [[Int]](repeating: [], count: calls.count)
         for (index, call) in calls.enumerated() {
-            guard call.callId >= 0 else {
-                throw BebopRpcError(code: .invalidArgument, detail: "batch call_id must be >= 0")
+            guard call.callId >= 0, earlier[call.callId] == nil else {
+                throw BebopRpcError(
+                    code: .invalidArgument, detail: "invalid or duplicate batch call ID")
             }
-            guard seenIds.insert(call.callId).inserted else {
-                throw BebopRpcError(code: .invalidArgument, detail: "duplicate call_id \(call.callId)")
+            guard call.inputFrom >= -1 else {
+                throw BebopRpcError(
+                    code: .invalidArgument, detail: "input_from must be -1 or an earlier call ID")
             }
-            let depth: Int
             if call.hasDependency {
-                guard call.inputFrom < call.callId,
-                      let dependencyDepth = callDepth[call.inputFrom]
-                else {
-                    throw BebopRpcError(
-                        code: .invalidArgument,
-                        detail: "call \(call.callId) references invalid input_from \(call.inputFrom)"
-                    )
+                guard let dependency = earlier[call.inputFrom] else {
+                    throw BebopRpcError(code: .invalidArgument, detail: "invalid batch dependency")
                 }
-                depth = dependencyDepth + 1
-            } else {
-                depth = 0
+                dependents[dependency].append(index)
             }
-            callDepth[call.callId] = depth
-            while layers.count <= depth { layers.append([]) }
-            layers[depth].append(index)
+            earlier[call.callId] = index
         }
-        return layers
+        return dependents
     }
 
     // MARK: - Single call execution
 
     private func executeBatchCall(
         _ call: BatchCall,
-        outcomes: [Int32: BatchOutcome],
+        dependency: BatchOutcome?,
         ctx: RpcContext
     ) async -> BatchOutcome {
         let resolvedPayload: [UInt8]
         var upstreamMeta: [String: String] = [:]
 
         if call.hasDependency {
-            guard let depOutcome = outcomes[call.inputFrom] else {
+            guard let depOutcome = dependency else {
                 return .error(
-                    RpcError(code: .invalidArgument, detail: "dependency \(call.inputFrom) not resolved"))
+                    RpcError(
+                        code: .invalidArgument, detail: "dependency \(call.inputFrom) not resolved")
+                )
             }
             switch depOutcome {
-            case let .success(success):
+            case .success(let success):
                 guard let first = success.payloads.first else {
                     return .error(
-                        RpcError(code: .invalidArgument, detail: "dependency \(call.inputFrom) has no payload"))
+                        RpcError(
+                            code: .invalidArgument,
+                            detail: "dependency \(call.inputFrom) has no payload"))
                 }
                 resolvedPayload = first
                 upstreamMeta = success.metadata
@@ -144,23 +117,28 @@ extension BebopRouter {
         )
 
         do {
-            try await runInterceptors(methodId: call.methodId, ctx: callCtx)
-
             switch reg {
-            case let .unary(dispatch):
-                let result = try await dispatch(resolvedPayload, callCtx)
-                return .success(BatchSuccess(payloads: [result], metadata: callCtx.responseMetadata))
+            case .unary(let dispatch):
+                let result = try await runInterceptors(methodId: call.methodId, ctx: callCtx) {
+                    try await dispatch(resolvedPayload, callCtx)
+                }
+                return .success(
+                    BatchSuccess(payloads: [result], metadata: callCtx.responseMetadata))
 
-            case let .serverStream(dispatch):
-                let stream = try await dispatch(resolvedPayload, callCtx)
+            case .serverStream(let dispatch):
+                let stream = try await runInterceptors(methodId: call.methodId, ctx: callCtx) {
+                    try await dispatch(resolvedPayload, callCtx)
+                }
                 var payloads: [[UInt8]] = []
                 for try await element in stream {
                     guard UInt(payloads.count) < config.maxBatchStreamElements else {
-                        throw BebopRpcError(code: .resourceExhausted, detail: "batch stream too large")
+                        throw BebopRpcError(
+                            code: .resourceExhausted, detail: "batch stream too large")
                     }
                     payloads.append(element.bytes)
                 }
-                return .success(BatchSuccess(payloads: payloads, metadata: callCtx.responseMetadata))
+                return .success(
+                    BatchSuccess(payloads: payloads, metadata: callCtx.responseMetadata))
 
             case .clientStream, .duplexStream:
                 return .error(
