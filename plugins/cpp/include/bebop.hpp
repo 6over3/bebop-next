@@ -244,6 +244,12 @@ inline constexpr bool kHasNativeBFloat16 = false;
 #endif
 
 static_assert(sizeof(Int128) == 16 && sizeof(UInt128) == 16);
+static_assert(alignof(std::array<UInt128, 1>) >= alignof(UInt128) &&
+                  alignof(std::optional<UInt128>) >= alignof(UInt128) &&
+                  alignof(std::expected<UInt128, std::uint8_t>) >=
+                      alignof(UInt128),
+    "The standard library must preserve integer alignment. "
+    "With clang-cl and MSVC's STL, compile with /D_CRT_PACKING=16.");
 static_assert(sizeof(Float16) == 2 && sizeof(BFloat16) == 2);
 static_assert(std::is_trivially_copyable_v<Float16>);
 static_assert(std::is_trivially_copyable_v<BFloat16>);
