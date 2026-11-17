@@ -31,7 +31,11 @@ jobs:
         shell: pwsh
         run: |
           Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
-          Add-MpPreference -ExclusionProcess "cmake.exe", "ctest.exe", "cpack.exe", "ninja.exe", "cl.exe", "link.exe", "msbuild.exe"
+          Add-MpPreference -ExclusionProcess @(
+            "cmake.exe", "ctest.exe", "cpack.exe", "ninja.exe", "msbuild.exe",
+            "cl.exe", "clang-cl.exe", "link.exe", "lld-link.exe",
+            "llvm-lib.exe", "llvm-ar.exe", "llvm-rc.exe", "rc.exe", "mt.exe"
+          )
 
       - name: Keep line endings as committed
         if: runner.os == 'Windows'
