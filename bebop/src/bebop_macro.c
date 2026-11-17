@@ -435,6 +435,171 @@ static void bebop__lua_push_span(lua_State* L, const bebop_span_t span)
   lua_setfield(L, -2, "start_col");
 }
 
+static const char* const bebop__lua_integer_metatable = "bebop.integer";
+
+static bebop__integer_t bebop__lua_check_integer(lua_State* L, int index)
+{
+  const bebop__integer_t* wide = luaL_testudata(L, index, bebop__lua_integer_metatable);
+  if (wide) {
+    return *wide;
+  }
+  if (lua_isinteger(L, index)) {
+    return bebop__integer_from_int64(lua_tointeger(L, index));
+  }
+  luaL_argerror(L, index, "expected an exact integer");
+  return (bebop__integer_t) {0};
+}
+
+static int bebop__lua_integer_tostring(lua_State* L)
+{
+  char decimal[41];
+  const size_t length = bebop__integer_format(bebop__lua_check_integer(L, 1), decimal);
+  lua_pushlstring(L, decimal, length);
+  return 1;
+}
+
+static int bebop__lua_integer_equal(lua_State* L)
+{
+  lua_pushboolean(
+      L, bebop__integer_equal(bebop__lua_check_integer(L, 1), bebop__lua_check_integer(L, 2))
+  );
+  return 1;
+}
+
+static int bebop__lua_integer_less(lua_State* L)
+{
+  lua_pushboolean(
+      L, bebop__integer_compare(bebop__lua_check_integer(L, 1), bebop__lua_check_integer(L, 2)) < 0
+  );
+  return 1;
+}
+
+static int bebop__lua_integer_less_equal(lua_State* L)
+{
+  lua_pushboolean(
+      L, bebop__integer_compare(bebop__lua_check_integer(L, 1), bebop__lua_check_integer(L, 2)) <= 0
+  );
+  return 1;
+}
+
+static void bebop__lua_push_integer(lua_State* L, bebop__integer_t value)
+{
+  int64_t narrow;
+  if (bebop__integer_to_int64(value, &narrow)) {
+    lua_pushinteger(L, narrow);
+    return;
+  }
+  bebop__integer_t* storage = lua_newuserdatauv(L, sizeof(*storage), 0);
+  *storage = value;
+  if (luaL_newmetatable(L, bebop__lua_integer_metatable)) {
+    static const luaL_Reg methods[] = {
+        {"__tostring", bebop__lua_integer_tostring},
+        {"__eq", bebop__lua_integer_equal},
+        {"__lt", bebop__lua_integer_less},
+        {"__le", bebop__lua_integer_less_equal},
+        {NULL, NULL},
+    };
+    luaL_setfuncs(L, methods, 0);
+    lua_pushliteral(L, "bebop.integer");
+    lua_setfield(L, -2, "__metatable");
+  }
+  lua_setmetatable(L, -2);
+}
+
+static const char* const bebop__lua_literal_metatable = "bebop.literal";
+
+static int bebop__lua_literal_equal(lua_State* L)
+{
+  const bebop_literal_t* left = luaL_testudata(L, 1, bebop__lua_literal_metatable);
+  const bebop_literal_t* right = luaL_testudata(L, 2, bebop__lua_literal_metatable);
+  lua_pushboolean(L, left && right && bebop__literal_equal(left, right));
+  return 1;
+}
+
+static int bebop__lua_literal_index(lua_State* L)
+{
+  const bebop_literal_t* value = luaL_checkudata(L, 1, bebop__lua_literal_metatable);
+  const char* key = luaL_checkstring(L, 2);
+  if (strcmp(key, "kind") == 0) {
+    lua_pushstring(L, bebop_literal_kind_name(value->kind));
+    return 1;
+  }
+  switch (value->kind) {
+    case BEBOP_LITERAL_UUID:
+      if (strcmp(key, "text") == 0) {
+        static const char digits[] = "0123456789abcdef";
+        char text[36];
+        size_t offset = 0;
+        for (size_t index = 0; index < sizeof(value->uuid_val); ++index) {
+          if (index == 4 || index == 6 || index == 8 || index == 10) {
+            text[offset++] = '-';
+          }
+          const uint8_t byte = value->uuid_val[index];
+          text[offset++] = digits[byte >> 4];
+          text[offset++] = digits[byte & 15];
+        }
+        lua_pushlstring(L, text, sizeof(text));
+        return 1;
+      }
+      if (strcmp(key, "bytes") == 0) {
+        lua_pushlstring(L, (const char*)value->uuid_val, sizeof(value->uuid_val));
+        return 1;
+      }
+      break;
+    case BEBOP_LITERAL_BYTES:
+      if (strcmp(key, "bytes") == 0) {
+        lua_pushlstring(L, (const char*)value->bytes_val.data, value->bytes_val.len);
+        return 1;
+      }
+      break;
+    case BEBOP_LITERAL_TIMESTAMP:
+      if (strcmp(key, "seconds") == 0) {
+        lua_pushinteger(L, value->timestamp_val.seconds);
+        return 1;
+      }
+      if (strcmp(key, "nanoseconds") == 0) {
+        lua_pushinteger(L, value->timestamp_val.nanos);
+        return 1;
+      }
+      if (strcmp(key, "offset_ms") == 0) {
+        lua_pushinteger(L, value->timestamp_val.offset_ms);
+        return 1;
+      }
+      break;
+    case BEBOP_LITERAL_DURATION:
+      if (strcmp(key, "seconds") == 0) {
+        lua_pushinteger(L, value->duration_val.seconds);
+        return 1;
+      }
+      if (strcmp(key, "nanoseconds") == 0) {
+        lua_pushinteger(L, value->duration_val.nanos);
+        return 1;
+      }
+      break;
+    default:
+      break;
+  }
+  lua_pushnil(L);
+  return 1;
+}
+
+static void bebop__lua_push_typed_literal(lua_State* L, const bebop_literal_t* value)
+{
+  bebop_literal_t* storage = lua_newuserdatauv(L, sizeof(*storage), 0);
+  *storage = *value;
+  if (luaL_newmetatable(L, bebop__lua_literal_metatable)) {
+    static const luaL_Reg methods[] = {
+        {"__eq", bebop__lua_literal_equal},
+        {"__index", bebop__lua_literal_index},
+        {NULL, NULL},
+    };
+    luaL_setfuncs(L, methods, 0);
+    lua_pushliteral(L, "bebop.literal");
+    lua_setfield(L, -2, "__metatable");
+  }
+  lua_setmetatable(L, -2);
+}
+
 static void bebop__lua_push_literal(
     lua_State* L, const bebop_context_t* ctx, const bebop_literal_t* lit
 )
@@ -444,13 +609,19 @@ static void bebop__lua_push_literal(
       lua_pushboolean(L, lit->bool_val);
       break;
     case BEBOP_LITERAL_INT:
-      lua_pushinteger(L, lit->int_val);
+      bebop__lua_push_integer(L, lit->int_val);
       break;
     case BEBOP_LITERAL_FLOAT:
       lua_pushnumber(L, lit->float_val);
       break;
     case BEBOP_LITERAL_STRING:
-      lua_pushstring(L, BEBOP_STR(ctx, lit->string_val));
+      lua_pushlstring(L, BEBOP_STR(ctx, lit->string_val), BEBOP_STR_LEN(ctx, lit->string_val));
+      break;
+    case BEBOP_LITERAL_UUID:
+    case BEBOP_LITERAL_TIMESTAMP:
+    case BEBOP_LITERAL_DURATION:
+    case BEBOP_LITERAL_BYTES:
+      bebop__lua_push_typed_literal(L, lit);
       break;
     default:
       lua_pushnil(L);
@@ -532,6 +703,84 @@ static const char* bebop__def_kind_str(const bebop_def_kind_t kind)
   BEBOP_UNREACHABLE();
 }
 
+static void bebop__lua_push_type(lua_State* L, const bebop_context_t* ctx, const bebop_type_t* type)
+{
+  typedef struct {
+    const bebop_type_t* type;
+    const char* field;
+    uint32_t child;
+  } type_frame_t;
+
+  if (!type || !lua_checkstack(L, BEBOP_MAX_TYPE_DEPTH + 8)) {
+    lua_pushnil(L);
+    return;
+  }
+
+  type_frame_t frames[BEBOP_MAX_TYPE_DEPTH];
+  uint32_t depth = 1;
+  frames[0] = (type_frame_t) {type, NULL, 0};
+  lua_newtable(L);
+
+  while (depth > 0) {
+    type_frame_t* frame = &frames[depth - 1];
+    if (frame->child == 0) {
+      lua_pushstring(L, bebop_type_kind_name(frame->type->kind));
+      lua_setfield(L, -2, "kind");
+
+      if (frame->type->kind == BEBOP_TYPE_FIXED_ARRAY) {
+        lua_pushinteger(L, frame->type->fixed_array.size);
+        lua_setfield(L, -2, "length");
+      } else if (frame->type->kind == BEBOP_TYPE_DEFINED && frame->type->defined.resolved) {
+        const bebop_def_t* def = frame->type->defined.resolved;
+        lua_pushstring(L, BEBOP_STR(ctx, def->fqn));
+        lua_setfield(L, -2, "fqn");
+        lua_pushstring(L, bebop__def_kind_str(def->kind));
+        lua_setfield(L, -2, "def_kind");
+        if (def->kind == BEBOP_DEF_STRUCT) {
+          lua_pushboolean(L, def->struct_def.is_mutable);
+          lua_setfield(L, -2, "is_mutable");
+        }
+      }
+    }
+
+    const bebop_type_t* child = NULL;
+    const char* field = NULL;
+    if (frame->child == 0) {
+      switch (frame->type->kind) {
+        case BEBOP_TYPE_ARRAY:
+          child = frame->type->array.element;
+          field = "element";
+          break;
+        case BEBOP_TYPE_FIXED_ARRAY:
+          child = frame->type->fixed_array.element;
+          field = "element";
+          break;
+        case BEBOP_TYPE_MAP:
+          child = frame->type->map.key;
+          field = "key";
+          break;
+        default:
+          break;
+      }
+    } else if (frame->child == 1 && frame->type->kind == BEBOP_TYPE_MAP) {
+      child = frame->type->map.value;
+      field = "value";
+    }
+    frame->child++;
+
+    if (child && depth < BEBOP_MAX_TYPE_DEPTH) {
+      frames[depth++] = (type_frame_t) {child, field, 0};
+      lua_newtable(L);
+    } else {
+      const char* completed_field = frame->field;
+      depth--;
+      if (depth > 0) {
+        lua_setfield(L, -2, completed_field);
+      }
+    }
+  }
+}
+
 static void bebop__lua_push_target(
     lua_State* L, const bebop_context_t* ctx, const bebop_decorated_t* target
 )
@@ -572,6 +821,10 @@ static void bebop__lua_push_target(
           lua_pushstring(L, bebop__def_kind_str(target->field->parent->kind));
           lua_setfield(L, -2, "parent_kind");
         }
+        lua_pushinteger(L, target->field->index);
+        lua_setfield(L, -2, "index");
+        bebop__lua_push_type(L, ctx, target->field->type);
+        lua_setfield(L, -2, "type");
       }
       break;
     case BEBOP_DECORATED_METHOD:
@@ -992,11 +1245,7 @@ static bebop_status_t bebop__lua_invoke_validate(
       );
       char labeled[640];
       snprintf(
-          labeled,
-          sizeof(labeled),
-          "@%s: %s",
-          BEBOP_STR(state->ctx, decorator_def->name),
-          msg
+          labeled, sizeof(labeled), "@%s: %s", BEBOP_STR(state->ctx, decorator_def->name), msg
       );
       bebop__schema_add_diagnostic(
           schema,
@@ -1018,7 +1267,10 @@ cleanup:
 }
 
 static bebop_status_t bebop__lua_invoke_export(
-    bebop_lua_state_t* state, const bebop_def_t* decorator_def, bebop_decorator_t* usage
+    bebop_lua_state_t* state,
+    const bebop_def_t* decorator_def,
+    bebop_decorator_t* usage,
+    const bebop_decorated_t* target
 )
 {
   lua_State* L = state->L;
@@ -1052,7 +1304,7 @@ static bebop_status_t bebop__lua_invoke_export(
     goto cleanup;
   }
 
-  const uint32_t nargs = bebop__lua_push_call_args(state, decorator_def, usage, NULL);
+  const uint32_t nargs = bebop__lua_push_call_args(state, decorator_def, usage, target);
   bebop__lua_budget_reset(L);
   const int call_status = lua_pcall(L, (int)nargs, 1, 0);
   if (call_status != LUA_OK) {
@@ -1065,11 +1317,7 @@ static bebop_status_t bebop__lua_invoke_export(
       );
       char labeled[640];
       snprintf(
-          labeled,
-          sizeof(labeled),
-          "@%s: %s",
-          BEBOP_STR(state->ctx, decorator_def->name),
-          msg
+          labeled, sizeof(labeled), "@%s: %s", BEBOP_STR(state->ctx, decorator_def->name), msg
       );
       bebop__schema_add_diagnostic(
           schema,
@@ -1106,13 +1354,16 @@ static bebop_status_t bebop__lua_invoke_export(
       lua_pop(L, 3);
       goto cleanup;
     }
-    if (!lua_isboolean(L, -1) && !lua_isnumber(L, -1) && lua_type(L, -1) != LUA_TSTRING) {
+    if (!lua_isboolean(L, -1) && !lua_isnumber(L, -1) && lua_type(L, -1) != LUA_TSTRING
+        && !luaL_testudata(L, -1, bebop__lua_integer_metatable)
+        && !luaL_testudata(L, -1, bebop__lua_literal_metatable))
+    {
       const char* key = lua_tostring(L, -2);
       BEBOP_ERROR_FMT(
           schema,
           BEBOP_DIAG_MACRO_RUNTIME_ERROR,
           source_span,
-          "Export table value for key '%s' must be a bool, number, or string",
+          "Export table value for key '%s' must be a literal",
           key
       );
       lua_pop(L, 3);
@@ -1144,20 +1395,28 @@ static bebop_status_t bebop__lua_invoke_export(
     const char* key = lua_tostring(L, -2);
     data->entries[idx].key = bebop_intern(BEBOP_INTERN(state->ctx), key);
 
-    if (lua_isboolean(L, -1)) {
+    data->entries[idx].value.ctx = state->ctx;
+    const bebop_literal_t* literal = luaL_testudata(L, -1, bebop__lua_literal_metatable);
+    if (literal) {
+      data->entries[idx].value = *literal;
+    } else if (luaL_testudata(L, -1, bebop__lua_integer_metatable)) {
+      data->entries[idx].value.kind = BEBOP_LITERAL_INT;
+      data->entries[idx].value.int_val = bebop__lua_check_integer(L, -1);
+    } else if (lua_isboolean(L, -1)) {
       data->entries[idx].value.kind = BEBOP_LITERAL_BOOL;
       data->entries[idx].value.bool_val = lua_toboolean(L, -1);
     } else if (lua_isinteger(L, -1)) {
       data->entries[idx].value.kind = BEBOP_LITERAL_INT;
-      data->entries[idx].value.int_val = lua_tointeger(L, -1);
-    } else if (lua_isnumber(L, -1)) {
+      data->entries[idx].value.int_val = bebop__integer_from_int64(lua_tointeger(L, -1));
+    } else if (lua_type(L, -1) == LUA_TNUMBER) {
       data->entries[idx].value.kind = BEBOP_LITERAL_FLOAT;
       data->entries[idx].value.float_val = lua_tonumber(L, -1);
     } else {
       data->entries[idx].value.kind = BEBOP_LITERAL_STRING;
       data->entries[idx].value.ctx = state->ctx;
-      data->entries[idx].value.string_val =
-          bebop_intern(BEBOP_INTERN(state->ctx), lua_tostring(L, -1));
+      size_t length;
+      const char* value = lua_tolstring(L, -1, &length);
+      data->entries[idx].value.string_val = bebop_intern_n(BEBOP_INTERN(state->ctx), value, length);
     }
     idx++;
     lua_pop(L, 1);
@@ -1191,7 +1450,10 @@ bebop_status_t bebop__lua_run_validate(
 }
 
 bebop_status_t bebop__lua_run_export(
-    bebop_lua_state_t* state, bebop_def_t* decorator_def, bebop_decorator_t* usage
+    bebop_lua_state_t* state,
+    bebop_def_t* decorator_def,
+    bebop_decorator_t* usage,
+    const bebop_decorated_t* target
 )
 {
   if (!state || !decorator_def || !usage) {
@@ -1200,5 +1462,5 @@ bebop_status_t bebop__lua_run_export(
   if (decorator_def->decorator_def.export_ref == BEBOP_LUA_NOREF) {
     return BEBOP_OK;
   }
-  return bebop__lua_invoke_export(state, decorator_def, usage);
+  return bebop__lua_invoke_export(state, decorator_def, usage, target);
 }

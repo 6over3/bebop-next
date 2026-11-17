@@ -2,14 +2,6 @@
 public final class BebopRouterBuilder {
     public var config: BebopRouterConfig
 
-    private static let reservedMethodIds: Set<UInt32> = [
-        BebopReservedMethod.discovery,
-        BebopReservedMethod.batch,
-        BebopReservedMethod.dispatch,
-        BebopReservedMethod.resolve,
-        BebopReservedMethod.cancel,
-    ]
-
     private var methods: [UInt32: MethodRegistration] = [:]
     private var serviceInfos: [ServiceInfo] = []
     private var interceptors: [any BebopInterceptor] = []
@@ -26,27 +18,27 @@ public final class BebopRouterBuilder {
         _: S.Type,
         unary: @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> [UInt8],
         serverStream:
-        @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> AsyncThrowingStream<
-            StreamElement, Error
-        >,
+            @escaping @Sendable (S.Method, RpcContext, [UInt8]) async throws -> AsyncThrowingStream<
+                StreamElement, Error
+            >,
         clientStream:
-        @escaping @Sendable (S.Method, RpcContext) async throws -> (
-            send: @Sendable ([UInt8]) async throws -> Void,
-            finish: @Sendable () async throws -> [UInt8]
-        ),
+            @escaping @Sendable (S.Method, RpcContext) async throws -> (
+                send: @Sendable ([UInt8]) async throws -> Void,
+                finish: @Sendable () async throws -> [UInt8]
+            ),
         duplexStream:
-        @escaping @Sendable (S.Method, RpcContext) async throws -> (
-            send: @Sendable ([UInt8]) async throws -> Void,
-            finish: @Sendable () async throws -> Void,
-            responses: AsyncThrowingStream<StreamElement, Error>
-        )
+            @escaping @Sendable (S.Method, RpcContext) async throws -> (
+                send: @Sendable ([UInt8]) async throws -> Void,
+                finish: @Sendable () async throws -> Void,
+                responses: AsyncThrowingStream<StreamElement, Error>
+            )
     ) {
         serviceInfos.append(S.serviceInfo)
 
         for method in S.Method.allCases {
             let m = method
             precondition(
-                !Self.reservedMethodIds.contains(m.rawValue),
+                m.rawValue > 255,
                 "method '\(m.name)' uses reserved ID \(m.rawValue)"
             )
             precondition(

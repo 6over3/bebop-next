@@ -83,7 +83,7 @@ Example: `"hello"` encodes as:
 
 ## Enums
 
-Enums encode as their underlying integer type. Default base type is `int32`.
+Enums encode as their underlying integer type. Default base type is `uint32`.
 
 ```bebop
 enum Status : uint8 {

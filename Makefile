@@ -18,8 +18,6 @@ ifeq ($(OS),Windows_NT)
     endif
     JOBS ?= $(NUMBER_OF_PROCESSORS)
     RM := cmake -E rm -rf
-    MKDIR := cmake -E make_directory
-    CP := cmake -E copy
     CTEST_CONFIG := -C Debug
 else
     VERSION := $(shell cat VERSION)
@@ -33,8 +31,6 @@ else
     ARCH := $(UNAME_M)
     JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
     RM := rm -rf
-    MKDIR := mkdir -p
-    CP := cp
     CTEST_CONFIG :=
 endif
 
@@ -85,18 +81,7 @@ publish: release dist archive
 
 dist:
 	@$(RM) $(DIST_DIR)
-	@$(MKDIR) $(DIST_DIR)/bin $(DIST_DIR)/lib $(DIST_DIR)/include $(DIST_DIR)/share/bebop
-ifeq ($(OS),Windows_NT)
-	@$(CP) $(BUILD_DIR)/bin/bebopc.exe $(DIST_DIR)/bin/
-	@-$(CP) $(BUILD_DIR)/bin/bebopc-gen-*.exe $(DIST_DIR)/bin/
-	@$(CP) $(BUILD_DIR)/lib/bebop.lib $(DIST_DIR)/lib/
-else
-	@$(CP) $(BUILD_DIR)/bin/bebopc $(DIST_DIR)/bin/
-	@-$(CP) $(BUILD_DIR)/bin/bebopc-gen-* $(DIST_DIR)/bin/ 2>/dev/null
-	@$(CP) $(BUILD_DIR)/lib/libbebop.a $(DIST_DIR)/lib/
-endif
-	@cmake -E copy_directory $(BUILD_DIR)/include $(DIST_DIR)/include
-	@cmake -E copy_directory $(BUILD_DIR)/share/bebop $(DIST_DIR)/share/bebop
+	@cmake --install $(CMAKE_DIR) --prefix "$(abspath $(DIST_DIR))" --config Release
 
 vscode:
 	cd plugins/vscode && npm pkg set version=$(VERSION_BASE) && npm install && npm run compile && npm run package
@@ -104,12 +89,8 @@ vscode:
 archive:
 	@tar -czf bebop-$(VERSION)-$(DETECTED_OS)-$(ARCH).tar.gz -C $(DIST_DIR) .
 
-install: dist
-	@$(MKDIR) $(PREFIX)/bin $(PREFIX)/lib $(PREFIX)/include $(PREFIX)/share/bebop
-	@$(CP) $(DIST_DIR)/bin/* $(PREFIX)/bin/
-	@$(CP) $(DIST_DIR)/lib/* $(PREFIX)/lib/
-	@cmake -E copy_directory $(DIST_DIR)/include $(PREFIX)/include
-	@cmake -E copy_directory $(DIST_DIR)/share/bebop $(PREFIX)/share/bebop
+install:
+	@cmake --install $(CMAKE_DIR) --prefix "$(PREFIX)" --config Release
 	@echo "Installed bebop $(VERSION) to $(PREFIX)"
 
 uninstall:
@@ -120,5 +101,7 @@ else
 	@$(RM) $(PREFIX)/lib/libbebop.a
 endif
 	@$(RM) $(PREFIX)/include/bebop
+	@$(RM) $(PREFIX)/include/bebop.h $(PREFIX)/include/bebop_wire.h $(PREFIX)/include/bebop_wire_codegen.h $(PREFIX)/include/bebop.hpp
+	@$(RM) $(PREFIX)/lib/cmake/bebop-cpp
 	@$(RM) $(PREFIX)/share/bebop
 	@echo "Uninstalled bebop from $(PREFIX)"

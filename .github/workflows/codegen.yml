@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
 
@@ -31,9 +31,27 @@ jobs:
       - name: Generate code
         run: |
           mkdir -p generated
+          generator_options=()
+          if [ "${{ inputs.generator }}" = "cpp" ]; then
+            generator_options=(-D emit_pmr=true)
+          fi
           dist/bin/bebopc build tests/fixtures/valid/codegen_base.bop tests/fixtures/valid/codegen_all.bop \
             -I tests/fixtures/valid \
-            --${{ inputs.generator }}_out=generated
+            --${{ inputs.generator }}_out=generated "${generator_options[@]}"
+
+      - name: Compile and run (C++)
+        if: inputs.generator == 'cpp'
+        run: |
+          for mode in native fallback; do
+            compiler_flags=()
+            if [ "$mode" = "fallback" ]; then
+              compiler_flags=(-DBEBOP_CPP_NO_NATIVE_INT128=1 -DBEBOP_CPP_NO_NATIVE_FLOAT16=1 -DBEBOP_CPP_NO_NATIVE_BFLOAT16=1)
+            fi
+            g++-15 -std=c++23 -O2 -Wall -Wextra -Wpedantic -Werror \
+              -I dist/include -I generated "${compiler_flags[@]}" \
+              plugins/cpp/tests/full_schema_test.cc -o "generated/check-${mode}"
+            "generated/check-${mode}"
+          done
 
       - name: Compile (C)
         if: inputs.generator == 'c'

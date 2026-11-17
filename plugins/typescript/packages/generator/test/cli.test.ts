@@ -112,6 +112,60 @@ describe("bebopc-gen-typescript bootstrap", () => {
     expect(response.files?.length).toBe(2);
   });
 
+  test("generates full-width integer constants from encoded requests", () => {
+    const values = [
+      {
+        name: "MAX_U64",
+        kind: TypeKind.UINT64,
+        magnitude: (1n << 64n) - 1n,
+        negative: false,
+        literal: "18446744073709551615n",
+      },
+      {
+        name: "NEG_I128",
+        kind: TypeKind.INT128,
+        magnitude: (1n << 64n) + 1n,
+        negative: true,
+        literal: "-18446744073709551617n",
+      },
+      {
+        name: "MIN_I128",
+        kind: TypeKind.INT128,
+        magnitude: 1n << 127n,
+        negative: true,
+        literal: "-170141183460469231731687303715884105728n",
+      },
+      {
+        name: "MAX_U128",
+        kind: TypeKind.UINT128,
+        magnitude: (1n << 128n) - 1n,
+        negative: false,
+        literal: "340282366920938463463374607431768211455n",
+      },
+    ];
+    const request: CodeGeneratorRequestValue = {
+      filesToGenerate: ["numeric.bop"],
+      schemas: [{
+        path: "numeric.bop",
+        definitions: values.map(({ name, kind, magnitude, negative }) => ({
+          kind: DefinitionKind.CONST,
+          name,
+          fqn: name,
+          constDef: {
+            type: { kind },
+            value: { kind: LiteralKind.INT, integerValue: { magnitude, negative } },
+          },
+        })),
+      }],
+    };
+    const response = decode(CodeGeneratorResponse, runGenerator(encode(CodeGeneratorRequest, request)));
+    expect(response.error).toBeUndefined();
+    const code = response.files?.[0]?.content;
+    for (const { name, literal } of values) {
+      expect(code).toContain(`export const ${name}: bigint = ${literal};`);
+    }
+  });
+
   test("can target a custom runtime import module", () => {
     const response = generate({
       ...bootstrapRequest(),

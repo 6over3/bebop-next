@@ -7,17 +7,14 @@
 #include <stdint.h>
 #include <string.h>
 
-#if defined(_MSC_VER) && !defined(__cplusplus) && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__cplusplus) \
+    && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
 #define BEBOP__MAX_ALIGN_T_DEFINED
 
 typedef struct {
   long long __max_align_ll;
   long double __max_align_ld;
 } max_align_t;
-#endif
-
-#ifdef __cplusplus
-extern "C" {
 #endif
 
 #ifndef BEBOP_API
@@ -136,6 +133,10 @@ extern "C" {
 
 // #region Error Handling
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
   BEBOP_RESULT_OK = 0,
   BEBOP_RESULT_MALFORMED = 1,
@@ -246,12 +247,13 @@ typedef _Float16 Bebop_Float16;
 typedef uint16_t Bebop_Float16;
 #endif
 
-#if defined(__BFLT16_MAX__)
-#define BEBOP_WIRE_HAS_BF16 1
-typedef __bf16 Bebop_BFloat16;
-#elif defined(__clang__) \
-    && (defined(__aarch64__) || defined(__arm__) || defined(__riscv) || defined(__loongarch__) \
-        || ((defined(__x86_64__) || defined(__i386__)) && defined(__SSE2__)))
+#if !(defined(__apple_build_version__) && __clang_major__ == 21 \
+      && (defined(__x86_64__) || defined(__i386__))) \
+    && (defined(__BFLT16_MAX__) \
+        || (defined(__clang__) \
+            && (defined(__aarch64__) || defined(__arm__) || defined(__riscv) \
+                || defined(__loongarch__) \
+                || ((defined(__x86_64__) || defined(__i386__)) && defined(__SSE2__)))))
 #define BEBOP_WIRE_HAS_BF16 1
 typedef __bf16 Bebop_BFloat16;
 #else
@@ -278,6 +280,9 @@ static inline Bebop_BFloat16 bebop_bfloat16_from_float(float f)
 #else
   uint32_t bits;
   memcpy(&bits, &f, sizeof(bits));
+  if ((bits & UINT32_C(0x7FFFFFFF)) > UINT32_C(0x7F800000)) {
+    return (uint16_t)((bits >> 16) | UINT32_C(0x40));
+  }
   bits += 0x7FFF + ((bits >> 16) & 1);
   return (uint16_t)(bits >> 16);
 #endif
@@ -342,17 +347,20 @@ typedef struct {
 
 static inline Bebop_String bebop_string_view(const char* data, size_t length)
 {
-  return (Bebop_String) {.data = data, .length = length};
+  Bebop_String value = {data, length};
+  return value;
 }
 
 static inline Bebop_Bytes bebop_bytes(const void* data, size_t length)
 {
-  return (Bebop_Bytes) {.data = (const uint8_t*)data, .length = length};
+  Bebop_Bytes value = {(const uint8_t*)data, length};
+  return value;
 }
 
 static inline Bebop_View bebop_view(const void* data, size_t length)
 {
-  return (Bebop_View) {.data = (const uint8_t*)data, .length = length};
+  Bebop_View value = {(const uint8_t*)data, length};
+  return value;
 }
 
 // #endregion
@@ -1132,20 +1140,28 @@ extern const BebopReflection_TypeDescriptor BebopReflection_Type_Duration;
 
 #define BEBOP_WIRE_UUID_STR_LEN 36
 
-_Static_assert(sizeof(int8_t) == 1, "sizeof(int8_t) should be 1");
-_Static_assert(sizeof(uint8_t) == 1, "sizeof(uint8_t) should be 1");
-_Static_assert(sizeof(uint16_t) == 2, "sizeof(uint16_t) should be 2");
-_Static_assert(sizeof(uint32_t) == 4, "sizeof(uint32_t) should be 4");
-_Static_assert(sizeof(uint64_t) == 8, "sizeof(uint64_t) should be 8");
-_Static_assert(sizeof(float) == 4, "sizeof(float) should be 4");
-_Static_assert(sizeof(double) == 8, "sizeof(double) should be 8");
-_Static_assert(sizeof(Bebop_Float16) == 2, "sizeof(Bebop_Float16) should be 2");
-_Static_assert(sizeof(Bebop_BFloat16) == 2, "sizeof(Bebop_BFloat16) should be 2");
-_Static_assert(sizeof(Bebop_Int128) == 16, "sizeof(Bebop_Int128) should be 16");
-_Static_assert(sizeof(Bebop_UInt128) == 16, "sizeof(Bebop_UInt128) should be 16");
-_Static_assert(sizeof(Bebop_UUID) == 16, "sizeof(Bebop_UUID) should be 16");
-_Static_assert(sizeof(Bebop_Timestamp) == 16, "sizeof(Bebop_Timestamp) should be 16");
-_Static_assert(sizeof(Bebop_Duration) == 12, "sizeof(Bebop_Duration) should be 12");
+#ifdef __cplusplus
+#define BEBOP_WIRE_STATIC_ASSERT static_assert
+#else
+#define BEBOP_WIRE_STATIC_ASSERT _Static_assert
+#endif
+
+BEBOP_WIRE_STATIC_ASSERT(sizeof(int8_t) == 1, "sizeof(int8_t) should be 1");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(uint8_t) == 1, "sizeof(uint8_t) should be 1");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(uint16_t) == 2, "sizeof(uint16_t) should be 2");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(uint32_t) == 4, "sizeof(uint32_t) should be 4");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(uint64_t) == 8, "sizeof(uint64_t) should be 8");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(float) == 4, "sizeof(float) should be 4");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(double) == 8, "sizeof(double) should be 8");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_Float16) == 2, "sizeof(Bebop_Float16) should be 2");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_BFloat16) == 2, "sizeof(Bebop_BFloat16) should be 2");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_Int128) == 16, "sizeof(Bebop_Int128) should be 16");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_UInt128) == 16, "sizeof(Bebop_UInt128) should be 16");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_UUID) == 16, "sizeof(Bebop_UUID) should be 16");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_Timestamp) == 16, "sizeof(Bebop_Timestamp) should be 16");
+BEBOP_WIRE_STATIC_ASSERT(sizeof(Bebop_Duration) == 12, "sizeof(Bebop_Duration) should be 12");
+
+#undef BEBOP_WIRE_STATIC_ASSERT
 
 // #endregion
 

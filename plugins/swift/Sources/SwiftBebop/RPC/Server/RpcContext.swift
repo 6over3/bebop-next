@@ -20,33 +20,51 @@ public final class RpcContext: Sendable {
     }
 
     private let _state = Mutex(MutableState())
+    private let cancellationParent: RpcContext?
 
-    public init(metadata: [String: String] = [:], deadline: BebopTimestamp? = nil, cursor: UInt64 = 0) {
-        methodId = 0
-        self.metadata = metadata
-        self.deadline = deadline
-        self.cursor = cursor
+    public convenience init(
+        metadata: [String: String] = [:], deadline: BebopTimestamp? = nil, cursor: UInt64 = 0
+    ) {
+        self.init(methodId: 0, metadata: metadata, deadline: deadline, cursor: cursor, parent: nil)
     }
 
-    public init(metadata: [String: String] = [:], timeout: Duration, cursor: UInt64 = 0) {
-        methodId = 0
-        self.metadata = metadata
-        deadline = BebopTimestamp(fromNow: timeout)
-        self.cursor = cursor
+    public convenience init(metadata: [String: String] = [:], timeout: Duration, cursor: UInt64 = 0)
+    {
+        self.init(
+            methodId: 0, metadata: metadata, deadline: BebopTimestamp(fromNow: timeout),
+            cursor: cursor, parent: nil)
     }
 
-    public init(
+    public convenience init(
         methodId: UInt32, metadata: [String: String], deadline: BebopTimestamp?, cursor: UInt64 = 0
+    ) {
+        self.init(
+            methodId: methodId, metadata: metadata, deadline: deadline, cursor: cursor, parent: nil)
+    }
+
+    private init(
+        methodId: UInt32, metadata: [String: String], deadline: BebopTimestamp?, cursor: UInt64,
+        parent: RpcContext?
     ) {
         self.methodId = methodId
         self.metadata = metadata
         self.deadline = deadline
         self.cursor = cursor
+        cancellationParent = parent
     }
 
     // MARK: - Cancellation
 
-    public var isCancelled: Bool { _state.withLock { $0.cancelled } }
+    public var isCancelled: Bool {
+        var current: RpcContext? = self
+        while let context = current {
+            if context._state.withLock({ $0.cancelled }) {
+                return true
+            }
+            current = context.cancellationParent
+        }
+        return false
+    }
     public func cancel() { _state.withLock { $0.cancelled = true } }
     public var decodeLimits: BebopDecodeLimits { _state.withLock { $0.decodeLimits } }
 
@@ -94,16 +112,19 @@ public final class RpcContext: Sendable {
 
     public func deriving(appending extra: [String: String]) -> RpcContext {
         let context = RpcContext(
+            methodId: methodId,
             metadata: metadata.merging(extra) { _, new in new },
             deadline: deadline,
-            cursor: cursor
+            cursor: cursor,
+            parent: self
         )
         context.setDecodeLimits(decodeLimits)
         return context
     }
 
     public func forwarding() -> RpcContext {
-        let context = RpcContext(metadata: metadata, deadline: deadline, cursor: cursor)
+        let context = RpcContext(
+            methodId: 0, metadata: metadata, deadline: deadline, cursor: cursor, parent: self)
         context.setDecodeLimits(decodeLimits)
         return context
     }
@@ -115,7 +136,8 @@ public final class RpcContext: Sendable {
             methodId: methodId,
             metadata: metadata,
             deadline: deadline,
-            cursor: cursor
+            cursor: cursor,
+            parent: self
         )
         context.setDecodeLimits(decodeLimits)
         return context
@@ -130,9 +152,12 @@ public final class RpcContext: Sendable {
         let context = RpcContext(
             methodId: methodId,
             metadata: metadata.merging(upstreamMetadata) { _, new in new },
-            deadline: deadline
+            deadline: deadline,
+            cursor: 0,
+            parent: self
         )
         context.setDecodeLimits(decodeLimits)
+        context[PeerInfoKey.self] = self[PeerInfoKey.self]
         return context
     }
 }

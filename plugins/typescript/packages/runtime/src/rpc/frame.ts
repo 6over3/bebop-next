@@ -23,6 +23,9 @@ export class Frame {
     if (payload.length > 0xffff_ffff) {
       throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload exceeds uint32 length");
     }
+    if (cursor === undefined && (flags & FrameFlags.CURSOR) !== 0) {
+      throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, "CURSOR flag requires a cursor");
+    }
     const resolvedFlags = cursor === undefined ? flags : flags | FrameFlags.CURSOR;
     Frame.validateFlags(resolvedFlags);
     validateStreamId(streamId);
@@ -49,7 +52,7 @@ export class Frame {
       throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `frame too short: ${bytes.length} bytes`);
     }
     const header = FrameHeader.readFrom(new BebopReader(bytes, { copyArrays: false }));
-    Frame.validateFlags(header.flags);
+    Frame.validateFlags(header.flags, true);
     const expected = encodedFrameSize(header);
     if (bytes.length !== expected) {
       throw new BebopRpcError(
@@ -63,11 +66,11 @@ export class Frame {
     const cursor = (header.flags & FrameFlags.CURSOR) === 0
       ? undefined
       : new DataView(bytes.buffer, bytes.byteOffset + payloadEnd, cursorSize).getBigUint64(0, true);
-    return new Frame(payload, header.flags, header.streamId, cursor);
+    return new Frame(payload, header.flags & knownFrameFlags, header.streamId, cursor);
   }
 
-  static validateFlags(flags: number): void {
-    if (!Number.isInteger(flags) || flags < 0 || flags > 0xff || (flags & ~knownFrameFlags) !== 0) {
+  static validateFlags(flags: number, allowUnknown = false): void {
+    if (!Number.isInteger(flags) || flags < 0 || flags > 0xff || (!allowUnknown && (flags & ~knownFrameFlags) !== 0)) {
       throw new BebopRpcError(StatusCode.INVALID_ARGUMENT, `invalid frame flags: ${flags}`);
     }
     const endStream = (flags & FrameFlags.END_STREAM) !== 0;
@@ -218,6 +221,12 @@ export class FrameWriter implements AsyncDisposable {
       return Promise.reject(new BebopRpcError(
         StatusCode.RESOURCE_EXHAUSTED,
         "frame payload exceeds uint32 length",
+      ));
+    }
+    if (cursor === undefined && (flags & FrameFlags.CURSOR) !== 0) {
+      return Promise.reject(new BebopRpcError(
+        StatusCode.INVALID_ARGUMENT,
+        "CURSOR flag requires a cursor",
       ));
     }
     const resolvedFlags = cursor === undefined ? flags : flags | FrameFlags.CURSOR;
@@ -420,7 +429,7 @@ class FrameDecoder {
       this.pendingHeader = FrameHeader.readFrom(
         new BebopReader(this.queue.read(Frame.headerSize), { copyArrays: false }),
       );
-      Frame.validateFlags(this.pendingHeader.flags);
+      Frame.validateFlags(this.pendingHeader.flags, true);
       if (this.pendingHeader.length > this.maxPayloadSize) {
         throw new BebopRpcError(StatusCode.RESOURCE_EXHAUSTED, "frame payload too large");
       }
@@ -435,7 +444,7 @@ class FrameDecoder {
     }
     const frame = new Frame(
       payload,
-      this.pendingHeader.flags,
+      this.pendingHeader.flags & knownFrameFlags,
       this.pendingHeader.streamId,
       cursor,
     );

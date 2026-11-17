@@ -558,7 +558,7 @@ void test_scanner_bytes_single_quoted(void)
 
 void test_scanner_all_symbols(void)
 {
-  scan("( ) { } [ ] < > : ; , . ? / = @ # ! $ \\ ` ~ & | -");
+  scan("( ) { } [ ] < > : ; , . ? / = @ # ! $ \\ ` ~ & | - +");
 
   expect_token(BEBOP_TOKEN_LPAREN, NULL);
   expect_token(BEBOP_TOKEN_RPAREN, NULL);
@@ -585,6 +585,8 @@ void test_scanner_all_symbols(void)
   expect_token(BEBOP_TOKEN_AMPERSAND, NULL);
   expect_token(BEBOP_TOKEN_PIPE, NULL);
   expect_token(BEBOP_TOKEN_MINUS, NULL);
+  expect_token(BEBOP_TOKEN_PLUS, NULL);
+  TEST_ASSERT_EQUAL_STRING("+", bebop_token_kind_name(BEBOP_TOKEN_PLUS));
   expect_eof();
 }
 

@@ -68,7 +68,7 @@
   X(BFLOAT16, "bfloat16", 2, false) \
   X(STRING, "string", 0, false) \
   X(UUID, "uuid", 16, false) \
-  X(TIMESTAMP, "timestamp", 12, false) \
+  X(TIMESTAMP, "timestamp", 16, false) \
   X(DURATION, "duration", 12, false)
 
 //! X(string_literal, BEBOP_TYPE_xxx)

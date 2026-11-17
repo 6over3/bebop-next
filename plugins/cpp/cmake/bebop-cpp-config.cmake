@@ -1,0 +1,20 @@
+if(NOT TARGET bebop::cpp)
+    include("${CMAKE_CURRENT_LIST_DIR}/BebopCppTargets.cmake")
+endif()
+
+if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    block()
+        if(NOT COMMAND bebop_find_clang_builtins)
+            include("${CMAKE_CURRENT_LIST_DIR}/BebopClangBuiltins.cmake")
+        endif()
+        bebop_find_clang_builtins(builtins)
+        get_target_property(cpp_target bebop::cpp ALIASED_TARGET)
+        if(NOT cpp_target)
+            set(cpp_target bebop::cpp)
+        endif()
+        target_compile_options(${cpp_target} INTERFACE
+            "$<BUILD_INTERFACE:/Zp16>"
+            "$<BUILD_INTERFACE:$<$<COMPILE_LANGUAGE:CXX>:/FIbebop.hpp>>")
+        target_link_libraries(${cpp_target} INTERFACE "$<BUILD_INTERFACE:${builtins}>")
+    endblock()
+endif()

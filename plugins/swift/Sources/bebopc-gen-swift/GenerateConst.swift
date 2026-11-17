@@ -34,6 +34,12 @@ enum GenerateConst {
             }
             return v ? "true" : "false"
         case .int:
+            if let integer = value.integerValue {
+                if integer.negative {
+                    return "-\(integer.magnitude)"
+                }
+                return "\(integer.magnitude)"
+            }
             guard let v = value.intValue else {
                 throw CodegenError.malformedDefinition("const '\(constName)' int literal missing value")
             }

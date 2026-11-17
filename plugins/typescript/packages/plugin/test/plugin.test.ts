@@ -8,6 +8,9 @@ import {
   Diagnostic,
   DiagnosticSeverity,
   Edition,
+  IntegerValue,
+  LiteralKind,
+  LiteralValue,
   ResponseBuilder,
   TypeDescriptor,
   TypeKind,
@@ -17,6 +20,24 @@ import {
 } from "../src/index.js";
 
 describe("@bebop/plugin bootstrap codecs", () => {
+  test("preserves full-width integer literals in owned values and views", () => {
+    const integers: readonly IntegerValue[] = [
+      { magnitude: (1n << 64n) - 1n, negative: false },
+      { magnitude: (1n << 64n) + 1n, negative: true },
+      { magnitude: 1n << 127n, negative: true },
+      { magnitude: (1n << 128n) - 1n, negative: false },
+    ];
+    for (const integer of integers) {
+      const literal: LiteralValue = { kind: LiteralKind.INT, integerValue: integer };
+      const bytes = encode(LiteralValue, literal);
+      expect(decode(LiteralValue, bytes).integerValue).toEqual(integer);
+      const view = LiteralValue.view(bytes);
+      expect(view.integerValue?.magnitude).toBe(integer.magnitude);
+      expect(view.integerValue?.negative).toBe(integer.negative);
+      expect(IntegerValue.encode(integer)).toHaveLength(17);
+    }
+  });
+
   test("round-trips descriptor sets", () => {
     const descriptor: DescriptorSet = {
       schemas: [

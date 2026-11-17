@@ -1783,9 +1783,7 @@ void test_enum_cross_reference_rejected(void)
   bebop_parse_result_t* result = NULL;
   bebop_parse_source(
       ctx,
-      BEBOP_SOURCE(
-          "enum A { Zero = 0; Dup = 7; }\nenum B { Zero = 0; Pick = Dup; }", "test.bop"
-      ),
+      BEBOP_SOURCE("enum A { Zero = 0; Dup = 7; }\nenum B { Zero = 0; Pick = Dup; }", "test.bop"),
       &result
   );
 
@@ -2145,9 +2143,25 @@ void test_env_var_unclosed(void)
   TEST_ASSERT_TRUE(bebop_result_error_count(result) > 0);
 }
 
+void test_documentation_before_modifiers(void);
+
+void test_documentation_before_modifiers(void)
+{
+  bebop_parse_result_t* result = parse_expect_success(
+      "/// Mutable value.\nmut struct Mutable { value: uint32; }\n"
+      "/// Local value.\nlocal struct Local { value: uint32; }\n");
+  TEST_ASSERT_EQUAL_STRING(
+      "Mutable value.", bebop_def_documentation(bebop_result_find(result, "Mutable"))
+  );
+  TEST_ASSERT_EQUAL_STRING(
+      "Local value.", bebop_def_documentation(bebop_result_find(result, "Local"))
+  );
+}
+
 int main(void)
 {
   UNITY_BEGIN();
+  RUN_TEST(test_documentation_before_modifiers);
 
   RUN_TEST(test_parse_empty);
   RUN_TEST(test_parse_basic_types);

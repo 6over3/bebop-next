@@ -53,7 +53,7 @@ public extension FieldDescriptor {
     /// Whether this field carries the `@deprecated` decorator.
     var isDeprecated: Bool {
         guard let decorators else { return false }
-        return decorators.contains { $0.fqn == "deprecated" }
+        return decorators.contains { $0.fqn == "deprecated" || $0.fqn == "bebop.deprecated" }
     }
 }
 

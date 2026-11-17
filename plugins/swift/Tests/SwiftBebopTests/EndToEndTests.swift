@@ -62,11 +62,11 @@ import Testing
 
     @Test func interceptorInEndToEnd() async throws {
         struct TagInterceptor: BebopInterceptor {
-            func intercept(
+            func intercept<Value: Sendable>(
                 methodId _: UInt32, ctx _: RpcContext,
-                proceed: @Sendable () async throws -> Void
-            ) async throws {
-                try await proceed()
+                proceed: @Sendable () async throws -> Value
+            ) async throws -> Value {
+                return try await proceed()
             }
         }
 
@@ -77,12 +77,14 @@ import Testing
 
     @Test func errorFromHandlerPropagates() async {
         struct FailHandler: WidgetServiceHandler {
-            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse {
+            func getWidget(_: EchoRequest.View, context _: RpcContext) async throws -> EchoResponse
+            {
                 throw BebopRpcError(code: .internal, detail: "boom")
             }
 
             func listWidgets(_: CountRequest.View, context _: RpcContext) async throws
-                -> AsyncThrowingStream<CountResponse, Error> { fatalError() }
+                -> AsyncThrowingStream<CountResponse, Error>
+            { fatalError() }
             func uploadWidgets(
                 _: AsyncThrowingStream<EchoRequest.View, Error>,
                 context _: RpcContext

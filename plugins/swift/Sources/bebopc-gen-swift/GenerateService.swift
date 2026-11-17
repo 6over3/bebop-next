@@ -105,7 +105,7 @@ enum GenerateService {
             throw CodegenError.malformedDefinition(
                 "service '\(serviceName)' method '\(name)' missing id")
         }
-        guard id > BebopReservedMethod.cancel else {
+        guard id > 255 else {
             throw CodegenError.malformedDefinition(
                 "service '\(serviceName)' method '\(name)' uses reserved method ID \(id)"
             )

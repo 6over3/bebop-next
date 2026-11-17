@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, lsp]
+    branches: [main, lsp, cplusplus]
   pull_request:
     branches: [main]
 
@@ -16,7 +16,7 @@ jobs:
   linux-arm64:
     uses: ./.github/workflows/build.yml
     with:
-      os: ubuntu-24.04-arm
+      os: ubuntu-26.04-arm
       arch: arm64
 
   macos-arm64:
@@ -25,16 +25,10 @@ jobs:
       os: macos-latest
       arch: arm64
 
-  macos-x64:
-    uses: ./.github/workflows/build.yml
-    with:
-      os: macos-15-intel
-      arch: x64
-
   windows-x64:
     uses: ./.github/workflows/build.yml
     with:
-      os: windows-latest
+      os: windows-2025-vs2026
       arch: x64
 
   windows-arm64:
@@ -62,3 +56,10 @@ jobs:
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: typescript
+
+  codegen-cpp:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: cpp

@@ -72,28 +72,29 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
             throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
         }
         ctx.setDecodeLimits(config.decodeLimits)
-        switch methodId {
-        case BebopReservedMethod.discovery:
-            return try handleDiscovery()
-        case BebopReservedMethod.batch:
-            return try await handleBatch(payload: payload, ctx: ctx)
-        case BebopReservedMethod.dispatch:
-            return try await handleDispatch(payload: payload, ctx: ctx)
-        case BebopReservedMethod.cancel:
-            return try await handleCancel(payload: payload, ctx: ctx)
-        default:
-            break
-        }
+        return try await runInterceptors(methodId: methodId, ctx: ctx) {
+            switch methodId {
+            case BebopReservedMethod.discovery:
+                return try handleDiscovery()
+            case BebopReservedMethod.batch:
+                return try await handleBatch(payload: payload, ctx: ctx)
+            case BebopReservedMethod.dispatch:
+                return try await handleDispatch(payload: payload, ctx: ctx)
+            case BebopReservedMethod.cancel:
+                return try await handleCancel(payload: payload, ctx: ctx)
+            default:
+                break
+            }
 
-        guard let reg = methods[methodId] else {
-            throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
-        }
-        guard case let .unary(dispatch) = reg else {
-            throw BebopRpcError(code: .unimplemented, detail: "method \(methodId) is not unary")
-        }
+            guard let reg = methods[methodId] else {
+                throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
+            }
+            guard case .unary(let dispatch) = reg else {
+                throw BebopRpcError(code: .unimplemented, detail: "method \(methodId) is not unary")
+            }
 
-        try await runInterceptors(methodId: methodId, ctx: ctx)
-        return try await dispatch(payload, ctx)
+            return try await dispatch(payload, ctx)
+        }
     }
 
     public func serverStream(
@@ -103,22 +104,24 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
             throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
         }
         ctx.setDecodeLimits(config.decodeLimits)
-        switch methodId {
-        case BebopReservedMethod.resolve:
-            return try await handleResolve(payload: payload, ctx: ctx)
-        default:
-            break
-        }
+        return try await runInterceptors(methodId: methodId, ctx: ctx) {
+            switch methodId {
+            case BebopReservedMethod.resolve:
+                return try await handleResolve(payload: payload, ctx: ctx)
+            default:
+                break
+            }
 
-        guard let reg = methods[methodId] else {
-            throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
-        }
-        guard case let .serverStream(dispatch) = reg else {
-            throw BebopRpcError(code: .unimplemented, detail: "method \(methodId) is not server-stream")
-        }
+            guard let reg = methods[methodId] else {
+                throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
+            }
+            guard case .serverStream(let dispatch) = reg else {
+                throw BebopRpcError(
+                    code: .unimplemented, detail: "method \(methodId) is not server-stream")
+            }
 
-        try await runInterceptors(methodId: methodId, ctx: ctx)
-        return try await dispatch(payload, ctx)
+            return try await dispatch(payload, ctx)
+        }
     }
 
     public func clientStream(
@@ -131,15 +134,17 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
             throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
         }
         ctx.setDecodeLimits(config.decodeLimits)
-        guard let reg = methods[methodId] else {
-            throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
-        }
-        guard case let .clientStream(dispatch) = reg else {
-            throw BebopRpcError(code: .unimplemented, detail: "method \(methodId) is not client-stream")
-        }
+        return try await runInterceptors(methodId: methodId, ctx: ctx) {
+            guard let reg = methods[methodId] else {
+                throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
+            }
+            guard case .clientStream(let dispatch) = reg else {
+                throw BebopRpcError(
+                    code: .unimplemented, detail: "method \(methodId) is not client-stream")
+            }
 
-        try await runInterceptors(methodId: methodId, ctx: ctx)
-        return try await dispatch(ctx)
+            return try await dispatch(ctx)
+        }
     }
 
     public func duplexStream(
@@ -153,15 +158,17 @@ public struct BebopRouter<Store: FutureStorage>: Sendable {
             throw BebopRpcError(code: .invalidArgument, detail: "context method ID mismatch")
         }
         ctx.setDecodeLimits(config.decodeLimits)
-        guard let reg = methods[methodId] else {
-            throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
-        }
-        guard case let .duplexStream(dispatch) = reg else {
-            throw BebopRpcError(code: .unimplemented, detail: "method \(methodId) is not duplex-stream")
-        }
+        return try await runInterceptors(methodId: methodId, ctx: ctx) {
+            guard let reg = methods[methodId] else {
+                throw BebopRpcError(code: .notFound, detail: "method \(methodId)")
+            }
+            guard case .duplexStream(let dispatch) = reg else {
+                throw BebopRpcError(
+                    code: .unimplemented, detail: "method \(methodId) is not duplex-stream")
+            }
 
-        try await runInterceptors(methodId: methodId, ctx: ctx)
-        return try await dispatch(ctx)
+            return try await dispatch(ctx)
+        }
     }
 
     public func methodType(for methodId: UInt32) -> MethodType? {

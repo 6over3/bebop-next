@@ -1,0 +1,67 @@
+package compatibility
+
+import "bebop/decorators.bop"
+
+@deprecated("Use the \"current\" record instead.")
+mut struct LegacyRecord {
+    value: uint32;
+}
+
+@deprecated
+enum LegacyState : byte {
+    UNKNOWN = 0;
+}
+
+enum State : byte {
+    UNKNOWN = 0;
+    @deprecated("Use CURRENT instead.")
+    OLD = 1;
+    CURRENT = 2;
+}
+
+union Choice {
+    @deprecated("Use Current instead.")
+    Old(1): LegacyRecord;
+    @deprecated
+    Inline(2): mut { value: uint32; };
+    Current(3): mut { value: uint32; };
+}
+
+message WirePacket {
+    old_text(1): string;
+    current(2): uint32;
+}
+
+message Packet {
+    @deprecated("Use current instead.")
+    old_text(1): string;
+    current(2): uint32;
+}
+
+message DeprecatedOnly {
+    @deprecated
+    old_text(1): string;
+}
+
+message WireNode {
+    legacy(1): WireNode;
+    next(2): WireNode;
+    value(3): uint32;
+}
+
+message Node {
+    @deprecated("Use next instead.")
+    legacy(1): Node;
+    next(2): Node;
+    value(3): uint32;
+}
+
+@deprecated
+message LegacyMessage {
+    value(1): uint32;
+}
+
+@deprecated
+union LegacyChoice {
+    Value(1): LegacyRecord;
+}

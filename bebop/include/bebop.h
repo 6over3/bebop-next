@@ -226,6 +226,7 @@ typedef enum {
 
   BEBOP_TOKEN_EOF,
   BEBOP_TOKEN_ERROR,
+  BEBOP_TOKEN_PLUS,
 } bebop_token_kind_t;
 
 // #endregion
@@ -345,7 +346,7 @@ BEBOP_API const char* bebop_version_string(void);
 // #region Context Lifecycle
 
 //! Create a context
-//! @param host  Host configuration, NULL for defaults
+//! @param host  Required host configuration
 //! @return Context, NULL on allocation failure
 BEBOP_API bebop_context_t* bebop_context_create(const bebop_host_t* host);
 
@@ -796,8 +797,14 @@ BEBOP_API bebop_span_t bebop_literal_span(const bebop_literal_t* lit);
 //! Get boolean value
 BEBOP_API bool bebop_literal_as_bool(const bebop_literal_t* lit);
 
-//! Get integer value
+//! Get int64 value, or zero if the literal is not an integer or does not fit
 BEBOP_API int64_t bebop_literal_as_int(const bebop_literal_t* lit);
+
+//! Get an integer literal's unsigned magnitude and sign
+//! @return False if the literal is not an integer; output pointers may be NULL
+BEBOP_API bool bebop_literal_as_integer(
+    const bebop_literal_t* lit, uint64_t* low, uint64_t* high, bool* negative
+);
 
 //! Get float value
 BEBOP_API double bebop_literal_as_float(const bebop_literal_t* lit);
@@ -1275,11 +1282,23 @@ BEBOP_API bebop_literal_kind_t bebop_descriptor_literal_kind(const bebop_descrip
 
 BEBOP_API bool bebop_descriptor_literal_as_bool(const bebop_descriptor_literal_t* l);
 
+//! Get int64 value, or zero if it is absent or does not fit
 BEBOP_API int64_t bebop_descriptor_literal_as_int(const bebop_descriptor_literal_t* l);
+
+//! Get an integer literal's unsigned magnitude and sign
+//! @return False if no integer value is present; output pointers may be NULL
+BEBOP_API bool bebop_descriptor_literal_as_integer(
+    const bebop_descriptor_literal_t* lit, uint64_t* low, uint64_t* high, bool* negative
+);
 
 BEBOP_API double bebop_descriptor_literal_as_float(const bebop_descriptor_literal_t* l);
 
 BEBOP_API const char* bebop_descriptor_literal_as_string(const bebop_descriptor_literal_t* l);
+
+//! Get string value and byte length, NULL if absent
+BEBOP_API const char* bebop_descriptor_literal_as_string_n(
+    const bebop_descriptor_literal_t* l, size_t* out_len
+);
 
 BEBOP_API const uint8_t* bebop_descriptor_literal_as_uuid(const bebop_descriptor_literal_t* l);
 
@@ -1299,6 +1318,11 @@ BEBOP_API void bebop_descriptor_literal_as_duration(
 );
 
 BEBOP_API const char* bebop_descriptor_literal_raw_value(const bebop_descriptor_literal_t* l);
+
+//! Get original string and byte length, NULL if absent
+BEBOP_API const char* bebop_descriptor_literal_raw_value_n(
+    const bebop_descriptor_literal_t* l, size_t* out_len
+);
 
 // Decorator usage
 

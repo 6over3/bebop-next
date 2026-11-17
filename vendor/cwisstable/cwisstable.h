@@ -101,7 +101,7 @@
 
 #define CWISS_PRAGMA(pragma_) _Pragma(#pragma_)
 
-#if CWISS_IS_GCCISH
+#if CWISS_IS_GCCISH || CWISS_IS_CLANG
   #define CWISS_GCC_PUSH CWISS_PRAGMA(GCC diagnostic push)
   #define CWISS_GCC_ALLOW(w_) CWISS_PRAGMA(GCC diagnostic ignored w_)
   #define CWISS_GCC_POP CWISS_PRAGMA(GCC diagnostic pop)

@@ -13,6 +13,7 @@ public protocol FutureStorage: Sendable {
     /// Push a completed result to matching subscribers.
     func notify(id: BebopUUID, result: FutureResult, owner: String) async throws
 
+    /// Returns false for an unknown ID; throws if another caller owns it.
     @discardableResult
     func cancel(id: BebopUUID, owner: String) async throws -> Bool
 
@@ -56,12 +57,17 @@ public final class FutureStore: FutureStorage, Sendable {
         }
     }
 
+    private struct IdempotencyKey: Hashable, Sendable {
+        let owner: String
+        let key: BebopUUID
+    }
+
     private struct State: Sendable {
         var futures: [BebopUUID: FutureEntry] = [:]
         var subscribers: [UInt64: Subscriber] = [:]
         var nextSubscriberId: UInt64 = 0
-        var idempotencyIndex: [BebopUUID: BebopUUID] = [:]
-        var reverseIdempotency: [BebopUUID: BebopUUID] = [:]
+        var idempotencyIndex: [IdempotencyKey: BebopUUID] = [:]
+        var reverseIdempotency: [BebopUUID: IdempotencyKey] = [:]
         var completedOrder: [BebopUUID] = []
         var completedEvictionOffset: Int = 0
         var nextCompletionSequence: UInt64 = 0
@@ -94,11 +100,11 @@ public final class FutureStore: FutureStorage, Sendable {
         execute: @escaping @Sendable (BebopUUID) async -> FutureResult
     ) async throws -> BebopUUID {
         try _state.withLock { state throws(BebopRpcError) in
-            if let idempotencyKey, let existing = state.idempotencyIndex[idempotencyKey] {
-                if let entry = state.futures[existing], entry.owner == owner {
-                    return existing
-                }
-                throw BebopRpcError(code: .permissionDenied)
+            if let idempotencyKey,
+                let existing = state.idempotencyIndex[
+                    IdempotencyKey(owner: owner, key: idempotencyKey)]
+            {
+                return existing
             }
 
             if maxPendingFutures < .max, state.pendingCount >= maxPendingFutures {
@@ -111,8 +117,9 @@ public final class FutureStore: FutureStorage, Sendable {
             let id = BebopUUID.random()
 
             if let idempotencyKey {
-                state.idempotencyIndex[idempotencyKey] = id
-                state.reverseIdempotency[id] = idempotencyKey
+                let scopedKey = IdempotencyKey(owner: owner, key: idempotencyKey)
+                state.idempotencyIndex[scopedKey] = id
+                state.reverseIdempotency[id] = scopedKey
             }
 
             state.futures[id] = FutureEntry(state: .pending(nil, ctx), owner: owner)
@@ -156,19 +163,21 @@ public final class FutureStore: FutureStorage, Sendable {
 
     public func notify(id: BebopUUID, result: FutureResult, owner: String) async {
         let matching = _state.withLock { state in
-            let sequence: UInt64? = if let entry = state.futures[id],
-                case let .completed(_, sequence) = entry.state
-            {
-                sequence
-            } else {
-                nil
-            }
+            let sequence: UInt64? =
+                if let entry = state.futures[id],
+                    case .completed(_, let sequence) = entry.state
+                {
+                    sequence
+                } else {
+                    nil
+                }
             return Array(
                 state.subscribers.values.filter {
                     $0.accepts(id, owner: owner, sequence: sequence)
                 })
         }
-        var deliveries: [(UInt64, AsyncThrowingStream<FutureResult, Error>.Continuation.YieldResult)] = []
+        var deliveries:
+            [(UInt64, AsyncThrowingStream<FutureResult, Error>.Continuation.YieldResult)] = []
         deliveries.reserveCapacity(matching.count)
         for sub in matching {
             deliveries.append((sub.id, sub.continuation.yield(result)))
@@ -215,21 +224,31 @@ public final class FutureStore: FutureStorage, Sendable {
     // MARK: - Cancellation
 
     @discardableResult
-    public func cancel(id: BebopUUID, owner: String) async -> Bool {
-        _state.withLock { state in
-            guard let entry = state.futures[id],
-                  entry.owner == owner,
-                  case let .pending(task, ctx) = entry.state
-            else { return false }
-            ctx.cancel()
-            task?.cancel()
-            state.pendingCount -= 1
-            state.futures.removeValue(forKey: id)
-            if let key = state.reverseIdempotency.removeValue(forKey: id) {
-                state.idempotencyIndex.removeValue(forKey: key)
+    public func cancel(id: BebopUUID, owner: String) async throws -> Bool {
+        let cancelled = try _state.withLock { state throws(BebopRpcError) -> FutureState? in
+            guard let entry = state.futures[id] else {
+                return nil
             }
-            return true
+            guard entry.owner == owner else {
+                throw BebopRpcError(code: .permissionDenied)
+            }
+            if case .pending = entry.state {
+                state.pendingCount -= 1
+                state.futures.removeValue(forKey: id)
+                if let key = state.reverseIdempotency.removeValue(forKey: id) {
+                    state.idempotencyIndex.removeValue(forKey: key)
+                }
+            }
+            return entry.state
         }
+        guard let cancelled else {
+            return false
+        }
+        if case .pending(let task, let context) = cancelled {
+            context.cancel()
+            task?.cancel()
+        }
+        return true
     }
 
     // MARK: - Subscription
@@ -256,8 +275,8 @@ public final class FutureStore: FutureStorage, Sendable {
                 for id in ids {
                     guard seen.insert(id).inserted else { continue }
                     if let entry = state.futures[id],
-                       entry.owner == owner,
-                       case let .completed(result, _) = entry.state
+                        entry.owner == owner,
+                        case .completed(let result, _) = entry.state
                     {
                         immediate.append(result)
                         remainingIds?.remove(id)
@@ -265,7 +284,7 @@ public final class FutureStore: FutureStorage, Sendable {
                 }
             } else {
                 for (_, entry) in state.futures where entry.owner == owner {
-                    if case let .completed(result, _) = entry.state {
+                    if case .completed(let result, _) = entry.state {
                         immediate.append(result)
                     }
                 }
@@ -312,7 +331,7 @@ public final class FutureStore: FutureStorage, Sendable {
     private func removePending(id: BebopUUID) {
         _state.withLock { state in
             guard let entry = state.futures[id],
-                  case .pending = entry.state
+                case .pending = entry.state
             else { return }
             state.pendingCount -= 1
             state.futures.removeValue(forKey: id)
@@ -339,7 +358,7 @@ public final class FutureStore: FutureStorage, Sendable {
         state.completedEvictionOffset += evicted
 
         if state.completedEvictionOffset > 0,
-           state.completedEvictionOffset >= state.completedOrder.count / 2
+            state.completedEvictionOffset >= state.completedOrder.count / 2
         {
             state.completedOrder.removeFirst(state.completedEvictionOffset)
             state.completedEvictionOffset = 0

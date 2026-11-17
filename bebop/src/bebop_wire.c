@@ -162,12 +162,32 @@ static bebop_message_directory_layout_t bebop_message_directory_layout(
   return layout;
 }
 
-#define BEBOP_ARENA_OVERHEAD (sizeof(bebop_wire_arena_block_impl_t))
+static inline size_t bebop_wire_arena_alignment(void)
+{
 #if defined(_MSC_VER)
-#define BEBOP_ARENA_ALIGN __alignof(max_align_t)
+  const size_t fundamental = __alignof(max_align_t);
+  const size_t integer = __alignof(Bebop_UInt128);
 #else
-#define BEBOP_ARENA_ALIGN _Alignof(max_align_t)
+  const size_t fundamental = _Alignof(max_align_t);
+  const size_t integer = _Alignof(Bebop_UInt128);
 #endif
+  if (integer > fundamental) {
+    return integer;
+  }
+  return fundamental;
+}
+
+static inline size_t bebop_wire_arena_overhead(void)
+{
+  return sizeof(bebop_wire_arena_block_impl_t) + bebop_wire_arena_alignment() - 1;
+}
+
+static uint8_t* bebop_wire_arena_data(bebop_wire_arena_block_impl_t* block)
+{
+  const uintptr_t start = (uintptr_t)(block + 1);
+  return (uint8_t*)((start + bebop_wire_arena_alignment() - 1)
+                    & ~(uintptr_t)(bebop_wire_arena_alignment() - 1));
+}
 
 static size_t bebop_wire_align_size(size_t size, size_t alignment)
 {
@@ -179,7 +199,7 @@ static bebop_wire_arena_block_impl_t* bebop_wire_arena_allocate_block(
 )
 {
   size_t capacity = arena->options.initial_block_size;
-  const size_t required = bebop_wire_align_size(min_size, BEBOP_ARENA_ALIGN);
+  const size_t required = bebop_wire_align_size(min_size, bebop_wire_arena_alignment());
 
   if (required > arena->options.max_block_size) {
     return NULL;
@@ -191,7 +211,10 @@ static bebop_wire_arena_block_impl_t* bebop_wire_arena_allocate_block(
     capacity = arena->options.max_block_size;
   }
 
-  const size_t total_size = sizeof(bebop_wire_arena_block_impl_t) + capacity;
+  if (capacity > SIZE_MAX - bebop_wire_arena_overhead()) {
+    return NULL;
+  }
+  const size_t total_size = bebop_wire_arena_overhead() + capacity;
 
   bebop_wire_arena_block_impl_t* block =
       (bebop_wire_arena_block_impl_t*)arena->alloc(NULL, 0, total_size, arena->alloc_ctx);
@@ -242,7 +265,7 @@ static void bebop_wire_arena_destroy(bebop_wire_arena_impl_t* arena)
   bebop_wire_arena_block_impl_t* block = BEBOP_WIRE_ATOMIC_LOAD(&arena->current_block);
   while (block) {
     bebop_wire_arena_block_impl_t* next = block->next;
-    alloc(block, sizeof(bebop_wire_arena_block_impl_t) + block->capacity, 0, ctx);
+    alloc(block, bebop_wire_arena_overhead() + block->capacity, 0, ctx);
     block = next;
   }
 
@@ -258,9 +281,7 @@ static void bebop_wire_arena_reset(bebop_wire_arena_impl_t* arena)
   bebop_wire_arena_block_impl_t* block = BEBOP_WIRE_ATOMIC_LOAD(&arena->current_block);
   while (block) {
     bebop_wire_arena_block_impl_t* next = block->next;
-    arena->alloc(
-        block, sizeof(bebop_wire_arena_block_impl_t) + block->capacity, 0, arena->alloc_ctx
-    );
+    arena->alloc(block, bebop_wire_arena_overhead() + block->capacity, 0, arena->alloc_ctx);
     block = next;
   }
 
@@ -275,12 +296,15 @@ static void* bebop_wire_arena_alloc(bebop_wire_arena_impl_t* arena, size_t size)
     return NULL;
   }
 
-  size_t aligned_size = bebop_wire_align_size(size, BEBOP_ARENA_ALIGN);
+  if (size > SIZE_MAX - (bebop_wire_arena_alignment() - 1)) {
+    return NULL;
+  }
+  size_t aligned_size = bebop_wire_align_size(size, bebop_wire_arena_alignment());
 
   while (true) {
     bebop_wire_arena_block_impl_t* current = BEBOP_WIRE_ATOMIC_LOAD(&arena->current_block);
 
-    if (!current || BEBOP_WIRE_ATOMIC_LOAD(&current->used) + aligned_size > current->capacity) {
+    if (!current || aligned_size > current->capacity - BEBOP_WIRE_ATOMIC_LOAD(&current->used)) {
       bebop_wire_arena_block_impl_t* new_block =
           bebop_wire_arena_allocate_block(arena, aligned_size);
       if (!new_block) {
@@ -292,24 +316,21 @@ static void* bebop_wire_arena_alloc(bebop_wire_arena_impl_t* arena, size_t size)
       if (BEBOP_WIRE_ATOMIC_CAS_WEAK(&arena->current_block, &current, new_block)) {
         current = new_block;
         BEBOP_WIRE_ATOMIC_FETCH_ADD(
-            &arena->total_allocated, sizeof(bebop_wire_arena_block_impl_t) + new_block->capacity
+            &arena->total_allocated, bebop_wire_arena_overhead() + new_block->capacity
         );
       } else {
         arena->alloc(
-            new_block,
-            sizeof(bebop_wire_arena_block_impl_t) + new_block->capacity,
-            0,
-            arena->alloc_ctx
+            new_block, bebop_wire_arena_overhead() + new_block->capacity, 0, arena->alloc_ctx
         );
         continue;
       }
     }
 
     size_t old_used = BEBOP_WIRE_ATOMIC_LOAD(&current->used);
-    if (old_used + aligned_size <= current->capacity) {
+    if (aligned_size <= current->capacity - old_used) {
       if (BEBOP_WIRE_ATOMIC_CAS_WEAK(&current->used, &old_used, old_used + aligned_size)) {
         BEBOP_WIRE_ATOMIC_FETCH_ADD(&arena->total_used, aligned_size);
-        return (uint8_t*)(current + 1) + old_used;
+        return bebop_wire_arena_data(current) + old_used;
       }
     } else {
       continue;
@@ -330,19 +351,22 @@ static void* bebop_wire_arena_realloc(
   if (new_size <= old_size) {
     return ptr;
   }
+  if (new_size > SIZE_MAX - (bebop_wire_arena_alignment() - 1)) {
+    return NULL;
+  }
 
-  const size_t aligned_old = bebop_wire_align_size(old_size, BEBOP_ARENA_ALIGN);
-  const size_t aligned_new = bebop_wire_align_size(new_size, BEBOP_ARENA_ALIGN);
+  const size_t aligned_old = bebop_wire_align_size(old_size, bebop_wire_arena_alignment());
+  const size_t aligned_new = bebop_wire_align_size(new_size, bebop_wire_arena_alignment());
 
   bebop_wire_arena_block_impl_t* current = BEBOP_WIRE_ATOMIC_LOAD(&arena->current_block);
   if (current) {
-    const uint8_t* block_data = (uint8_t*)(current + 1);
+    const uint8_t* block_data = bebop_wire_arena_data(current);
     size_t used = BEBOP_WIRE_ATOMIC_LOAD(&current->used);
 
     // Check if ptr is the topmost allocation - can extend in place
     if ((uint8_t*)ptr + aligned_old == block_data + used) {
       const size_t extra = aligned_new - aligned_old;
-      if (used + extra <= current->capacity) {
+      if (extra <= current->capacity - used) {
         size_t new_used = used + extra;
         if (BEBOP_WIRE_ATOMIC_CAS_WEAK(&current->used, &used, new_used)) {
           BEBOP_WIRE_ATOMIC_FETCH_ADD(&arena->total_used, (ptrdiff_t)extra);
@@ -1386,7 +1410,7 @@ Bebop_Writer* bebop_context_writer(Bebop_Context* context, size_t capacity)
     return NULL;
   }
 
-  Bebop_Writer* writer =
+  Bebop_Writer* restrict writer =
       (Bebop_Writer*)bebop_wire_arena_alloc(context->arena, sizeof(Bebop_Writer));
   if (!writer) {
     return NULL;
@@ -1410,7 +1434,7 @@ Bebop_Writer* bebop_context_writer(Bebop_Context* context, size_t capacity)
   return writer;
 }
 
-void bebop_writer_reset(Bebop_Writer* writer)
+void bebop_writer_reset(Bebop_Writer* restrict writer)
 {
   if (!writer) {
     return;
@@ -1418,7 +1442,7 @@ void bebop_writer_reset(Bebop_Writer* writer)
   writer->current = writer->buffer;
 }
 
-Bebop_Result bebop_writer_reserve(Bebop_Writer* writer, size_t additional_bytes)
+Bebop_Result bebop_writer_reserve(Bebop_Writer* restrict writer, size_t additional_bytes)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1456,7 +1480,7 @@ Bebop_Result bebop_writer_reserve(Bebop_Writer* writer, size_t additional_bytes)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_byte(Bebop_Writer* writer, uint8_t value)
+Bebop_Result bebop_writer_write_byte(Bebop_Writer* restrict writer, uint8_t value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1472,7 +1496,7 @@ Bebop_Result bebop_writer_write_byte(Bebop_Writer* writer, uint8_t value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_u16(Bebop_Writer* writer, uint16_t value)
+Bebop_Result bebop_writer_write_u16(Bebop_Writer* restrict writer, uint16_t value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1494,7 +1518,7 @@ Bebop_Result bebop_writer_write_u16(Bebop_Writer* writer, uint16_t value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_u32(Bebop_Writer* writer, uint32_t value)
+Bebop_Result bebop_writer_write_u32(Bebop_Writer* restrict writer, uint32_t value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1518,7 +1542,7 @@ Bebop_Result bebop_writer_write_u32(Bebop_Writer* writer, uint32_t value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_u64(Bebop_Writer* writer, uint64_t value)
+Bebop_Result bebop_writer_write_u64(Bebop_Writer* restrict writer, uint64_t value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1546,32 +1570,32 @@ Bebop_Result bebop_writer_write_u64(Bebop_Writer* writer, uint64_t value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_i8(Bebop_Writer* writer, int8_t value)
+Bebop_Result bebop_writer_write_i8(Bebop_Writer* restrict writer, int8_t value)
 {
   return bebop_writer_write_byte(writer, (uint8_t)value);
 }
 
-Bebop_Result bebop_writer_write_i16(Bebop_Writer* writer, int16_t value)
+Bebop_Result bebop_writer_write_i16(Bebop_Writer* restrict writer, int16_t value)
 {
   return bebop_writer_write_u16(writer, (uint16_t)value);
 }
 
-Bebop_Result bebop_writer_write_i32(Bebop_Writer* writer, int32_t value)
+Bebop_Result bebop_writer_write_i32(Bebop_Writer* restrict writer, int32_t value)
 {
   return bebop_writer_write_u32(writer, (uint32_t)value);
 }
 
-Bebop_Result bebop_writer_write_i64(Bebop_Writer* writer, int64_t value)
+Bebop_Result bebop_writer_write_i64(Bebop_Writer* restrict writer, int64_t value)
 {
   return bebop_writer_write_u64(writer, (uint64_t)value);
 }
 
-Bebop_Result bebop_writer_write_bool(Bebop_Writer* writer, bool value)
+Bebop_Result bebop_writer_write_bool(Bebop_Writer* restrict writer, bool value)
 {
   return bebop_writer_write_byte(writer, value ? 1 : 0);
 }
 
-Bebop_Result bebop_writer_write_f16(Bebop_Writer* writer, Bebop_Float16 value)
+Bebop_Result bebop_writer_write_f16(Bebop_Writer* restrict writer, Bebop_Float16 value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1595,7 +1619,7 @@ Bebop_Result bebop_writer_write_f16(Bebop_Writer* writer, Bebop_Float16 value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_bf16(Bebop_Writer* writer, Bebop_BFloat16 value)
+Bebop_Result bebop_writer_write_bf16(Bebop_Writer* restrict writer, Bebop_BFloat16 value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1619,21 +1643,21 @@ Bebop_Result bebop_writer_write_bf16(Bebop_Writer* writer, Bebop_BFloat16 value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_f32(Bebop_Writer* writer, float value)
+Bebop_Result bebop_writer_write_f32(Bebop_Writer* restrict writer, float value)
 {
   uint32_t bits;
   memcpy(&bits, &value, sizeof(float));
   return bebop_writer_write_u32(writer, bits);
 }
 
-Bebop_Result bebop_writer_write_f64(Bebop_Writer* writer, double value)
+Bebop_Result bebop_writer_write_f64(Bebop_Writer* restrict writer, double value)
 {
   uint64_t bits;
   memcpy(&bits, &value, sizeof(double));
   return bebop_writer_write_u64(writer, bits);
 }
 
-Bebop_Result bebop_writer_write_i128(Bebop_Writer* writer, Bebop_Int128 value)
+Bebop_Result bebop_writer_write_i128(Bebop_Writer* restrict writer, Bebop_Int128 value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1658,7 +1682,7 @@ Bebop_Result bebop_writer_write_i128(Bebop_Writer* writer, Bebop_Int128 value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_u128(Bebop_Writer* writer, Bebop_UInt128 value)
+Bebop_Result bebop_writer_write_u128(Bebop_Writer* restrict writer, Bebop_UInt128 value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1682,7 +1706,7 @@ Bebop_Result bebop_writer_write_u128(Bebop_Writer* writer, Bebop_UInt128 value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_uuid(Bebop_Writer* writer, Bebop_UUID value)
+Bebop_Result bebop_writer_write_uuid(Bebop_Writer* restrict writer, Bebop_UUID value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1698,7 +1722,7 @@ Bebop_Result bebop_writer_write_uuid(Bebop_Writer* writer, Bebop_UUID value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_timestamp(Bebop_Writer* writer, Bebop_Timestamp value)
+Bebop_Result bebop_writer_write_timestamp(Bebop_Writer* restrict writer, Bebop_Timestamp value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1715,7 +1739,7 @@ Bebop_Result bebop_writer_write_timestamp(Bebop_Writer* writer, Bebop_Timestamp 
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_duration(Bebop_Writer* writer, Bebop_Duration value)
+Bebop_Result bebop_writer_write_duration(Bebop_Writer* restrict writer, Bebop_Duration value)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -1732,7 +1756,7 @@ Bebop_Result bebop_writer_write_duration(Bebop_Writer* writer, Bebop_Duration va
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_string(Bebop_Writer* writer, Bebop_String value)
+Bebop_Result bebop_writer_write_string(Bebop_Writer* restrict writer, Bebop_String value)
 {
   if (!writer || !value.data) {
     return BEBOP_RESULT_NULL;
@@ -1763,7 +1787,7 @@ Bebop_Result bebop_writer_write_string(Bebop_Writer* writer, Bebop_String value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_bytes(Bebop_Writer* writer, Bebop_Bytes value)
+Bebop_Result bebop_writer_write_bytes(Bebop_Writer* restrict writer, Bebop_Bytes value)
 {
   if (!writer || !value.data) {
     return BEBOP_RESULT_NULL;
@@ -1793,7 +1817,7 @@ Bebop_Result bebop_writer_write_bytes(Bebop_Writer* writer, Bebop_Bytes value)
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_fixed_bytes(Bebop_Writer* writer, Bebop_Bytes value)
+Bebop_Result bebop_writer_write_fixed_bytes(Bebop_Writer* restrict writer, Bebop_Bytes value)
 {
   if (!writer || !value.data) {
     return BEBOP_RESULT_NULL;
@@ -1814,7 +1838,9 @@ Bebop_Result bebop_writer_write_fixed_bytes(Bebop_Writer* writer, Bebop_Bytes va
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_f32_array(Bebop_Writer* writer, const float* data, size_t length)
+Bebop_Result bebop_writer_write_f32_array(
+    Bebop_Writer* restrict writer, const float* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -1860,7 +1886,9 @@ Bebop_Result bebop_writer_write_f32_array(Bebop_Writer* writer, const float* dat
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_f64_array(Bebop_Writer* writer, const double* data, size_t length)
+Bebop_Result bebop_writer_write_f64_array(
+    Bebop_Writer* restrict writer, const double* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -1906,7 +1934,9 @@ Bebop_Result bebop_writer_write_f64_array(Bebop_Writer* writer, const double* da
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_u16_array(Bebop_Writer* writer, const uint16_t* data, size_t length)
+Bebop_Result bebop_writer_write_u16_array(
+    Bebop_Writer* restrict writer, const uint16_t* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -1952,12 +1982,16 @@ Bebop_Result bebop_writer_write_u16_array(Bebop_Writer* writer, const uint16_t* 
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_i16_array(Bebop_Writer* writer, const int16_t* data, size_t length)
+Bebop_Result bebop_writer_write_i16_array(
+    Bebop_Writer* restrict writer, const int16_t* data, size_t length
+)
 {
   return bebop_writer_write_u16_array(writer, (const uint16_t*)data, length);
 }
 
-Bebop_Result bebop_writer_write_u32_array(Bebop_Writer* writer, const uint32_t* data, size_t length)
+Bebop_Result bebop_writer_write_u32_array(
+    Bebop_Writer* restrict writer, const uint32_t* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -2003,12 +2037,16 @@ Bebop_Result bebop_writer_write_u32_array(Bebop_Writer* writer, const uint32_t* 
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_i32_array(Bebop_Writer* writer, const int32_t* data, size_t length)
+Bebop_Result bebop_writer_write_i32_array(
+    Bebop_Writer* restrict writer, const int32_t* data, size_t length
+)
 {
   return bebop_writer_write_u32_array(writer, (const uint32_t*)data, length);
 }
 
-Bebop_Result bebop_writer_write_u64_array(Bebop_Writer* writer, const uint64_t* data, size_t length)
+Bebop_Result bebop_writer_write_u64_array(
+    Bebop_Writer* restrict writer, const uint64_t* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -2054,23 +2092,29 @@ Bebop_Result bebop_writer_write_u64_array(Bebop_Writer* writer, const uint64_t* 
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_i64_array(Bebop_Writer* writer, const int64_t* data, size_t length)
+Bebop_Result bebop_writer_write_i64_array(
+    Bebop_Writer* restrict writer, const int64_t* data, size_t length
+)
 {
   return bebop_writer_write_u64_array(writer, (const uint64_t*)data, length);
 }
 
-Bebop_Result bebop_writer_write_i8_array(Bebop_Writer* writer, const int8_t* data, size_t length)
+Bebop_Result bebop_writer_write_i8_array(
+    Bebop_Writer* restrict writer, const int8_t* data, size_t length
+)
 {
   return bebop_writer_write_bytes(writer, bebop_bytes(data, length));
 }
 
-Bebop_Result bebop_writer_write_u8_array(Bebop_Writer* writer, const uint8_t* data, size_t length)
+Bebop_Result bebop_writer_write_u8_array(
+    Bebop_Writer* restrict writer, const uint8_t* data, size_t length
+)
 {
   return bebop_writer_write_bytes(writer, bebop_bytes(data, length));
 }
 
 Bebop_Result bebop_writer_write_f16_array(
-    Bebop_Writer* writer, const Bebop_Float16* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_Float16* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2118,7 +2162,7 @@ Bebop_Result bebop_writer_write_f16_array(
 }
 
 Bebop_Result bebop_writer_write_bf16_array(
-    Bebop_Writer* writer, const Bebop_BFloat16* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_BFloat16* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2166,7 +2210,7 @@ Bebop_Result bebop_writer_write_bf16_array(
 }
 
 Bebop_Result bebop_writer_write_i128_array(
-    Bebop_Writer* writer, const Bebop_Int128* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_Int128* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2211,7 +2255,7 @@ Bebop_Result bebop_writer_write_i128_array(
 }
 
 Bebop_Result bebop_writer_write_u128_array(
-    Bebop_Writer* writer, const Bebop_UInt128* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_UInt128* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2255,7 +2299,9 @@ Bebop_Result bebop_writer_write_u128_array(
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_write_bool_array(Bebop_Writer* writer, const bool* data, size_t length)
+Bebop_Result bebop_writer_write_bool_array(
+    Bebop_Writer* restrict writer, const bool* data, size_t length
+)
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
     return BEBOP_RESULT_NULL;
@@ -2289,7 +2335,7 @@ Bebop_Result bebop_writer_write_bool_array(Bebop_Writer* writer, const bool* dat
 }
 
 Bebop_Result bebop_writer_write_uuid_array(
-    Bebop_Writer* writer, const Bebop_UUID* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_UUID* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2326,7 +2372,7 @@ Bebop_Result bebop_writer_write_uuid_array(
 }
 
 Bebop_Result bebop_writer_write_timestamp_array(
-    Bebop_Writer* writer, const Bebop_Timestamp* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_Timestamp* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2363,7 +2409,7 @@ Bebop_Result bebop_writer_write_timestamp_array(
 }
 
 Bebop_Result bebop_writer_write_duration_array(
-    Bebop_Writer* writer, const Bebop_Duration* data, size_t length
+    Bebop_Writer* restrict writer, const Bebop_Duration* data, size_t length
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2400,21 +2446,21 @@ Bebop_Result bebop_writer_write_duration_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_u8_array(
-    Bebop_Writer* writer, const uint8_t* data, size_t count
+    Bebop_Writer* restrict writer, const uint8_t* data, size_t count
 )
 {
   return bebop_writer_write_fixed_bytes(writer, bebop_bytes(data, count));
 }
 
 Bebop_Result bebop_writer_write_fixed_i8_array(
-    Bebop_Writer* writer, const int8_t* data, size_t count
+    Bebop_Writer* restrict writer, const int8_t* data, size_t count
 )
 {
   return bebop_writer_write_fixed_bytes(writer, bebop_bytes(data, count));
 }
 
 Bebop_Result bebop_writer_write_fixed_bool_array(
-    Bebop_Writer* writer, const bool* data, size_t count
+    Bebop_Writer* restrict writer, const bool* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2437,7 +2483,7 @@ Bebop_Result bebop_writer_write_fixed_bool_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_u16_array(
-    Bebop_Writer* writer, const uint16_t* data, size_t count
+    Bebop_Writer* restrict writer, const uint16_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2473,14 +2519,14 @@ Bebop_Result bebop_writer_write_fixed_u16_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_i16_array(
-    Bebop_Writer* writer, const int16_t* data, size_t count
+    Bebop_Writer* restrict writer, const int16_t* data, size_t count
 )
 {
   return bebop_writer_write_fixed_u16_array(writer, (const uint16_t*)data, count);
 }
 
 Bebop_Result bebop_writer_write_fixed_u32_array(
-    Bebop_Writer* writer, const uint32_t* data, size_t count
+    Bebop_Writer* restrict writer, const uint32_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2516,14 +2562,14 @@ Bebop_Result bebop_writer_write_fixed_u32_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_i32_array(
-    Bebop_Writer* writer, const int32_t* data, size_t count
+    Bebop_Writer* restrict writer, const int32_t* data, size_t count
 )
 {
   return bebop_writer_write_fixed_u32_array(writer, (const uint32_t*)data, count);
 }
 
 Bebop_Result bebop_writer_write_fixed_u64_array(
-    Bebop_Writer* writer, const uint64_t* data, size_t count
+    Bebop_Writer* restrict writer, const uint64_t* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2559,14 +2605,14 @@ Bebop_Result bebop_writer_write_fixed_u64_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_i64_array(
-    Bebop_Writer* writer, const int64_t* data, size_t count
+    Bebop_Writer* restrict writer, const int64_t* data, size_t count
 )
 {
   return bebop_writer_write_fixed_u64_array(writer, (const uint64_t*)data, count);
 }
 
 Bebop_Result bebop_writer_write_fixed_f16_array(
-    Bebop_Writer* writer, const Bebop_Float16* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_Float16* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2602,7 +2648,7 @@ Bebop_Result bebop_writer_write_fixed_f16_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_bf16_array(
-    Bebop_Writer* writer, const Bebop_BFloat16* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_BFloat16* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2638,7 +2684,7 @@ Bebop_Result bebop_writer_write_fixed_bf16_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_f32_array(
-    Bebop_Writer* writer, const float* data, size_t count
+    Bebop_Writer* restrict writer, const float* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2674,7 +2720,7 @@ Bebop_Result bebop_writer_write_fixed_f32_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_f64_array(
-    Bebop_Writer* writer, const double* data, size_t count
+    Bebop_Writer* restrict writer, const double* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2710,7 +2756,7 @@ Bebop_Result bebop_writer_write_fixed_f64_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_i128_array(
-    Bebop_Writer* writer, const Bebop_Int128* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_Int128* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2746,7 +2792,7 @@ Bebop_Result bebop_writer_write_fixed_i128_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_u128_array(
-    Bebop_Writer* writer, const Bebop_UInt128* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_UInt128* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2782,7 +2828,7 @@ Bebop_Result bebop_writer_write_fixed_u128_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_uuid_array(
-    Bebop_Writer* writer, const Bebop_UUID* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_UUID* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2809,7 +2855,7 @@ Bebop_Result bebop_writer_write_fixed_uuid_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_timestamp_array(
-    Bebop_Writer* writer, const Bebop_Timestamp* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_Timestamp* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -2836,7 +2882,7 @@ Bebop_Result bebop_writer_write_fixed_timestamp_array(
 }
 
 Bebop_Result bebop_writer_write_fixed_duration_array(
-    Bebop_Writer* writer, const Bebop_Duration* data, size_t count
+    Bebop_Writer* restrict writer, const Bebop_Duration* data, size_t count
 )
 {
   if (BEBOP_WIRE_UNLIKELY(!writer || !data)) {
@@ -3225,7 +3271,7 @@ Bebop_Result bebop_reader_read_fixed_duration_array(
   return BEBOP_RESULT_OK;
 }
 
-Bebop_Result bebop_writer_begin_length(Bebop_Writer* writer, size_t* position)
+Bebop_Result bebop_writer_begin_length(Bebop_Writer* restrict writer, size_t* position)
 {
   if (!writer || !position) {
     return BEBOP_RESULT_NULL;
@@ -3235,7 +3281,9 @@ Bebop_Result bebop_writer_begin_length(Bebop_Writer* writer, size_t* position)
   return bebop_writer_write_u32(writer, 0);
 }
 
-Bebop_Result bebop_writer_end_length(Bebop_Writer* writer, size_t position, uint32_t length)
+Bebop_Result bebop_writer_end_length(
+    Bebop_Writer* restrict writer, size_t position, uint32_t length
+)
 {
   if (!writer) {
     return BEBOP_RESULT_NULL;
@@ -3277,7 +3325,7 @@ size_t bebop_indexed_message_size(
 }
 
 Bebop_Result bebop_writer_end_indexed_message(
-    Bebop_Writer* writer,
+    Bebop_Writer* restrict writer,
     size_t length_position,
     size_t payload_start,
     const uint8_t* sorted_tags,
@@ -3498,18 +3546,18 @@ void bebop_reader_pop_limit(Bebop_Reader* reader, const uint8_t* old_end)
   }
 }
 
-size_t bebop_writer_length(const Bebop_Writer* writer)
+size_t bebop_writer_length(const Bebop_Writer* restrict writer)
 {
   return writer ? (size_t)(writer->current - writer->buffer) : 0;
 }
 
-Bebop_View bebop_writer_view(const Bebop_Writer* writer)
+Bebop_View bebop_writer_view(const Bebop_Writer* restrict writer)
 {
   return writer ? (Bebop_View) {writer->buffer, (size_t)(writer->current - writer->buffer)}
                 : (Bebop_View) {NULL, 0};
 }
 
-size_t bebop_writer_available(const Bebop_Writer* writer)
+size_t bebop_writer_available(const Bebop_Writer* restrict writer)
 {
   return writer ? (size_t)(writer->end - writer->current) : 0;
 }

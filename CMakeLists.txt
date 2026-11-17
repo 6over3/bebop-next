@@ -60,7 +60,7 @@ add_compile_definitions(
 option(BEBOP_BUILD_TESTS "Build tests" ON)
 option(BEBOP_BUILD_FRONTEND "Build bebopc frontend" ON)
 
-if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     add_compile_options(
         -Wall -Wextra -Wpedantic -Werror
         -Wconversion -Wsign-conversion -Wdouble-promotion
@@ -84,12 +84,23 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
     endif()
 elseif(MSVC)
     add_compile_options(/W4 /WX /utf-8 /FS)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /experimental:c11atomics")
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
+    if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(/Zp16)
+    endif()
+    if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /experimental:c11atomics")
+    endif()
     add_compile_options($<$<CONFIG:Release>:/O2>)
     add_compile_options($<$<NOT:$<CONFIG:Release>>:/Od>
                         $<$<NOT:$<CONFIG:Release>>:/Z7>
                         $<$<NOT:$<CONFIG:Release>>:/fsanitize=address>)
+endif()
+
+include(cmake/BebopClangBuiltins.cmake)
+bebop_find_clang_builtins(BEBOP_CLANG_BUILTINS)
+if(BEBOP_CLANG_BUILTINS)
+    link_libraries("$<BUILD_INTERFACE:${BEBOP_CLANG_BUILTINS}>")
 endif()
 
 add_subdirectory(vendor)

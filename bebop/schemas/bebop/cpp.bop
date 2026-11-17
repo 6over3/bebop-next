@@ -1,0 +1,42 @@
+package cpp
+
+/// Selects the C++ container for maps within a field's array and map types.
+/// The setting does not cross references to named records.
+#decorator(map) {
+    targets = FIELD
+    param kind!: string
+
+    validate [[
+        if kind ~= "map" and kind ~= "unordered_map" and kind ~= "flat_map" then
+            error("Expected map, unordered_map, or flat_map", self.kind.span)
+        end
+        local field_type = target.type
+        while field_type and
+              (field_type.kind == "array" or field_type.kind == "fixed_array") do
+            field_type = field_type.element
+        end
+        if not field_type or field_type.kind ~= "map" then
+            error("@cpp.map requires a map or an array of maps")
+        end
+    ]]
+
+    export [[
+        return { kind = kind }
+    ]]
+}
+
+/// Overrides an element's generated C++ identifier.
+#decorator(name) {
+    targets = ENUM | STRUCT | MESSAGE | UNION | FIELD | BRANCH
+    param value!: string
+
+    validate [[
+        if not is_valid_identifier(value) then
+            error("Expected a C++ identifier", self.value.span)
+        end
+    ]]
+
+    export [[
+        return { name = value }
+    ]]
+}

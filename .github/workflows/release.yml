@@ -39,7 +39,7 @@ jobs:
     needs: [validate]
     uses: ./.github/workflows/build.yml
     with:
-      os: ubuntu-24.04-arm
+      os: ubuntu-26.04-arm
       arch: arm64
       swift-version: "6.2"
 
@@ -52,20 +52,12 @@ jobs:
       arch: arm64
       swift-version: "6.2"
 
-  macos-x64:
-    needs: [validate]
-    uses: ./.github/workflows/build.yml
-    with:
-      os: macos-26
-      arch: x64
-      swift-version: "6.2"
-
 
   windows-x64:
     needs: [validate]
     uses: ./.github/workflows/build.yml
     with:
-      os: windows-latest
+      os: windows-2025-vs2026
       arch: x64
       swift-version: "6.2"
 
@@ -98,6 +90,13 @@ jobs:
     with:
       artifact: bebopc-ubuntu-latest-x64
       generator: typescript
+
+  codegen-cpp:
+    needs: [linux-x64]
+    uses: ./.github/workflows/codegen.yml
+    with:
+      artifact: bebopc-ubuntu-latest-x64
+      generator: cpp
 
   vscode:
     needs: [validate]
@@ -133,7 +132,7 @@ jobs:
           retention-days: 1
 
   package:
-    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript]
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript, codegen-cpp]
     runs-on: ubuntu-latest
     env:
       V: ${{ needs.validate.outputs.version }}
@@ -146,10 +145,9 @@ jobs:
         run: |
           declare -A ARTIFACT_MAP=(
             ["bebopc-ubuntu-latest-x64"]="linux-x64"
-            ["bebopc-ubuntu-24.04-arm-arm64"]="linux-arm64"
+            ["bebopc-ubuntu-26.04-arm-arm64"]="linux-arm64"
             ["bebopc-macos-26-arm64"]="darwin-arm64"
-            ["bebopc-macos-26-x64"]="darwin-x64"
-            ["bebopc-windows-latest-x64"]="windows-x64"
+            ["bebopc-windows-2025-vs2026-x64"]="windows-x64"
             ["bebopc-windows-11-arm-arm64"]="windows-arm64"
           )
           mkdir -p dist
@@ -157,30 +155,29 @@ jobs:
           for artifact in "${!ARTIFACT_MAP[@]}"; do
             target="${ARTIFACT_MAP[$artifact]}"
             archive="bebop@${V}+${target}.tar.gz"
-            staging=$(mktemp -d)
             src="artifacts/${artifact}"
 
-            mkdir -p "${staging}/bin" "${staging}/lib" "${staging}/include" "${staging}/share/bebop"
-
+            executable_suffix=""
             if [[ "$target" == windows-* ]]; then
-              cp "${src}/bin/bebopc.exe" "${staging}/bin/"
-              cp "${src}/lib/bebop.lib" "${staging}/lib/"
-              generators=("${src}"/bin/bebopc-gen-*.exe)
-            else
-              cp "${src}/bin/bebopc" "${staging}/bin/"
-              cp "${src}/lib/libbebop.a" "${staging}/lib/"
-              generators=("${src}"/bin/bebopc-gen-*)
+              executable_suffix=".exe"
             fi
-            if (( ${#generators[@]} == 0 )); then
-              echo "::error::${target} does not contain code generators"
-              exit 1
+            for required in \
+              "bin/bebopc${executable_suffix}" \
+              "bin/bebopc-gen-cpp${executable_suffix}" \
+              "include/bebop.hpp" \
+              "lib/cmake/bebop-cpp/bebop-cpp-config.cmake" \
+              "lib/cmake/bebop-cpp/BebopCppTargets.cmake" \
+              "share/bebop/cpp.bop"; do
+              if [[ ! -f "${src}/${required}" ]]; then
+                echo "::error::${target} is missing ${required}"
+                exit 1
+              fi
+            done
+            if [[ "$target" != windows-* ]]; then
+              chmod +x "${src}/bin/bebopc" "${src}"/bin/bebopc-gen-*
             fi
-            cp "${generators[@]}" "${staging}/bin/"
-            cp -r "${src}/include/." "${staging}/include/"
-            cp -r "${src}/share/bebop/." "${staging}/share/bebop/"
 
-            tar -czf "dist/${archive}" -C "${staging}" .
-            rm -rf "${staging}"
+            tar -czf "dist/${archive}" -C "${src}" .
           done
           for package in bebop-runtime bebop-plugin bebop-generator-typescript; do
             matches=(artifacts/bebop-typescript-packages/${package}-*.tgz)
