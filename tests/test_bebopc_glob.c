@@ -264,7 +264,7 @@ void test_glob_fixture_json_files(void)
   bebopc_glob_result_t* result = bebopc_glob_execute(glob, &ctx, BEBOP_TEST_FIXTURES_DIR);
   TEST_ASSERT_NOT_NULL(result);
 
-  TEST_ASSERT_EQUAL(1, result->count);
+  TEST_ASSERT_EQUAL(2, result->count);
 
   for (size_t i = 0; i < result->count; i++) {
     TEST_ASSERT_TRUE(_ends_with(result->matches[i].path, ".json"));
