@@ -407,12 +407,6 @@ static bool type_set_add(gen_type_set_t* set, const char* name)
 }
 
 typedef enum {
-  GEN_STD_C99,
-  GEN_STD_C11,
-  GEN_STD_C23,
-} gen_standard_t;
-
-typedef enum {
   GEN_OUT_SPLIT,
   GEN_OUT_UNITY,
   GEN_OUT_SINGLE_HEADER,
@@ -424,16 +418,14 @@ typedef enum {
 } gen_emit_mode_t;
 
 typedef struct {
-  gen_standard_t c_standard;
   gen_output_mode_t output_mode;
   const char* prefix;
   bool no_reflection;
 } gen_opts_t;
 
-static gen_opts_t opts_parse(const bebop_plugin_request_t* req)
+static gen_opts_t opts_parse(const bebop_plugin_request_t* req, const char** error)
 {
   gen_opts_t opts = {
-      .c_standard = GEN_STD_C11,
       .output_mode = GEN_OUT_SPLIT,
       .prefix = "",
       .no_reflection = false,
@@ -444,10 +436,8 @@ static gen_opts_t opts_parse(const bebop_plugin_request_t* req)
   const char* val;
   while (bebop_plugin_option_next(&iterator, &key, &val)) {
     if (strcmp(key, "c_standard") == 0) {
-      if (strcmp(val, "c99") == 0) {
-        opts.c_standard = GEN_STD_C99;
-      } else if (strcmp(val, "c23") == 0) {
-        opts.c_standard = GEN_STD_C23;
+      if (strcmp(val, "c23") != 0) {
+        *error = "The C generator requires C23; c_standard must be c23";
       }
     } else if (strcmp(key, "output_mode") == 0) {
       if (strcmp(val, "unity") == 0) {
@@ -971,7 +961,8 @@ typedef struct {
 static void ctx_init(gen_ctx_t* ctx, const bebop_plugin_request_t* req)
 {
   sb_init(&ctx->out);
-  ctx->opts = opts_parse(req);
+  ctx->error = NULL;
+  ctx->opts = opts_parse(req, &ctx->error);
   type_set_init(&ctx->array_types);
   type_set_init(&ctx->map_types);
   type_set_init(&ctx->message_fqns);
@@ -982,7 +973,6 @@ static void ctx_init(gen_ctx_t* ctx, const bebop_plugin_request_t* req)
   ctx->is_mutable = false;
   ctx->in_step_fn = false;
   ctx->emit_mode = GEN_EMIT_IMPL;
-  ctx->error = NULL;
 }
 
 static void ctx_free(gen_ctx_t* ctx)
@@ -2160,45 +2150,14 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   bool is_signed =
       (base == BEBOP_TYPE_INT8 || base == BEBOP_TYPE_INT16 || base == BEBOP_TYPE_INT32
        || base == BEBOP_TYPE_INT64);
-  bool fixed_type = base == BEBOP_TYPE_INT64 || base == BEBOP_TYPE_UINT64;
-  for (uint32_t i = 0; i < member_count; i++) {
-    const uint64_t value = bebop_descriptor_member_value(bebop_descriptor_def_member_at(def, i));
-    if (is_signed) {
-      const int64_t signed_value = (int64_t)value;
-      if (signed_value < INT32_MIN || signed_value > INT32_MAX) {
-        fixed_type = true;
-      }
-    } else if (value > INT32_MAX) {
-      fixed_type = true;
-    }
-  }
-
-  emit_doc(ctx, doc);
-  if (fixed_type) {
-    const type_info_t* info = type_info(base);
-    if (!info) {
-      ctx->error = "invalid enum base type";
-      return;
-    }
-    emit(ctx, "typedef %s %s;", info->ctype, name);
-    for (uint32_t i = 0; i < member_count; i++) {
-      const bebop_descriptor_member_t* member = bebop_descriptor_def_member_at(def, i);
-      const uint64_t value = bebop_descriptor_member_value(member);
-      emit_doc(ctx, bebop_descriptor_member_documentation(member));
-      sb_indent(&ctx->out, ctx->indent);
-      sb_puts(&ctx->out, "#define ");
-      sb_enum_member(&ctx->out, name, bebop_descriptor_member_name(member));
-      if (is_signed && value > INT64_MAX) {
-        sb_printf(&ctx->out, " ((%s)(-INT64_C(%llu) - 1))\n", name, (unsigned long long)~value);
-      } else {
-        sb_printf(&ctx->out, " ((%s)UINT64_C(%llu))\n", name, (unsigned long long)value);
-      }
-    }
-    emit_nl(ctx);
+  const type_info_t* info = type_info(base);
+  if (!info) {
+    ctx->error = "invalid enum base type";
     return;
   }
 
-  emit(ctx, "typedef enum {");
+  emit_doc(ctx, doc);
+  emit(ctx, "typedef enum : %s {", info->ctype);
 
   ctx->indent++;
   for (uint32_t i = 0; i < member_count; i++) {
@@ -2210,12 +2169,31 @@ static void gen_enum(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     emit_doc(ctx, mdoc);
     sb_indent(&ctx->out, ctx->indent);
     sb_enum_member(&ctx->out, name, mname);
-    if (is_signed) {
-      sb_printf(&ctx->out, " = %lld,\n", (long long)(int64_t)mval);
-    } else if (is_flags) {
-      sb_printf(&ctx->out, " = 0x%llxu,\n", (unsigned long long)mval);
+    if (is_signed && mval > INT64_MAX) {
+      const uint64_t magnitude = UINT64_C(0) - mval;
+      if (magnitude == (UINT64_C(1) << 63)) {
+        sb_puts(&ctx->out, " = (-9223372036854775807LL - 1),\n");
+      } else if (magnitude > INT32_MAX) {
+        sb_printf(&ctx->out, " = -%lluLL,\n", (unsigned long long)magnitude);
+      } else {
+        sb_printf(&ctx->out, " = -%llu,\n", (unsigned long long)magnitude);
+      }
     } else {
-      sb_printf(&ctx->out, " = %llu,\n", (unsigned long long)mval);
+      const char* suffix = "";
+      if (mval > INT32_MAX) {
+        if (is_signed) {
+          suffix = "LL";
+        } else if (mval <= UINT32_MAX) {
+          suffix = "U";
+        } else {
+          suffix = "ULL";
+        }
+      }
+      if (is_flags && mval != 0) {
+        sb_printf(&ctx->out, " = 0x%llx%s,\n", (unsigned long long)mval, suffix);
+      } else {
+        sb_printf(&ctx->out, " = %llu%s,\n", (unsigned long long)mval, suffix);
+      }
     }
   }
   ctx->indent--;
@@ -2397,7 +2375,7 @@ static void gen_message(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   uint32_t field_count = bebop_descriptor_def_field_count(def);
 
   if (field_count > 0) {
-    emit(ctx, "typedef enum {");
+    emit(ctx, "typedef enum : uint8_t {");
     ctx->indent++;
     for (uint32_t i = 0; i < field_count; i++) {
       const bebop_descriptor_field_t* f = bebop_descriptor_def_field_at(def, i);
@@ -2438,7 +2416,7 @@ static void gen_union(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
   uint32_t branch_count = bebop_descriptor_def_branch_count(def);
 
   emit_doc(ctx, doc);
-  emit(ctx, "typedef enum {");
+  emit(ctx, "typedef enum : uint8_t {");
   ctx->indent++;
   sb_indent(&ctx->out, ctx->indent);
   sb_enum_member(&ctx->out, name, "None");
@@ -6259,6 +6237,11 @@ static int generate(
   uint32_t schema_count = bebop_plugin_request_schema_count(req);
   gen_ctx_t ctx;
   ctx_init(&ctx, req);
+  if (ctx.error) {
+    const char* error = ctx.error;
+    ctx_free(&ctx);
+    return send_error(bctx, alloc, error);
+  }
 
   bebop_plugin_response_builder_t* b = bebop_plugin_response_builder_create(alloc);
   if (!b) {

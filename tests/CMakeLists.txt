@@ -39,9 +39,6 @@ function(bebop_add_internal_test name)
         ${CMAKE_SOURCE_DIR}/vendor/cwisstable
         ${CMAKE_SOURCE_DIR}/vendor/lua
     )
-    if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-        target_compile_options(test_${name} PRIVATE /std:c11 /experimental:c11atomics)
-    endif()
     add_test(NAME ${name} COMMAND test_${name})
 endfunction()
 
@@ -417,6 +414,35 @@ target_include_directories(test_c_constants_fallback PRIVATE "${BEBOP_C_NUMERIC_
 target_compile_definitions(test_c_constants_fallback PRIVATE BEBOP_WIRE_NO_I128=1)
 target_link_libraries(test_c_constants_fallback PRIVATE bebop::bebop unity)
 add_test(NAME c_constants_fallback COMMAND test_c_constants_fallback)
+
+set(BEBOP_C_ENUM_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/c_enums")
+set(BEBOP_C_ENUM_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schemas/c_enums.bop")
+add_custom_command(
+    OUTPUT "${BEBOP_C_ENUM_DIR}/c_enums.bb.c" "${BEBOP_C_ENUM_DIR}/c_enums.bb.h"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BEBOP_C_ENUM_DIR}"
+    COMMAND $<TARGET_FILE:bebopc> build "${BEBOP_C_ENUM_SCHEMA}"
+            --plugin=c=$<TARGET_FILE:bebopc-gen-c>
+            --c_out=${BEBOP_C_ENUM_DIR} -D c_standard=c23 --quiet
+    DEPENDS bebopc bebopc-gen-c "${BEBOP_C_ENUM_SCHEMA}"
+    VERBATIM
+)
+add_library(c_enum_generated OBJECT "${BEBOP_C_ENUM_DIR}/c_enums.bb.c")
+target_include_directories(c_enum_generated PUBLIC "${BEBOP_C_ENUM_DIR}")
+target_link_libraries(c_enum_generated PUBLIC bebop::bebop)
+add_executable(test_c_enums test_c_enums.c)
+target_link_libraries(test_c_enums PRIVATE c_enum_generated unity)
+add_test(NAME c_enums COMMAND test_c_enums)
+add_executable(test_c_enums_cpp test_c_enums_cpp.cc)
+target_compile_features(test_c_enums_cpp PRIVATE cxx_std_23)
+target_link_libraries(test_c_enums_cpp PRIVATE c_enum_generated)
+add_test(NAME c_enums_cpp COMMAND test_c_enums_cpp)
+add_test(NAME c_standard_options COMMAND ${CMAKE_COMMAND}
+    -Dcompiler=$<TARGET_FILE:bebopc>
+    -Dplugin=$<TARGET_FILE:bebopc-gen-c>
+    -Dschema=${BEBOP_C_ENUM_SCHEMA}
+    -Doutput_dir=${BEBOP_C_ENUM_DIR}/options
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/c_standard_test.cmake
+)
 
 set(BEBOP_CPP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/cpp")
 set(BEBOP_CPP_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schemas/cpp.bop")

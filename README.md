@@ -4,7 +4,7 @@ Rewrite of the Bebop compiler in C. New schema language and wire format for the 
 
 ## Building
 
-Requires CMake 3.25+ and a C11/C++23 compiler.
+Requires CMake 3.25+ and C23/C++23 compilers.
 
 Release binaries support Linux and Windows on x64/ARM64, and macOS on ARM64.
 
@@ -62,7 +62,7 @@ message Player {
 | CLI (`bebopc`) | done | Config files, globbing, diagnostics |
 | Watch mode | in progress | macOS FSEvents only. No incremental recheck. |
 | Plugin system | done | IPC via stdin/stdout, Bebop wire protocol |
-| C code generator | done | Owning records, views, reflection |
+| C code generator | done | C23, owning records, views, reflection |
 | C++ code generator | done | C++23, standalone header, views, PMR, reflection. RPC deferred. |
 | Swift code generator | done | Serialization, views, RPC |
 | TypeScript code generator | done | Serialization, views, RPC |

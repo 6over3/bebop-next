@@ -1,0 +1,67 @@
+package enum_types
+
+enum Signed8 : int8 {
+    ZERO = 0;
+    MIN = -128;
+}
+
+enum Unsigned8 : byte {
+    ZERO = 0;
+    MAX = 255;
+}
+
+enum Signed16 : int16 {
+    ZERO = 0;
+    MIN = -32768;
+}
+
+enum Unsigned16 : uint16 {
+    ZERO = 0;
+    MAX = 65535;
+}
+
+enum Signed32 : int32 {
+    ZERO = 0;
+    MIN = -2147483648;
+}
+
+enum Unsigned32 : uint32 {
+    ZERO = 0;
+    MAX = 4294967295;
+}
+
+enum Signed64 : int64 {
+    ZERO = 0;
+    MIN = -9223372036854775808;
+}
+
+enum Unsigned64 : uint64 {
+    ZERO = 0;
+    MAX = 18446744073709551615;
+}
+
+enum Default {
+    ZERO = 0;
+    ONE = 1;
+}
+
+mut struct Values {
+    signed8: Signed8;
+    unsigned8: Unsigned8;
+    signed16: Signed16;
+    unsigned16: Unsigned16;
+    signed32: Signed32;
+    unsigned32: Unsigned32;
+    signed64: Signed64;
+    unsigned64: Unsigned64;
+    default_value: Default;
+}
+
+message Update {
+    values(1): Values;
+}
+
+union Event {
+    Values(1): Values;
+    Update(2): Update;
+}
