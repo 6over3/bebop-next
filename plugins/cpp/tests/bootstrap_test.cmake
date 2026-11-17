@@ -33,8 +33,13 @@ generate("${plugin}" "${output_dir}/source/generated")
 file(WRITE "${output_dir}/source/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.25)
 project(bebop_cpp_bootstrap LANGUAGES CXX)
+include("${bebop_source_dir}/cmake/BebopClangBuiltins.cmake")
+add_library(bebop_cpp INTERFACE)
+add_library(bebop::cpp ALIAS bebop_cpp)
+include("${bebop_source_dir}/plugins/cpp/cmake/bebop-cpp-config.cmake")
 add_executable(bebopc-gen-cpp generator.cc options.cc)
 target_compile_features(bebopc-gen-cpp PRIVATE cxx_std_23)
+target_link_libraries(bebopc-gen-cpp PRIVATE bebop::cpp)
 target_include_directories(bebopc-gen-cpp PRIVATE "${runtime_dir}")
 set_target_properties(bebopc-gen-cpp PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -48,6 +53,7 @@ set(configure "${CMAKE_COMMAND}"
     -S "${output_dir}/source" -B "${output_dir}/build"
     -G "${generator}" "-DCMAKE_CXX_COMPILER=${cxx}"
     -DCMAKE_BUILD_TYPE=Release
+    "-Dbebop_source_dir=${source_dir}"
     "-Druntime_dir=${source_dir}/plugins/cpp/include"
 )
 if(platform)
