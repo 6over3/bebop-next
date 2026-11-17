@@ -105,7 +105,11 @@ jobs:
           $headers = $env:INCLUDE.Split(';')[0]
           Get-Content "$headers\array" -TotalCount 25
           Select-String -Path "$headers\vcruntime.h" -Pattern "_CRT_PACKING" -Context 2,2
+          Select-String -Path "$headers\*.h" -Pattern '(define|undef)\s+_CRT_PACKING' -Context 3,3
           @'
+          #define BEFORE_STRINGIZE_IMPL(x) #x
+          #define BEFORE_STRINGIZE(x) BEFORE_STRINGIZE_IMPL(x)
+          #pragma message("before=" BEFORE_STRINGIZE(_CRT_PACKING))
           #include <array>
           #include <optional>
           #include <expected>
