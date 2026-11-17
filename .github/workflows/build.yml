@@ -29,7 +29,9 @@ jobs:
       - name: Exclude Windows workspace from Defender
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
+        run: |
+          Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
+          Add-MpPreference -ExclusionProcess "MSBuild.exe"
 
       - name: Keep line endings as committed
         if: runner.os == 'Windows'
