@@ -1,16 +1,23 @@
 function(check_diagnostic name source should_fail)
     set(path "${output_dir}/${name}.cc")
     file(WRITE "${path}" "#include \"deprecated.bb.hpp\"\n${source}\n")
+    separate_arguments(driver_flags NATIVE_COMMAND "${compiler_flags}")
     if(msvc)
-        set(flags /std:c++latest /Zs /we4996 "/I${output_dir}" "/I${runtime_dir}")
-        set(diagnostic_pattern "C4996")
+        if(compiler_id STREQUAL "Clang")
+            set(flags /clang:-std=c++23 /Zs /clang:-Werror=deprecated-declarations)
+            set(diagnostic_pattern "deprecated-declarations")
+        else()
+            set(flags /std:c++latest /Zs /we4996)
+            set(diagnostic_pattern "C4996")
+        endif()
+        list(APPEND flags "/I${output_dir}" "/I${runtime_dir}")
     else()
         set(flags -std=c++23 -fsyntax-only -Werror=deprecated-declarations
             "-I${output_dir}" "-I${runtime_dir}")
         set(diagnostic_pattern "deprecated-declarations")
     endif()
     execute_process(
-        COMMAND "${compiler}" ${flags} "${path}"
+        COMMAND "${compiler}" ${driver_flags} ${flags} "${path}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE error

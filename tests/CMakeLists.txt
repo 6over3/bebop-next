@@ -39,7 +39,7 @@ function(bebop_add_internal_test name)
         ${CMAKE_SOURCE_DIR}/vendor/cwisstable
         ${CMAKE_SOURCE_DIR}/vendor/lua
     )
-    if(MSVC)
+    if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
         target_compile_options(test_${name} PRIVATE /std:c11 /experimental:c11atomics)
     endif()
     add_test(NAME ${name} COMMAND test_${name})
@@ -136,7 +136,7 @@ set_tests_properties(cpp_scaling PROPERTIES TIMEOUT 15)
 
 add_executable(test_cpp_traversal ../plugins/cpp/tests/traversal_test.cc)
 target_link_libraries(test_cpp_traversal PRIVATE bebop::cpp)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_traversal PRIVATE -fno-exceptions -fno-rtti)
 elseif(MSVC)
     # The traversal test deliberately uses an over-aligned frame.
@@ -146,7 +146,7 @@ add_test(NAME cpp_traversal COMMAND test_cpp_traversal)
 
 add_executable(test_cpp_allocator ../plugins/cpp/tests/allocator_test.cc)
 target_link_libraries(test_cpp_allocator PRIVATE bebop::cpp)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_allocator PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_allocator COMMAND test_cpp_allocator)
@@ -174,7 +174,7 @@ add_executable(test_cpp_pmr ../plugins/cpp/tests/pmr_test.cc
 add_dependencies(test_cpp_pmr cpp_pmr_headers)
 target_link_libraries(test_cpp_pmr PRIVATE bebop::cpp)
 target_include_directories(test_cpp_pmr PRIVATE "${BEBOP_CPP_PMR_DIR}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_pmr PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_pmr COMMAND test_cpp_pmr)
@@ -189,7 +189,7 @@ target_compile_definitions(test_cpp_pmr_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_pmr_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_pmr_fallback COMMAND test_cpp_pmr_fallback)
@@ -212,7 +212,7 @@ add_dependencies(test_cpp_reflection cpp_pmr_headers)
 target_link_libraries(test_cpp_reflection PRIVATE bebop::cpp)
 target_include_directories(test_cpp_reflection PRIVATE
     "${BEBOP_CPP_REFLECTION_DIR}" "${BEBOP_CPP_PMR_DIR}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_reflection PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_reflection COMMAND test_cpp_reflection)
@@ -229,7 +229,7 @@ target_compile_definitions(test_cpp_reflection_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_reflection_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_reflection_fallback COMMAND test_cpp_reflection_fallback)
@@ -256,7 +256,7 @@ add_executable(test_cpp_well_known ../plugins/cpp/tests/well_known_test.cc
     ${BEBOP_CPP_WELL_KNOWN_HEADERS})
 target_link_libraries(test_cpp_well_known PRIVATE bebop::cpp bebop::bebop)
 target_include_directories(test_cpp_well_known PRIVATE "${BEBOP_CPP_WELL_KNOWN_DIR}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_well_known PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_well_known COMMAND test_cpp_well_known)
@@ -271,7 +271,7 @@ target_compile_definitions(test_cpp_well_known_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_well_known_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_well_known_fallback COMMAND test_cpp_well_known_fallback)
@@ -292,11 +292,15 @@ add_executable(test_cpp_deprecated ../plugins/cpp/tests/deprecated_test.cc
     "${BEBOP_CPP_DEPRECATED_DIR}/deprecated.bb.hpp")
 target_link_libraries(test_cpp_deprecated PRIVATE bebop::cpp)
 target_include_directories(test_cpp_deprecated PRIVATE "${BEBOP_CPP_DEPRECATED_DIR}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_deprecated PRIVATE
         -fno-exceptions -fno-rtti -Wno-deprecated-declarations)
 elseif(MSVC)
-    target_compile_options(test_cpp_deprecated PRIVATE /wd4996)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(test_cpp_deprecated PRIVATE /clang:-Wno-deprecated-declarations)
+    else()
+        target_compile_options(test_cpp_deprecated PRIVATE /wd4996)
+    endif()
 endif()
 add_test(NAME cpp_deprecated COMMAND test_cpp_deprecated)
 
@@ -310,16 +314,22 @@ target_compile_definitions(test_cpp_deprecated_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_deprecated_fallback PRIVATE
         -fno-exceptions -fno-rtti -Wno-deprecated-declarations)
 elseif(MSVC)
-    target_compile_options(test_cpp_deprecated_fallback PRIVATE /wd4996)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(test_cpp_deprecated_fallback PRIVATE /clang:-Wno-deprecated-declarations)
+    else()
+        target_compile_options(test_cpp_deprecated_fallback PRIVATE /wd4996)
+    endif()
 endif()
 add_test(NAME cpp_deprecated_fallback COMMAND test_cpp_deprecated_fallback)
 add_test(NAME cpp_deprecation_diagnostics COMMAND ${CMAKE_COMMAND}
     -Dcompiler=${CMAKE_CXX_COMPILER}
     -Dmsvc=${MSVC}
+    -Dcompiler_id=${CMAKE_CXX_COMPILER_ID}
+    "-Dcompiler_flags=${CMAKE_CXX_FLAGS}"
     -Doutput_dir=${BEBOP_CPP_DEPRECATED_DIR}
     -Druntime_dir=${CMAKE_SOURCE_DIR}/plugins/cpp/include
     -P "${CMAKE_SOURCE_DIR}/plugins/cpp/tests/deprecated_test.cmake")
@@ -347,7 +357,7 @@ target_compile_definitions(test_cpp_runtime_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_runtime_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_runtime_fallback COMMAND test_cpp_runtime_fallback)
@@ -460,7 +470,7 @@ target_compile_definitions(test_cpp_generated_fallback PRIVATE
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(test_cpp_generated_fallback PRIVATE -Wno-c99-extensions -Wno-c11-extensions)
 endif()
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_generated_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_generated_fallback COMMAND test_cpp_generated_fallback)
@@ -508,7 +518,7 @@ target_compile_definitions(test_cpp_view_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_view_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_view_fallback COMMAND test_cpp_view_fallback)
@@ -530,7 +540,7 @@ target_compile_definitions(test_cpp_generated_view_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_generated_view_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_generated_view_fallback COMMAND test_cpp_generated_view_fallback)
@@ -552,7 +562,7 @@ add_executable(test_cpp_recursive ../plugins/cpp/tests/recursive_test.cc
     "${BEBOP_CPP_RECURSIVE_DIR}/recursive.bb.hpp")
 target_include_directories(test_cpp_recursive PRIVATE "${BEBOP_CPP_RECURSIVE_DIR}")
 target_link_libraries(test_cpp_recursive PRIVATE bebop::cpp)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_recursive PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_recursive COMMAND test_cpp_recursive)
@@ -567,7 +577,7 @@ target_compile_definitions(test_cpp_recursive_fallback PRIVATE
     BEBOP_CPP_NO_NATIVE_FLOAT16=1
     BEBOP_CPP_NO_NATIVE_BFLOAT16=1
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC)
     target_compile_options(test_cpp_recursive_fallback PRIVATE -fno-exceptions -fno-rtti)
 endif()
 add_test(NAME cpp_recursive_fallback COMMAND test_cpp_recursive_fallback)

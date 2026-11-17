@@ -68,6 +68,26 @@ jobs:
           swift-version: ${{ inputs.swift-version }}
           arch: ${{ inputs.arch }}
 
+      - name: Setup MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = "$env:ProgramFiles\LLVM\bin\clang-cl.exe"
+          & $compiler --version
+          "BEBOP_CLANG_CL=$compiler" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $arch = if ("${{ inputs.arch }}" -eq "arm64") { "arm64" } else { "x64" }
+          $devCmd = "$vsPath\Common7\Tools\VsDevCmd.bat"
+          $environment = & $env:ComSpec /d /c "call `"$devCmd`" -no_logo -arch=$arch -host_arch=$arch >nul && set"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not initialize the MSVC environment"
+          }
+          $environment | ForEach-Object {
+            if ($_ -match '^(INCLUDE|LIB|LIBPATH|PATH)=') {
+              $_ | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: cmake -B build/cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_OSX_ARCHITECTURES=${{ inputs.arch == 'x64' && 'x86_64' || inputs.arch }}
@@ -76,13 +96,12 @@ jobs:
         if: runner.os == 'Linux'
         run: cmake -B build/cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_C_COMPILER=gcc-15 -DCMAKE_CXX_COMPILER=g++-15
 
-      - name: Configure (Windows x64)
-        if: runner.os == 'Windows' && inputs.arch == 'x64'
-        run: cmake -B build/cmake -G "Visual Studio 18 2026" -A x64
-
-      - name: Configure (Windows ARM64)
-        if: runner.os == 'Windows' && inputs.arch == 'arm64'
-        run: cmake -B build/cmake -G "Visual Studio 18 2026" -A ARM64
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = if ("${{ inputs.arch }}" -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
+          cmake -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} "-DCMAKE_C_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_C_FLAGS=--target=$target" "-DCMAKE_CXX_FLAGS=--target=$target" -DCMAKE_LINKER_TYPE=LLD
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
@@ -92,26 +111,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: cmake --build build/cmake --config ${{ inputs.build-type }} --parallel $env:NUMBER_OF_PROCESSORS
-
-      - name: Setup MSVC test environment (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $msvcPath = Get-ChildItem "$vsPath\VC\Tools\MSVC" | Sort-Object Name -Descending | Select-Object -First 1
-          $arch = if ("${{ inputs.arch }}" -eq "arm64") { "arm64" } else { "x64" }
-          $binPath = "$($msvcPath.FullName)\bin\Host$arch\$arch"
-          echo "$binPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $devCmd = "$vsPath\Common7\Tools\VsDevCmd.bat"
-          $environment = & $env:ComSpec /d /c "call `"$devCmd`" -no_logo -arch=$arch -host_arch=$arch >nul && set"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not initialize the MSVC test environment"
-          }
-          $environment | ForEach-Object {
-            if ($_ -match '^(INCLUDE|LIB|LIBPATH)=') {
-              $_ | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            }
-          }
 
       - name: Test
         if: runner.os != 'macOS' || inputs.arch == 'x64' || runner.arch == 'ARM64'
@@ -134,7 +133,10 @@ jobs:
 
       - name: Configure package test (Windows)
         if: runner.os == 'Windows'
-        run: cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -G "Visual Studio 18 2026" -A ${{ inputs.arch == 'x64' && 'x64' || 'ARM64' }}
+        shell: pwsh
+        run: |
+          $target = if ("${{ inputs.arch }}" -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
+          cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_FLAGS=--target=$target" -DCMAKE_LINKER_TYPE=LLD
 
       - name: Build package test
         run: cmake --build build/package-test --config Release --parallel

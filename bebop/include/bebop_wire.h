@@ -7,7 +7,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#if defined(_MSC_VER) && !defined(__cplusplus) && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__cplusplus) \
+    && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
 #define BEBOP__MAX_ALIGN_T_DEFINED
 
 typedef struct {
