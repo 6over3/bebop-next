@@ -4,7 +4,7 @@ Rewrite of the Bebop compiler in C. New schema language and wire format for the 
 
 ## Building
 
-Requires CMake 3.25+ and C23/C++23 compilers.
+Requires CMake 3.25+ (4.1+ with clang-cl) and C23/C++23 compilers.
 
 Release binaries support Linux and Windows on x64/ARM64, and macOS on ARM64.
 

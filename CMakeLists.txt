@@ -12,6 +12,10 @@ project(bebop-vnext
     LANGUAGES C CXX
 )
 
+if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_VERSION VERSION_LESS 4.1)
+    message(FATAL_ERROR "C23 builds with clang-cl require CMake 4.1 or newer")
+endif()
+
 include(GNUInstallDirs)
 
 set(BEBOP_OUTPUT_DIR ${CMAKE_BINARY_DIR}/..)
