@@ -208,7 +208,8 @@ std::string SnakeCase(std::string_view name) {
 std::string Quoted(std::string_view value) {
   constexpr char octal[] = "01234567";
   std::string result = "\"";
-  for (const char c : value) {
+  for (std::size_t index = 0; index < value.size(); ++index) {
+    const char c = value[index];
     const auto byte = static_cast<unsigned char>(c);
     if (byte >= 32 && byte <= 126 && byte != '\\' && byte != '"' &&
         byte != '?') {
@@ -218,6 +219,10 @@ std::string Quoted(std::string_view value) {
       result += octal[(byte >> 6) & 7];
       result += octal[(byte >> 3) & 7];
       result += octal[byte & 7];
+      if (index + 1 < value.size() && value[index + 1] >= '0' &&
+          value[index + 1] <= '9') {
+        result += "\" \"";
+      }
     }
   }
   return result + '"';
@@ -2601,8 +2606,8 @@ class Generator {
           out.Line("const std::size_t start = reader.absolute_position();");
           out.Line("auto length = reader.Read<std::uint32_t>();");
           CheckResult(out, "length");
-          out.Line("auto bytes = reader.ReadBytes(*length);");
-          CheckResult(out, "bytes");
+          out.Line("auto message_bytes = reader.ReadBytes(*length);");
+          CheckResult(out, "message_bytes");
           out.Line(
               "auto index = MessageIndex::Parse(encoded.first(4 + "
               "static_cast<std::size_t>(*length)));");
@@ -2612,12 +2617,12 @@ class Generator {
             out.Return("std::unexpected(error)");
           });
           for (Field field : WireFields(definition)) {
-            out.If(std::format("auto bytes = index->Field({})",
+            out.If(std::format("auto field_bytes = index->Field({})",
                        field->index.value_or(0)),
                 [&] {
                   out.Line(
-                      "Reader field_reader(*bytes, start + "
-                      "static_cast<std::size_t>(bytes->data() - "
+                      "Reader field_reader(*field_bytes, start + "
+                      "static_cast<std::size_t>(field_bytes->data() - "
                       "encoded.data()));");
                   out.Line("auto field = {}::Read(field_reader, context);",
                       FieldViewTraits(field));

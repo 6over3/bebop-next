@@ -26,7 +26,7 @@ void CheckFields() {
   auto index = bebop::MessageIndex::Parse(*bytes);
   Check(index && !index->Field(1) && index->Field(2));
   auto decoded = bebop::Decode<compatibility::WirePacket>(*bytes);
-  Check(decoded && !decoded->old_text && decoded->current == 42);
+  Check(decoded && !decoded->old_text && decoded->current == 42u);
 
   compatibility::WirePacket old;
   old.old_text = "An obsolete, deliberately malformed string.";
@@ -40,18 +40,18 @@ void CheckFields() {
       old_field.data() + old_field.size() - 1 - old_bytes->data());
   (*old_bytes)[terminator] = std::byte{255};
   auto current = bebop::Decode<compatibility::Packet>(*old_bytes);
-  Check(current && !current->old_text && current->current == 17);
+  Check(current && !current->old_text && current->current == 17u);
   auto view = compatibility::PacketView::Parse(*old_bytes);
-  Check(view && !view->old_text() && view->current() == 17);
+  Check(view && !view->old_text() && view->current() == 17u);
   auto pmr = bebop::Decode<compatibility::pmr::Packet>(
       *old_bytes, *std::pmr::null_memory_resource());
-  Check(pmr && !pmr->old_text && pmr->current == 17);
+  Check(pmr && !pmr->old_text && pmr->current == 17u);
 
   bebop::Reader reader(*old_bytes);
   bebop::internal::Traversal traversal;
   auto result =
       bebop::Codec<compatibility::Packet>::Decode(reader, packet, traversal);
-  Check(result && !packet.old_text && packet.current == 17);
+  Check(result && !packet.old_text && packet.current == 17u);
 
   const compatibility::PacketRef borrowed{
       .old_text = "Do not encode this.", .current = 42};
@@ -84,9 +84,9 @@ void CheckRecursion() {
       std::byte{255};
 
   auto decoded = bebop::Decode<compatibility::Node>(*bytes);
-  Check(decoded && !decoded->legacy && decoded->next->value == 17);
+  Check(decoded && !decoded->legacy && decoded->next->value == 17u);
   auto view = compatibility::NodeView::Parse(*bytes);
-  Check(view && !view->legacy() && view->next()->value() == 17);
+  Check(view && !view->legacy() && view->next()->value() == 17u);
   compatibility::Node current;
   current.legacy = std::make_unique<compatibility::Node>();
   current.value = 7;
@@ -95,7 +95,7 @@ void CheckRecursion() {
   bebop::internal::Traversal traversal({.traversal_scratch = scratch});
   auto result =
       bebop::Codec<compatibility::Node>::Decode(reader, current, traversal);
-  Check(result && !current.legacy && current.next->value == 17);
+  Check(result && !current.legacy && current.next->value == 17u);
   current.legacy = std::make_unique<compatibility::Node>();
   current.legacy->legacy = std::make_unique<compatibility::Node>();
   auto encoded = bebop::Encode(current);
@@ -107,7 +107,7 @@ void CheckRecursion() {
   std::pmr::monotonic_buffer_resource resource(
       storage.data(), storage.size(), std::pmr::null_memory_resource());
   auto pmr = bebop::Decode<compatibility::pmr::Node>(*bytes, resource);
-  Check(pmr && !pmr->legacy && pmr->next->value == 17);
+  Check(pmr && !pmr->legacy && pmr->next->value == 17u);
 }
 
 void CheckMetadataAndBranches() {
@@ -120,10 +120,10 @@ void CheckMetadataAndBranches() {
   Check(bytes.has_value());
   auto decoded = bebop::Decode<compatibility::Choice>(*bytes);
   Check(decoded && decoded->kind() == compatibility::Choice::Kind::kOld);
-  Check(std::get<compatibility::Choice::Old>(decoded->value).value == 17);
+  Check(std::get<compatibility::Choice::Old>(decoded->value).value == 17u);
   auto view = compatibility::ChoiceView::Parse(*bytes);
   Check(view &&
-        std::get<compatibility::ChoiceView::Old>(view->value()).value() == 17);
+        std::get<compatibility::ChoiceView::Old>(view->value()).value() == 17u);
 }
 
 }  // namespace

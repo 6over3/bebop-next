@@ -221,7 +221,7 @@ void CheckFieldValidation() {
   Check(bebop::FinishMessage(unknown, 0, unknown_tags, unknown_offsets)
           .has_value());
   auto valid = game::WorldSnapshotView::Parse(unknown.written());
-  Check(valid && valid->tick() == 42);
+  Check(valid && valid->tick() == 42u);
 }
 
 }  // namespace

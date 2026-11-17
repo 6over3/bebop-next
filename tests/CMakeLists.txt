@@ -586,9 +586,13 @@ add_custom_command(
     DEPENDS bebopc bebopc-gen-cpp bebopc-gen-c "${BEBOP_CPP_RECURSIVE_WIRE_SCHEMA}"
     VERBATIM
 )
+add_library(cpp_recursive_interop_generated OBJECT
+    "${BEBOP_CPP_RECURSIVE_DIR}/recursive_wire.bb.c")
+target_include_directories(cpp_recursive_interop_generated PRIVATE "${BEBOP_CPP_RECURSIVE_DIR}")
+target_link_libraries(cpp_recursive_interop_generated PRIVATE bebop::bebop)
 add_executable(test_cpp_recursive_interop ../plugins/cpp/tests/recursive_interop_test.cc
     "${BEBOP_CPP_RECURSIVE_DIR}/recursive_wire.bb.hpp"
-    "${BEBOP_CPP_RECURSIVE_DIR}/recursive_wire.bb.c")
+    $<TARGET_OBJECTS:cpp_recursive_interop_generated>)
 target_include_directories(test_cpp_recursive_interop PRIVATE "${BEBOP_CPP_RECURSIVE_DIR}")
 target_link_libraries(test_cpp_recursive_interop PRIVATE bebop::cpp bebop::bebop)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
