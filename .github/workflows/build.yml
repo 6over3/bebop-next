@@ -31,7 +31,7 @@ jobs:
         shell: pwsh
         run: |
           Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
-          Add-MpPreference -ExclusionProcess "MSBuild.exe"
+          Add-MpPreference -ExclusionProcess "cmake.exe", "ctest.exe", "cpack.exe", "ninja.exe", "cl.exe", "link.exe", "msbuild.exe"
 
       - name: Keep line endings as committed
         if: runner.os == 'Windows'

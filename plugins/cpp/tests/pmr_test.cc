@@ -365,11 +365,26 @@ void CheckAllocatorMove() {
   Check(bytes.has_value());
 
   auto* previous = moved.next.get();
-  const auto allocations = target.allocations;
+  const auto* children = moved.children->data();
+  const auto* branch = std::addressof(moved.branches->begin()->second);
+  const auto* lookup = std::addressof(moved.lookup->begin()->second);
+  const auto* sorted = moved.sorted->values().data();
   const std::pmr::polymorphic_allocator<std::byte> allocator(&target);
   recursion::pmr::Node same_arena(
       std::allocator_arg, allocator, std::move(moved));
   Check(same_arena.next.get() == previous);
+  Check(same_arena.children->data() == children);
+  Check(std::addressof(same_arena.branches->begin()->second) == branch);
+  Check(std::addressof(same_arena.lookup->begin()->second) == lookup);
+  Check(same_arena.sorted->values().data() == sorted);
+
+  recursion::pmr::Node chain(&target);
+  chain.next = bebop::AllocateUnique<recursion::pmr::Node>(target);
+  previous = chain.next.get();
+  const auto allocations = target.allocations;
+  recursion::pmr::Node moved_chain(
+      std::allocator_arg, allocator, std::move(chain));
+  Check(moved_chain.next.get() == previous);
   Check(target.allocations == allocations);
 }
 

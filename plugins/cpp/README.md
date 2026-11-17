@@ -260,7 +260,7 @@ auto bytes = bebop::Encode(snapshot, allocator);
 ```
 
 The resource must outlive its records and buffers. Pass it when emplacing
-optional containers. Cross-resource moves and destruction use native C++ recursion.
+optional containers.
 
 ## Recursive records
 
