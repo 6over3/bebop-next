@@ -98,33 +98,6 @@ jobs:
           $target = if ("${{ inputs.arch }}" -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
           cmake -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} "-DCMAKE_C_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_C_FLAGS_INIT=--target=$target" "-DCMAKE_CXX_FLAGS_INIT=--target=$target" -DCMAKE_LINKER_TYPE=LLD
 
-      - name: Inspect Windows alignment
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $headers = $env:INCLUDE.Split(';')[0]
-          Get-Content "$headers\array" -TotalCount 25
-          Select-String -Path "$headers\vcruntime.h" -Pattern "_CRT_PACKING" -Context 2,2
-          Select-String -Path "$headers\*.h" -Pattern '(define|undef)\s+_CRT_PACKING' -Context 3,3
-          @'
-          #define BEFORE_STRINGIZE_IMPL(x) #x
-          #define BEFORE_STRINGIZE(x) BEFORE_STRINGIZE_IMPL(x)
-          #pragma message("before=" BEFORE_STRINGIZE(_CRT_PACKING))
-          #include <array>
-          #include <optional>
-          #include <expected>
-          #define STRINGIZE_IMPL(x) #x
-          #define STRINGIZE(x) STRINGIZE_IMPL(x)
-          #pragma message("_CRT_PACKING=" STRINGIZE(_CRT_PACKING))
-          #pragma pack(show)
-          template <typename T> struct NativeArray { T value[1]; };
-          static_assert(alignof(NativeArray<__uint128_t>) == 16);
-          static_assert(alignof(std::array<__uint128_t, 1>) == 16);
-          static_assert(alignof(std::optional<__uint128_t>) == 16);
-          static_assert(alignof(std::expected<__uint128_t, unsigned char>) == 16);
-          '@ | Set-Content build/alignment.cc
-          & $env:BEBOP_CLANG_CL /nologo /clang:-std=c++23 /Zp16 /D_CRT_PACKING=16 /Zs build/alignment.cc
-
       - name: Build (Unix)
         if: runner.os != 'Windows'
         run: cmake --build build/cmake -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)

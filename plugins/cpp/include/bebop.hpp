@@ -3,6 +3,12 @@
 #ifndef BEBOP_HPP_
 #define BEBOP_HPP_
 
+#if defined(__clang__) && defined(_MSC_VER)
+#include <vadefs.h>
+#undef _CRT_PACKING
+#define _CRT_PACKING 16
+#endif
+
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -249,7 +255,7 @@ static_assert(alignof(std::array<UInt128, 1>) >= alignof(UInt128) &&
                   alignof(std::expected<UInt128, std::uint8_t>) >=
                       alignof(UInt128),
     "The standard library must preserve integer alignment. "
-    "With clang-cl and MSVC's STL, compile with /Zp16 /D_CRT_PACKING=16.");
+    "With clang-cl and MSVC's STL, compile with /Zp16 /FIbebop.hpp.");
 static_assert(sizeof(Float16) == 2 && sizeof(BFloat16) == 2);
 static_assert(std::is_trivially_copyable_v<Float16>);
 static_assert(std::is_trivially_copyable_v<BFloat16>);
@@ -2894,6 +2900,7 @@ void MoveOwnedValue(T& destination, T& source, OwnershipMoveQueue& queue) {
       }
       MoveOwnedValue(entry->second, element, queue);
     }
+#if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
   } else if constexpr (Shape::kKind == OwnershipKind::kFlatMap) {
     using Keys = typename T::key_container_type;
     using Values = typename T::mapped_container_type;
@@ -2914,6 +2921,7 @@ void MoveOwnedValue(T& destination, T& source, OwnershipMoveQueue& queue) {
       MoveOwnedValue((*target_entry).second, source_entry.second, queue);
       ++target_entry;
     }
+#endif
   } else if constexpr (Shape::kKind == OwnershipKind::kVariant) {
     MoveOwnedVariant(destination, source, queue);
   }

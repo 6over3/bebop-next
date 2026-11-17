@@ -130,7 +130,7 @@ c++ -std=c++23 -I plugins/cpp/include -I generated example.cc -o example
 ```
 
 ```powershell
-clang-cl /clang:-std=c++23 /EHsc /Zp16 /D_CRT_PACKING=16 /clang:--rtlib=compiler-rt /Iplugins/cpp/include /Igenerated example.cc
+clang-cl /clang:-std=c++23 /EHsc /Zp16 /FIbebop.hpp /clang:--rtlib=compiler-rt /Iplugins/cpp/include /Igenerated example.cc
 ```
 
 For an installed runtime:

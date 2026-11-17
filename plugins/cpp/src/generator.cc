@@ -1374,14 +1374,15 @@ class Generator {
       });
     }
     out.Line();
-    if (options_.emit_ref) {
-      out.Struct(
-          DeprecationPrefix(DeprecatedUsage(definition)) + info.name + "Ref",
-          [&] {
-            EmitFields(out, definition, true);
-          });
-      out.Line();
-    }
+  }
+
+  void EmitRecordRef(Output& out, Definition definition) const {
+    out.Struct(DeprecationPrefix(DeprecatedUsage(definition)) +
+                   Info(definition).name + "Ref",
+        [&] {
+          EmitFields(out, definition, true);
+        });
+    out.Line();
   }
 
   void EmitEnum(Output& out, Definition definition) const {
@@ -2988,9 +2989,6 @@ class Generator {
         } else {
           if (kind == DefinitionKind::kUnion) {
             EmitUnion(out, definition, false);
-            if (options_.emit_ref) {
-              EmitUnion(out, definition, true);
-            }
           } else {
             EmitRecord(out, definition);
           }
@@ -3002,6 +3000,23 @@ class Generator {
         out.Line();
       } else {
         emit();
+      }
+    }
+    if (options_.emit_ref) {
+      for (Definition definition : records) {
+        auto emit = [&] {
+          if (descriptor::Kind(definition) == DefinitionKind::kUnion) {
+            EmitUnion(out, definition, true);
+          } else {
+            EmitRecordRef(out, definition);
+          }
+        };
+        if (Info(definition).parent != nullptr) {
+          out.Namespace("internal", emit);
+          out.Line();
+        } else {
+          emit();
+        }
       }
     }
   }

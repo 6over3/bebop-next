@@ -12,8 +12,9 @@ if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         if(NOT cpp_target)
             set(cpp_target bebop::cpp)
         endif()
-        target_compile_definitions(${cpp_target} INTERFACE "$<BUILD_INTERFACE:_CRT_PACKING=16>")
-        target_compile_options(${cpp_target} INTERFACE "$<BUILD_INTERFACE:/Zp16>")
+        target_compile_options(${cpp_target} INTERFACE
+            "$<BUILD_INTERFACE:/Zp16>"
+            "$<BUILD_INTERFACE:$<$<COMPILE_LANGUAGE:CXX>:/FIbebop.hpp>>")
         target_link_libraries(${cpp_target} INTERFACE "$<BUILD_INTERFACE:${builtins}>")
     endblock()
 endif()
