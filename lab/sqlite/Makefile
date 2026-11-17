@@ -10,7 +10,7 @@ else
   EXT_SUFFIX := .so
 endif
 OUT ?= bebopsqlite$(EXT_SUFFIX)
-CFLAGS ?= -std=c11 -O2 -fPIC -Wall -Wextra -Werror -Wno-unused-function
+CFLAGS ?= -std=c23 -O2 -fPIC -Wall -Wextra -Werror -Wno-unused-function
 INCLUDES = -I../../bebop/include -I../../bebop/src/generated -I$(SQLITE_PREFIX)/include
 SOURCES = bebop.c ../../bebop/src/bebop_wire.c ../../bebop/src/generated/descriptor.bb.c
 

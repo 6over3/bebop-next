@@ -1,5 +1,5 @@
 CC       := afl-clang-fast
-CFLAGS   := -O2 -g -std=c11 -Wall -Wextra -Werror -DMAKE_LIB
+CFLAGS   := -O2 -g -std=c23 -Wall -Wextra -Werror -DMAKE_LIB
 CFLAGS   += -I../bebop/src -I../bebop/include -I../vendor/cwisstable -I../vendor/lua
 LDFLAGS  :=
 BUILD    := build

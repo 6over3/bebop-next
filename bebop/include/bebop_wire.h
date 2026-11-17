@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#if !defined(__GNUC__) && !defined(__clang__)
+#include <math.h>
+#endif
+
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__cplusplus) \
     && !defined(BEBOP__MAX_ALIGN_T_DEFINED)
 #define BEBOP__MAX_ALIGN_T_DEFINED
@@ -128,6 +132,16 @@ typedef struct {
 #define BEBOP_WIRE_SIZE_DURATION 12
 #define BEBOP_WIRE_SIZE_LEN 4
 #define BEBOP_WIRE_SIZE_NUL 1
+
+#if defined(__GNUC__) || defined(__clang__)
+//! Quiet NaN as a double
+#define BEBOP_FLOAT64_NAN __builtin_nan("")
+//! Positive infinity as a double
+#define BEBOP_FLOAT64_INFINITY __builtin_inf()
+#else
+#define BEBOP_FLOAT64_NAN ((double)NAN)
+#define BEBOP_FLOAT64_INFINITY HUGE_VAL
+#endif
 
 // #endregion
 

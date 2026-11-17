@@ -12,6 +12,10 @@ project(bebop-vnext
     LANGUAGES C CXX
 )
 
+if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_VERSION VERSION_LESS 4.1)
+    message(FATAL_ERROR "C23 builds with clang-cl require CMake 4.1 or newer")
+endif()
+
 include(GNUInstallDirs)
 
 set(BEBOP_OUTPUT_DIR ${CMAKE_BINARY_DIR}/..)
@@ -25,7 +29,7 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} ${BEBOP_OUTPUT_DIR}/lib)
 endforeach()
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -87,9 +91,6 @@ elseif(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
     if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         add_compile_options(/Zp16)
-    endif()
-    if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /experimental:c11atomics")
     endif()
     add_compile_options($<$<CONFIG:Release>:/O2>)
     add_compile_options($<$<NOT:$<CONFIG:Release>>:/Od>

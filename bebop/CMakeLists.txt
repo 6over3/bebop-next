@@ -10,6 +10,7 @@ set(BEBOP_HEADERS
 
 add_library(bebop STATIC ${BEBOP_SOURCES})
 add_library(bebop::bebop ALIAS bebop)
+target_compile_features(bebop PUBLIC c_std_23)
 
 target_include_directories(bebop
     PUBLIC
