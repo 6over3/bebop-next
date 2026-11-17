@@ -105,7 +105,7 @@ jobs:
         shell: pwsh
         run: |
           $target = if ("${{ inputs.arch }}" -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
-          cmake -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} "-DCMAKE_C_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_C_FLAGS=--target=$target" "-DCMAKE_CXX_FLAGS=--target=$target" -DCMAKE_LINKER_TYPE=LLD
+          cmake -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} "-DCMAKE_C_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_C_FLAGS_INIT=--target=$target" "-DCMAKE_CXX_FLAGS_INIT=--target=$target" -DCMAKE_LINKER_TYPE=LLD
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
@@ -140,7 +140,7 @@ jobs:
         shell: pwsh
         run: |
           $target = if ("${{ inputs.arch }}" -eq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
-          cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_FLAGS=--target=$target" -DCMAKE_LINKER_TYPE=LLD
+          cmake -S plugins/cpp/tests/package -B build/package-test "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/package" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_COMPILER=$env:BEBOP_CLANG_CL" "-DCMAKE_CXX_FLAGS_INIT=--target=$target" -DCMAKE_LINKER_TYPE=LLD
 
       - name: Build package test
         run: cmake --build build/package-test --config Release --parallel
