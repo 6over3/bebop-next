@@ -712,7 +712,8 @@ void CheckMapContainers() {
       encoded);
 #endif
 
-  const std::map<std::uint8_t, std::int32_t> simple{{1, 100}, {2, 200}};
+  const std::map<std::uint8_t, std::int32_t> simple{
+      {std::uint8_t{1}, 100}, {std::uint8_t{2}, 200}};
   const auto simple_encoded = EncodeValue(simple);
   constexpr std::array<std::byte, 14> expected{std::byte{2},
       std::byte{0},
@@ -768,8 +769,8 @@ void CheckMapKeys() {
 
 template <typename Map>
 void CheckInvalidMap() {
-  const auto valid =
-      EncodeValue(std::map<std::uint8_t, std::uint32_t>{{1, 4}, {2, 8}});
+  const auto valid = EncodeValue(std::map<std::uint8_t, std::uint32_t>{
+      {std::uint8_t{1}, 4}, {std::uint8_t{2}, 8}});
   auto duplicate = valid;
   duplicate[9] = std::byte{1};
   Map value;

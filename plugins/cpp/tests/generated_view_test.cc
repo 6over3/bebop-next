@@ -91,7 +91,9 @@ void CheckSnapshot() {
     Check(cached->grids()->At(0)->Find(19)->position().At(2) == 3.0f);
     Check(cached->names()->Find("two") == std::string_view("\x80\xff", 2));
     Check(std::get<4>(cached->events()->At(1)->value()).text() == "ready");
-    for (auto grid : *cached->grids()) {
+    const auto grids = cached->grids();
+    Check(grids.has_value());
+    for (auto grid : *grids) {
       Check(grid.Find(19)->id() == 19);
     }
     Check(!cached->class_id());

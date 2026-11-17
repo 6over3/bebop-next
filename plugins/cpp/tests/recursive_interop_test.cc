@@ -35,11 +35,11 @@ void CheckCppToC() {
   const Bebop_View view{
       reinterpret_cast<const std::uint8_t*>(bytes->data()), bytes->size()};
   Check(Recursive_wire_Node_decode(context, view, &decoded) == BEBOP_RESULT_OK);
-  Check(decoded.value.has_value && decoded.value.value == 42);
-  Check(decoded.next.has_value && decoded.next.value->value.value == 99);
+  Check(decoded.value.has_value && decoded.value.value == 42u);
+  Check(decoded.next.has_value && decoded.next.value->value.value == 99u);
   Check(decoded.children.has_value && decoded.children.value.length == 2);
-  Check(decoded.children.value.data[0].value.value == 11);
-  Check(decoded.children.value.data[1].value.value == 22);
+  Check(decoded.children.value.data[0].value.value == 11u);
+  Check(decoded.children.value.data[1].value.value == 22u);
   Check(Recursive_wire_Node_encoded_size(&decoded) == bytes->size());
   Bebop_Writer* writer = bebop_context_writer(context, bytes->size());
   Check(writer != nullptr);
@@ -71,10 +71,10 @@ void CheckCToCpp() {
       reinterpret_cast<const std::byte*>(encoded.data), encoded.length));
   Check(decoded.has_value());
   Check(!decoded->value);
-  Check(decoded->next->value == 17);
+  Check(decoded->next->value == 17u);
   Check(decoded->children->size() == 2);
-  Check((*decoded->children)[0].value == 23);
-  Check((*decoded->children)[1].next->value == 17);
+  Check((*decoded->children)[0].value == 23u);
+  Check((*decoded->children)[1].next->value == 17u);
   bebop_context_free(context);
 }
 

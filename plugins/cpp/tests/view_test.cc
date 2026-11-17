@@ -62,12 +62,13 @@ void CheckScalars() {
       Check(view.has_value());
       Check(view->size() == 3 && !view->empty());
       Check(view->encoded().data() == bytes.data());
-      Check(view->At(0) == 1 && view->At(1) == 0xffffffff && view->At(2) == 42);
+      Check(view->At(0) == 1u && view->At(1) == 0xffffffffu &&
+            view->At(2) == 42u);
       Check(!view->At(3));
       std::array<std::size_t, 128> words;
       bebop::IndexBuffer buffer(words);
       auto indexed = view->Index(buffer);
-      Check(indexed && indexed->At(0) == 1 && indexed->At(2) == 42);
+      Check(indexed && indexed->At(0) == 1u && indexed->At(2) == 42u);
       Check(!indexed->At(3));
       std::uint64_t sum = 0;
       for (auto value : *view) {
@@ -375,7 +376,7 @@ void CheckMapScratch() {
     auto map = bebop::ParseView<Map>(writer.written(), {}, scratch);
     Check(map && map->Find(count) == count * 2);
     scratch.fill(0);
-    Check(map->Find(1) == 2);
+    Check(map->Find(1) == 2u);
   });
   bebop::Writer sorted(storage);
   Check(sorted.Write(count).has_value());

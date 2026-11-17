@@ -3,8 +3,7 @@
 C++23 code generation and [`bebop.hpp`](include/bebop.hpp), a standalone,
 single-header runtime. Requires a little-endian target.
 
-Apple Clang 21 on x86 uses the `bfloat16` fallback because its native value ABI
-can corrupt arguments.
+Uses native 128-bit integers and 16-bit floats when the compiler supports them.
 
 ## Build
 

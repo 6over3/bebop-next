@@ -68,38 +68,39 @@ void CheckCollections() {
   auto bytes = std::span(buffer).first(*written);
   auto decoded = bebop::Decode<Node>(bytes);
   Check(decoded.has_value());
-  Check(decoded->value == 1 && decoded->next->value == 2);
-  Check(decoded->children->size() == 2 && (*decoded->children)[1].value == 4);
-  Check(decoded->branches->at("branch").value == 5);
-  Check(decoded->sorted->at(9).value == 6 && decoded->sorted->at(2).value == 7);
-  Check(decoded->lookup->at(8).value == 8);
-  Check((*decoded->layers)[0][0].value == 9);
-  Check((*decoded->pair)[0].value == 10 && (*decoded->pair)[1].value == 11);
+  Check(decoded->value == 1u && decoded->next->value == 2u);
+  Check(decoded->children->size() == 2 && (*decoded->children)[1].value == 4u);
+  Check(decoded->branches->at("branch").value == 5u);
+  Check(
+      decoded->sorted->at(9).value == 6u && decoded->sorted->at(2).value == 7u);
+  Check(decoded->lookup->at(8).value == 8u);
+  Check((*decoded->layers)[0][0].value == 9u);
+  Check((*decoded->pair)[0].value == 10u && (*decoded->pair)[1].value == 11u);
   const auto view_allocations = allocations;
   auto view = recursion::NodeView::Parse(bytes);
-  Check(view && view->value() == 1);
-  Check(view->next()->value() == 2);
-  Check(view->children()->At(1)->value() == 4);
+  Check(view && view->value() == 1u);
+  Check(view->next()->value() == 2u);
+  Check(view->children()->At(1)->value() == 4u);
   std::array<std::size_t, 512> child_offsets;
   bebop::IndexBuffer child_offsets_buffer(child_offsets);
   auto indexed_children = view->children()->Index(child_offsets_buffer);
-  Check(indexed_children && indexed_children->At(1)->value() == 4);
-  Check(view->branches()->Find("branch")->value() == 5);
-  Check(view->sorted()->Find(9)->value() == 6);
-  Check(view->lookup()->Find(8)->value() == 8);
-  Check(view->layers()->At(0)->At(0)->value() == 9);
-  Check(view->pair()->At(1)->value() == 11);
+  Check(indexed_children && indexed_children->At(1)->value() == 4u);
+  Check(view->branches()->Find("branch")->value() == 5u);
+  Check(view->sorted()->Find(9)->value() == 6u);
+  Check(view->lookup()->Find(8)->value() == 8u);
+  Check(view->layers()->At(0)->At(0)->value() == 9u);
+  Check(view->pair()->At(1)->value() == 11u);
   std::array<std::size_t, 1024> words;
   bebop::IndexBuffer index(words);
   auto cached = view->Index(index);
   static_assert(std::same_as<decltype(view), decltype(cached)>);
-  Check(cached && cached->next()->value() == 2);
-  Check(cached->children()->At(1)->value() == 4);
-  Check(cached->branches()->Find("branch")->value() == 5);
-  Check(cached->sorted()->Find(9)->value() == 6);
-  Check(cached->lookup()->Find(8)->value() == 8);
-  Check(cached->layers()->At(0)->At(0)->value() == 9);
-  Check(cached->pair()->At(1)->value() == 11);
+  Check(cached && cached->next()->value() == 2u);
+  Check(cached->children()->At(1)->value() == 4u);
+  Check(cached->branches()->Find("branch")->value() == 5u);
+  Check(cached->sorted()->Find(9)->value() == 6u);
+  Check(cached->lookup()->Find(8)->value() == 8u);
+  Check(cached->layers()->At(0)->At(0)->value() == 9u);
+  Check(cached->pair()->At(1)->value() == 11u);
   Check(allocations == view_allocations);
 
   const std::array<Node, 2> pair{Leaf(12), Leaf(13)};
@@ -114,10 +115,10 @@ void CheckCollections() {
         *reference_written == *reference_size);
   auto reference_decoded =
       bebop::Decode<Node>(std::span(buffer).first(*reference_written));
-  Check(reference_decoded && reference_decoded->value == 14);
-  Check(reference_decoded->next->value == 15);
-  Check((*reference_decoded->children)[0].value == 3);
-  Check((*reference_decoded->pair)[1].value == 13);
+  Check(reference_decoded && reference_decoded->value == 14u);
+  Check(reference_decoded->next->value == 15u);
+  Check((*reference_decoded->children)[0].value == 3u);
+  Check((*reference_decoded->pair)[1].value == 13u);
 }
 
 void DestroyChain(Node& root) {
@@ -314,12 +315,12 @@ void CheckNestedTraversal() {
   auto decoded = bebop::Decode<recursion::Envelope>(
       std::span(storage).first(*written), options);
   Check(decoded && decoded->container);
-  Check(decoded->container->link().value == 19);
-  Check(decoded->container->link().next->value == 23);
+  Check(decoded->container->link().value == 19u);
+  Check(decoded->container->link().next->value == 23u);
   const auto view_allocations = allocations;
   auto view = recursion::EnvelopeView::Parse(
       std::span(storage).first(*written), options);
-  Check(view && view->container()->link().next()->value() == 23);
+  Check(view && view->container()->link().next()->value() == 23u);
   Check(allocations == view_allocations);
 }
 
@@ -362,8 +363,8 @@ void CheckViewMapWorkspace() {
   Check(view.has_value());
   auto child = view->lookup()->Find(2);
   Check(child && child->lookup()->size() == count);
-  Check(child->lookup()->Find(1)->value() == 7);
-  Check(child->lookup()->Find(count)->value() == 7);
+  Check(child->lookup()->Find(1)->value() == 7u);
+  Check(child->lookup()->Find(count)->value() == 7u);
   Check(allocations == before);
 
   bebop::Writer duplicate_writer(inner_storage);

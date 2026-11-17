@@ -138,6 +138,9 @@ add_executable(test_cpp_traversal ../plugins/cpp/tests/traversal_test.cc)
 target_link_libraries(test_cpp_traversal PRIVATE bebop::cpp)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_cpp_traversal PRIVATE -fno-exceptions -fno-rtti)
+elseif(MSVC)
+    # The traversal test deliberately uses an over-aligned frame.
+    target_compile_options(test_cpp_traversal PRIVATE /wd4324)
 endif()
 add_test(NAME cpp_traversal COMMAND test_cpp_traversal)
 

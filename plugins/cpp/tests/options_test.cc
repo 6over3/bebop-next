@@ -48,7 +48,7 @@ int main() {
   }
   auto snapshot_value = bebop::Decode<test::options::pmr::OptionWorldSnapshot>(
       *snapshot_bytes, resource);
-  if (!snapshot_value || snapshot_value->tick != 29 ||
+  if (!snapshot_value || snapshot_value->tick != 29u ||
       snapshot_value->names->get_allocator().resource() != &resource) {
     std::abort();
   }

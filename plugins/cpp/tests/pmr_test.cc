@@ -102,7 +102,7 @@ void CheckSnapshot() {
   DefaultResourceScope default_resource(denied);
   {
     auto decoded = bebop::Decode<game::pmr::WorldSnapshot>(*bytes, resource);
-    Check(decoded && decoded->tick == 42);
+    Check(decoded && decoded->tick == 42u);
     Check(decoded->entities->get_allocator().resource() == &resource);
     Check(decoded->metadata->label().get_allocator().resource() == &resource);
     Check(decoded->names->get_allocator().resource() == &resource);
@@ -190,16 +190,16 @@ void CheckRecursiveAllocation() {
   {
     auto decoded =
         bebop::Decode<Node>(std::span(storage).first(*written), resource);
-    Check(decoded && decoded->next->value == 9);
+    Check(decoded && decoded->next->value == 9u);
     Check(decoded->next.get_deleter().resource == &resource);
     Check(decoded->children->get_allocator().resource() == &resource);
-    Check(decoded->children->back().value == 11);
+    Check(decoded->children->back().value == 11u);
     Check(decoded->pair.get_deleter().resource == &resource);
-    Check((*decoded->pair)[0].value == 13);
+    Check((*decoded->pair)[0].value == 13u);
     Check((*decoded->pair)[1].next.get_deleter().resource == &resource);
     auto view =
         recursion::pmr::NodeView::Parse(std::span(storage).first(*written));
-    Check(view && view->next()->value() == 9);
+    Check(view && view->next()->value() == 9u);
     const auto nested = view->next()->encoded();
     const auto footer =
         static_cast<std::size_t>(nested.data() - storage.data()) +
@@ -353,14 +353,14 @@ void CheckAllocatorMove() {
     Check(moved.layers->back().get_allocator().resource() == &target);
     Check(moved.layers->back().back().next.get_deleter().resource == &target);
   }
-  Check(moved.value == 1 && moved.next->value == 2);
-  Check((*moved.pair)[0].next->value == 3);
-  Check(moved.children->back().next->value == 4);
+  Check(moved.value == 1u && moved.next->value == 2u);
+  Check((*moved.pair)[0].next->value == 3u);
+  Check(moved.children->back().next->value == 4u);
   Check(moved.branches->begin()->first == kText);
-  Check(moved.branches->begin()->second.next->value == 5);
-  Check(moved.sorted->values().front().next->value == 6);
-  Check(moved.lookup->begin()->second.next->value == 7);
-  Check(moved.layers->back().back().next->value == 8);
+  Check(moved.branches->begin()->second.next->value == 5u);
+  Check(moved.sorted->values().front().next->value == 6u);
+  Check(moved.lookup->begin()->second.next->value == 7u);
+  Check(moved.layers->back().back().next->value == 8u);
   auto bytes = bebop::Encode(moved, target);
   Check(bytes.has_value());
 

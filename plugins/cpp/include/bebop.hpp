@@ -2750,16 +2750,16 @@ class OwnershipMoveQueue {
   }
 
   void Push(OwnershipNode& destination, OwnershipNode& source) noexcept {
-    destination.next = head_;
-    source.next = &destination;
-    head_ = &source;
+    source.next = head_;
+    destination.next = &source;
+    head_ = &destination;
   }
 
   void Run() {
     while (head_ != nullptr) {
-      auto& source = *head_;
-      auto& destination = *source.next;
-      head_ = destination.next;
+      auto& destination = *head_;
+      auto& source = *destination.next;
+      head_ = source.next;
       source.next = nullptr;
       destination.next = nullptr;
       source.operations->move(destination, source, *this);
@@ -3047,11 +3047,11 @@ class CodecTraversal {
     if constexpr (RecursiveValue<Value>::value) {
       return stack.template Push<TraversalFrame<Value, Mode>>(value, reader);
     } else if constexpr (Mode == TraversalMode::kSize) {
-      auto size = Codec<Value>::Size(value, context);
-      if (!size) {
-        return std::unexpected(size.error());
+      auto value_size = Codec<Value>::Size(value, context);
+      if (!value_size) {
+        return std::unexpected(value_size.error());
       }
-      return Add(*size);
+      return Add(*value_size);
     } else if constexpr (Mode == TraversalMode::kEncode) {
       return Codec<Value>::Encode(*writer, value, context);
     } else {
