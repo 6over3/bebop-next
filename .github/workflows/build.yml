@@ -34,7 +34,7 @@ jobs:
           Add-MpPreference -ExclusionProcess @(
             "cmake.exe", "ctest.exe", "cpack.exe", "ninja.exe", "msbuild.exe",
             "cl.exe", "clang-cl.exe", "link.exe", "lld-link.exe",
-            "llvm-lib.exe", "llvm-ar.exe", "llvm-rc.exe", "rc.exe", "mt.exe"
+            "llvm-lib.exe", "llvm-ar.exe", "llvm-rc.exe", "llvm-mt.exe", "rc.exe", "mt.exe"
           )
 
       - name: Keep line endings as committed
@@ -108,9 +108,16 @@ jobs:
         run: cmake --build build/cmake --config ${{ inputs.build-type }} --parallel $env:NUMBER_OF_PROCESSORS -- -k 0
 
       - name: Test
+        id: tests
         if: runner.os != 'macOS' || inputs.arch == 'x64' || runner.arch == 'ARM64'
         working-directory: build/cmake
         run: ctest --output-on-failure -C ${{ inputs.build-type }}
+
+      - name: Diagnose Windows test crash
+        if: failure() && runner.os == 'Windows' && steps.tests.outcome == 'failure'
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\LLVM\bin\lldb.exe" --batch -o run -o "thread backtrace all" -o "register read" -- build/bin/test_cpp_well_known.exe
 
       - name: Install release files
         run: cmake --install build/cmake --prefix "${{ github.workspace }}/build/staging" --config ${{ inputs.build-type }}
