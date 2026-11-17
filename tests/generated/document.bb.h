@@ -17,7 +17,6 @@
 #define TEST_DOCUMENT_BOP_H_
 
 #include <bebop_wire.h>
-#include <math.h>
 #include "bebop/json.bb.h"
 // @@bebop_insertion_point(includes)
 

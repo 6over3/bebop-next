@@ -17,7 +17,6 @@
 #define BEBOP_PLUGIN_BOP_H_
 
 #include <bebop_wire.h>
-#include <math.h>
 #include "descriptor.bb.h"
 // @@bebop_insertion_point(includes)
 

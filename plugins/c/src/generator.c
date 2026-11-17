@@ -1794,7 +1794,6 @@ static void emit_file_header(gen_ctx_t* ctx, const bebop_descriptor_schema_t* sc
   sb_printf(&ctx->out, "#ifndef %s\n", guard.data);
   sb_printf(&ctx->out, "#define %s\n\n", guard.data);
   sb_puts(&ctx->out, "#include <bebop_wire.h>\n");
-  sb_puts(&ctx->out, "#include <math.h>\n");
   if (ctx->opts.output_mode == GEN_OUT_UNITY) {
     sb_puts(&ctx->out, "#include <bebop_wire_codegen.h>\n");
     sb_puts(&ctx->out, "#define BEBOP_WIRE_GENERATED_IMPLEMENTATION 1\n");
@@ -2055,15 +2054,15 @@ static void gen_const(gen_ctx_t* ctx, const bebop_descriptor_def_t* def)
     const double value = bebop_descriptor_literal_as_float(lit);
     if (isnan(value)) {
       if (signbit(value)) {
-        emit(ctx, "const double %s = -(double)NAN;", name);
+        emit(ctx, "const double %s = -BEBOP_FLOAT64_NAN;", name);
       } else {
-        emit(ctx, "const double %s = (double)NAN;", name);
+        emit(ctx, "const double %s = BEBOP_FLOAT64_NAN;", name);
       }
     } else if (isinf(value)) {
       if (signbit(value)) {
-        emit(ctx, "const double %s = -HUGE_VAL;", name);
+        emit(ctx, "const double %s = -BEBOP_FLOAT64_INFINITY;", name);
       } else {
-        emit(ctx, "const double %s = HUGE_VAL;", name);
+        emit(ctx, "const double %s = BEBOP_FLOAT64_INFINITY;", name);
       }
     } else {
       emit(ctx, "const double %s = %a;", name, value);

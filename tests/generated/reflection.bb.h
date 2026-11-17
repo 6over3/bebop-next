@@ -17,7 +17,6 @@
 #define REFLECTION_REFLECTION_BOP_H_
 
 #include <bebop_wire.h>
-#include <math.h>
 #include "bebop/any.bb.h"
 // @@bebop_insertion_point(includes)
 

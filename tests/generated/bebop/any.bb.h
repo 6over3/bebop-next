@@ -17,7 +17,6 @@
 #define BEBOP_ANY_BOP_H_
 
 #include <bebop_wire.h>
-#include <math.h>
 // @@bebop_insertion_point(includes)
 
 #ifdef __cplusplus
