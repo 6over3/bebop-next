@@ -52,15 +52,6 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Setup GCC 15
-        if: runner.os == 'Linux'
-        run: |
-          if ! command -v g++-15 >/dev/null; then
-            sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test
-            sudo apt-get update
-            sudo apt-get install --yes gcc-15 g++-15
-          fi
-
       - name: Select Xcode 26
         if: runner.os == 'macOS'
         run: sudo xcode-select --switch /Applications/Xcode_26.3.app

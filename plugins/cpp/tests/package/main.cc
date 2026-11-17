@@ -38,6 +38,13 @@ int main() {
       bebop::kHasNativeInt128,
       bebop::kHasNativeFloat16,
       bebop::kHasNativeBFloat16);
+  volatile float input = 1.5f;
+  const auto half = static_cast<bebop::Float16>(input);
+  const auto bfloat = static_cast<bebop::BFloat16>(input);
+  if (static_cast<float>(half) != 1.5f ||
+      static_cast<float>(bfloat) != 1.5f) {
+    return 1;
+  }
   packaging::Entity entity;
   entity.id = bebop::MakeUInt128(42, 7);
   entity.half = bebop::Float16FromBits(0x3555);

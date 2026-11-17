@@ -1293,7 +1293,7 @@ static void short_name(gen_sb_t* out, gen_ctx_t* ctx, const bebop_descriptor_typ
         [BEBOP_TYPE_UUID] = "uuid",     [BEBOP_TYPE_TIMESTAMP] = "ts",
         [BEBOP_TYPE_DURATION] = "dur",
     };
-    if (k < sizeof(names) / sizeof(names[0]) && names[k]) {
+    if ((size_t)k < sizeof(names) / sizeof(names[0]) && names[k]) {
       sb_puts(out, names[k]);
     } else {
       sb_puts(out, "x");
@@ -1395,7 +1395,7 @@ static void emit_array_type(gen_ctx_t* ctx, const bebop_descriptor_type_t* elem)
       [BEBOP_TYPE_DURATION] = "Bebop_Duration",
   };
 
-  if (ek < sizeof(prim_names) / sizeof(prim_names[0]) && prim_names[ek]) {
+  if ((size_t)ek < sizeof(prim_names) / sizeof(prim_names[0]) && prim_names[ek]) {
     sb_printf(&ctx->out, "%s%s", prim_names[ek], suffix);
     return;
   }

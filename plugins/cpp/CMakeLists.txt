@@ -10,6 +10,7 @@ target_include_directories(bebop_cpp INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+include(cmake/bebop-cpp-config.cmake)
 target_link_libraries(bebopc-gen-cpp PRIVATE bebop::cpp)
 
 install(TARGETS bebop_cpp EXPORT BebopCppTargets)

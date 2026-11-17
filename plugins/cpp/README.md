@@ -129,6 +129,10 @@ c++ -std=c++23 -I plugins/cpp/include -I generated example.cc -o example
 ./example
 ```
 
+```powershell
+clang-cl /clang:-std=c++23 /EHsc /clang:--rtlib=compiler-rt /Iplugins/cpp/include /Igenerated example.cc
+```
+
 For an installed runtime:
 
 ```cmake
