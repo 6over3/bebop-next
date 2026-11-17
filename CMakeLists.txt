@@ -94,6 +94,12 @@ elseif(MSVC)
                         $<$<NOT:$<CONFIG:Release>>:/fsanitize=address>)
 endif()
 
+include(cmake/BebopClangBuiltins.cmake)
+bebop_find_clang_builtins(BEBOP_CLANG_BUILTINS)
+if(BEBOP_CLANG_BUILTINS)
+    link_libraries("$<BUILD_INTERFACE:${BEBOP_CLANG_BUILTINS}>")
+endif()
+
 add_subdirectory(vendor)
 add_subdirectory(bebop)
 add_subdirectory(beboplsp)

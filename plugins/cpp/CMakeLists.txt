@@ -19,6 +19,7 @@ install(EXPORT BebopCppTargets NAMESPACE bebop::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bebop-cpp
 )
 install(FILES cmake/bebop-cpp-config.cmake
+    "${CMAKE_SOURCE_DIR}/cmake/BebopClangBuiltins.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bebop-cpp
 )
 
