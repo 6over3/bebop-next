@@ -25,12 +25,6 @@ jobs:
       os: macos-latest
       arch: arm64
 
-  macos-x64:
-    uses: ./.github/workflows/build.yml
-    with:
-      os: macos-15-intel
-      arch: x64
-
   windows-x64:
     uses: ./.github/workflows/build.yml
     with:

@@ -52,14 +52,6 @@ jobs:
       arch: arm64
       swift-version: "6.2"
 
-  macos-x64:
-    needs: [validate]
-    uses: ./.github/workflows/build.yml
-    with:
-      os: macos-26
-      arch: x64
-      swift-version: "6.2"
-
 
   windows-x64:
     needs: [validate]
@@ -140,7 +132,7 @@ jobs:
           retention-days: 1
 
   package:
-    needs: [validate, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript, codegen-cpp]
+    needs: [validate, linux-x64, linux-arm64, macos-arm64, windows-x64, windows-arm64, swift, typescript, codegen-c, codegen-typescript, codegen-cpp]
     runs-on: ubuntu-latest
     env:
       V: ${{ needs.validate.outputs.version }}
@@ -155,7 +147,6 @@ jobs:
             ["bebopc-ubuntu-latest-x64"]="linux-x64"
             ["bebopc-ubuntu-24.04-arm-arm64"]="linux-arm64"
             ["bebopc-macos-26-arm64"]="darwin-arm64"
-            ["bebopc-macos-26-x64"]="darwin-x64"
             ["bebopc-windows-2025-vs2026-x64"]="windows-x64"
             ["bebopc-windows-11-arm-arm64"]="windows-arm64"
           )

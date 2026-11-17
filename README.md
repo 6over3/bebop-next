@@ -4,7 +4,9 @@ Rewrite of the Bebop compiler in C. New schema language and wire format for the 
 
 ## Building
 
-Requires CMake 3.25+ and a C11/C++20 compiler.
+Requires CMake 3.25+ and a C11/C++23 compiler.
+
+Release binaries support Linux and Windows on x64/ARM64, and macOS on ARM64.
 
 ```sh
 make            # Release build
@@ -19,7 +21,7 @@ Output structure:
 build/
 ├── bin/        # bebopc, bebopc-gen-*
 ├── lib/        # libbebop.a
-├── include/    # bebop.h, bebop_wire.h
+├── include/    # bebop.h, bebop_wire.h, bebop.hpp
 └── share/      # standard library schemas
 ```
 
@@ -57,14 +59,17 @@ message Player {
 | Validation | done | Compatibility checks, decorator validation via Lua |
 | Descriptors | done | Reflection-ready binary format |
 | Wire format | done | Encode/decode for all types |
-| CLI (`bebopc`) | done | Config files, globbing, diagnostics. macOS only so far. |
+| CLI (`bebopc`) | done | Config files, globbing, diagnostics |
 | Watch mode | in progress | macOS FSEvents only. No incremental recheck. |
 | Plugin system | done | IPC via stdin/stdout, Bebop wire protocol |
-| C code generator | in progress | Basic types working, some features incomplete |
+| C code generator | done | Owning records, views, reflection |
+| C++ code generator | done | C++23, standalone header, views, PMR, reflection. RPC deferred. |
+| Swift code generator | done | Serialization, views, RPC |
+| TypeScript code generator | done | Serialization, views, RPC |
 | LSP server | in progress | Hover, go-to-definition, completion, formatting, rename |
 | VS Code extension | prototype | Language client exists |
-| Linux / Windows | not tested | Builds may work, not verified |
-| Other language generators | not started | TypeScript, Go, Rust, C#, etc. |
+| Linux / Windows | tested in CI | x64 and ARM64 |
+| Other language generators | not started | Go, Rust, C#, etc. |
 
 Definitions:
 
@@ -90,7 +95,7 @@ Definitions:
 | `bfloat16` | 2 | Alias: `bf16` |
 | `string` | variable | Length-prefixed UTF-8 |
 | `uuid` | 16 | Alias: `guid` |
-| `timestamp` | 12 | Seconds + nanoseconds since epoch |
+| `timestamp` | 16 | Seconds, nanoseconds, UTC offset |
 | `duration` | 12 | Seconds + nanoseconds |
 
 Collections: `T[]`, `T[N]`, `map[K, V]`

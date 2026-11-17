@@ -4,6 +4,8 @@ import "bebop/cpp.bop";
 
 mut struct Entity {
     id: uint128;
+    half: float16;
+    bfloat: bfloat16;
     labels: string[];
 }
 
